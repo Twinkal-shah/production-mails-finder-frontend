@@ -34,6 +34,7 @@ interface CsvRow {
 export default function VerifyPage() {
   const [singleEmail, setSingleEmail] = useState('')
   const [singleResult, setSingleResult] = useState<{ status: string; reason?: string; error?: string } | null>(null)
+  const [singleRaw, setSingleRaw] = useState<Record<string, unknown> | null>(null)
   const [isVerifyingSingle, setIsVerifyingSingle] = useState(false)
   const [rows, setRows] = useState<VerifyRow[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
@@ -139,6 +140,7 @@ export default function VerifyPage() {
         reason: typeof data.reason === 'string' && data.reason ? data.reason : undefined, 
         error: typeof data.error === 'string' && data.error ? data.error : undefined 
       })
+      setSingleRaw(data)
       
       if (data.status === 'valid') {
         toast.success('Email is valid!')
@@ -157,7 +159,7 @@ export default function VerifyPage() {
       toast.error(errorMessage)
     } finally {
       setIsVerifyingSingle(false)
-    }
+  }
   }
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -544,6 +546,13 @@ export default function VerifyPage() {
                     )}
                   </div>
                 </div>
+                {singleRaw && (
+                  <div className="mt-4 bg-muted rounded-md p-4 max-h-96 overflow-auto">
+                    <pre className="text-sm font-mono whitespace-pre-wrap">
+                      {JSON.stringify(singleRaw, null, 2)}
+                    </pre>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
