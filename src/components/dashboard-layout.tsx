@@ -29,6 +29,7 @@ import { getProfileDataClient } from '@/lib/profile'
 import { apiGet } from '@/lib/api'
 import { OnboardingFlow } from '@/components/onboarding-flow'
 import { toast } from 'sonner'
+import { useUserProfile } from '@/hooks/useCreditsData'
 
 interface DashboardLayoutProps {
   children: React.ReactNode
@@ -91,8 +92,25 @@ const [currentProfile, setCurrentProfile] = useState({
 })
   const pathname = usePathname()
   const router = useRouter()
+  const { data: queryProfile } = useUserProfile()
 
   // Listen for focus events to refresh profile data when user returns from payment
+  useEffect(() => {
+    if (queryProfile) {
+      const totalCredits = Math.max(queryProfile.credits_find || 0, 0) + Math.max(queryProfile.credits_verify || 0, 0)
+      setCurrentProfile({
+        full_name: queryProfile.full_name,
+        credits: totalCredits,
+        email: queryProfile.email,
+        company: currentProfile.company,
+        plan: queryProfile.plan,
+        plan_expiry: currentProfile.plan_expiry,
+        credits_find: Math.max(queryProfile.credits_find || 0, 0),
+        credits_verify: Math.max(queryProfile.credits_verify || 0, 0)
+      })
+    }
+  }, [queryProfile])
+
   useEffect(() => {
     const handleFocus = async () => {
       try {

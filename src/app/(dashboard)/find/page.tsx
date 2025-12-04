@@ -11,6 +11,7 @@ import { toast } from 'sonner'
 import { Search, Mail, CheckCircle, Clock } from 'lucide-react'
 import { findEmail as findEmailAction } from './actions'
 import { isAuthenticated, saveRedirectUrl } from '@/lib/auth'
+import { useQueryInvalidation } from '@/lib/query-invalidation'
 
 interface EmailResult {
   email: string | null
@@ -34,6 +35,7 @@ export default function FindPage() {
   const [result, setResult] = useState<EmailResult | null>(null)
   const [history, setHistory] = useState<SearchHistoryItem[]>([])
   const router = useRouter()
+  const { invalidateCreditsData } = useQueryInvalidation()
 
   // Check authentication on component mount
   useEffect(() => {
@@ -76,6 +78,7 @@ export default function FindPage() {
         }
         setHistory(prev => [newHistoryItem, ...prev.slice(0, 9)])
         toast.success('Email search completed!')
+        invalidateCreditsData()
       } else {
         toast.error(response.error || 'Failed to find email')
       }
