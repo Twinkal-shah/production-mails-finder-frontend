@@ -56,17 +56,11 @@ export default async function Layout({
     const accessToken = cookieStore.get('access_token')?.value
     
     if (accessToken) {
-      console.log('Fetching full profile from backend...')
-      const profileRes = await fetch(`${process.env.NEXT_PUBLIC_LOCAL_URL || 'http://server.mailsfinder.com:8081/.'}/api/user/profile/getProfile`, {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Cookie': cookieStore.toString()
-        },
-        cache: 'no-store'
-      })
-      
-      if (profileRes.ok) {
-        fullProfile = await profileRes.json()
+      console.log('Fetching full profile via proxy API...')
+      const profileRes = await apiGet<Record<string, unknown>>('/api/user/profile/getProfile', { useProxy: true })
+      if (profileRes.ok && profileRes.data) {
+        const d = profileRes.data as Record<string, unknown>
+        fullProfile = (d && typeof d === 'object' && 'data' in d) ? (d['data'] as Record<string, unknown>) : d
       }
     }
     const creditsRes = await apiGet<Record<string, unknown>>('/api/user/credits', { useProxy: true })
