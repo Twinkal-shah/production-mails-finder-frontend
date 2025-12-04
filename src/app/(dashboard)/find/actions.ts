@@ -98,6 +98,19 @@ export async function findEmail(request: FindEmailRequest): Promise<FindEmailRes
         }
       } catch {}
     }
+    if (result.email) {
+      try {
+        const { verifyEmail } = await import('@/lib/services/email-verifier')
+        const verification = await verifyEmail({ email: result.email })
+        if (verification.status !== 'valid') {
+          result.email = null
+          result.confidence = 0
+          result.status = 'not_found'
+        } else {
+          result.status = 'found'
+        }
+      } catch {}
+    }
     
     // Deduct credits for all search attempts (found, not_found, but not error)
  // Deduct credit if the finder actually returned an email (means it was a real attempt)

@@ -180,12 +180,12 @@ export default function FindPage() {
                       <p className="font-mono text-lg">{result.email}</p>
                     </div>
                     <div className="text-sm text-gray-600">
-                      Confidence: {result.confidence}%
+                      Status: Valid
                     </div>
                   </div>
                 ) : (
                   <div className="text-center py-4">
-                    <p className="text-gray-600">No email found for this search.</p>
+                    <p className="text-gray-600">Status: Invalid</p>
                   </div>
                 )}
               </CardContent>
