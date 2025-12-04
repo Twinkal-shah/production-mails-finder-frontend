@@ -419,35 +419,7 @@ export default function BulkFinderPage() {
       setProgressDirect(100)
       setIsProcessingDirect(false)
       setStatusDirectText('Completed')
-      const alreadyDeducted = Number(totalCredits || 0)
-      const desiredDeduct = totals.found
-      const additional = Math.max(desiredDeduct - alreadyDeducted, 0)
-      try {
-        if (additional > 0) {
-          const creditsRes = await fetch('/api/user/credits', { method: 'GET' })
-          let findCredits = 0
-          if (creditsRes.ok) {
-            const cd = await creditsRes.json()
-            findCredits = Number(cd?.credits_find ?? cd?.find ?? 0)
-          }
-          const newFindCredits = Math.max(findCredits - additional, 0)
-          await fetch('/api/user/profile/updateProfile', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              credits_find: newFindCredits,
-              metadata: {
-                operation: 'bulk_email_find_adjust',
-                desired_found: desiredDeduct,
-                already_deducted: alreadyDeducted,
-                additional_deducted: additional,
-                filename: originalFileName || undefined
-              }
-            })
-          })
-        }
-      } catch {}
-      toast.success(`Bulk find completed • Emails found: ${totals.found} • Credits used: ${alreadyDeducted + additional}`)
+      toast.success(`Bulk find completed${totalCredits ? ` • Credits used: ${totalCredits}` : ''}`)
       invalidateCreditsData()
     } catch (e) {
       setIsProcessingDirect(false)
