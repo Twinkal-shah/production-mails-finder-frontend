@@ -24,8 +24,6 @@ export async function POST(req: NextRequest) {
         ...(cookie ? { Cookie: cookie } : {}),
         ...(authHeader ? { Authorization: authHeader } : {}),
         ...(token && !authHeader ? { Authorization: `Bearer ${token}` } : {}),
-        // Hint CORS middleware to allow by using backend origin
-        Origin: backend
       },
       body
     })

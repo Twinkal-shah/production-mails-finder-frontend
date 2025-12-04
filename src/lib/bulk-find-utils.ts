@@ -57,7 +57,7 @@ export async function bulkFind(
   let completed = 0
   let totalCredits = 0
   const out: Array<Record<string, unknown>> = []
-  const apiBase = (process.env.NEXT_PUBLIC_CORE_API_BASE || 'http://server.mailsfinder.com:8081/./api').replace(/\/$/, '')
+  const apiBase = ((process.env.NEXT_PUBLIC_CORE_API_BASE || process.env.NEXT_PUBLIC_SERVER_URL || process.env.NEXT_PUBLIC_LOCAL_URL || 'http://server.mailsfinder.com:8081').replace(/\/+$/, '')) + '/api'
   const sameOrigin = typeof window !== 'undefined' ? window.location.origin.replace(/\/$/, '') : ''
   let accessToken: string | null = (typeof window !== 'undefined' ? localStorage.getItem('access_token') : null)
   let refreshToken: string | null = (typeof window !== 'undefined' ? localStorage.getItem('refresh_token') : null)
