@@ -7,13 +7,18 @@ export async function POST(request: NextRequest) {
     
     // Forward the request to the backend with authentication
     const cookie = request.headers.get('cookie') || ''
+    const auth = request.headers.get('authorization') || ''
+    const { getAccessTokenFromCookies } = await import('@/lib/auth-server')
+    const accessToken = await getAccessTokenFromCookies()
     const body = await request.json()
     
     const res = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(cookie ? { Cookie: cookie } : {})
+        ...(cookie ? { Cookie: cookie } : {}),
+        ...(auth ? { Authorization: auth } : {}),
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {})
       },
       body: JSON.stringify(body)
     })

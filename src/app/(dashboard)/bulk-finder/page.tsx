@@ -426,7 +426,8 @@ export default function BulkFinderPage() {
           const res = await fetch('/api/user/credits/deduct', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ amount: delta, operation: 'email_find', meta: { bulk: true, filename: originalFileName, processed: totals.processed, found: totals.found } })
+            credentials: 'include',
+            body: JSON.stringify({ amount: delta, operation: 'email_find', meta: { filename: originalFileName, processed: totals.processed, found: totals.found } })
           })
           if (!res.ok) {
             let latestFind = creditsFind
