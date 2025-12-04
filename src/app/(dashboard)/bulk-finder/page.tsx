@@ -138,6 +138,7 @@ export default function BulkFinderPage() {
   const [successDirectCount, setSuccessDirectCount] = useState(0)
   const [failedDirectCount, setFailedDirectCount] = useState(0)
   const [statusDirectText, setStatusDirectText] = useState('')
+  const [validatedDirectCount, setValidatedDirectCount] = useState(0)
 
   // No job-based endpoints on backend; page runs direct bulk find only
 
@@ -313,7 +314,7 @@ export default function BulkFinderPage() {
       setProgressDirect(0)
       const { items, totalCredits } = await bulkFind(
         validRows.map(r => ({ fullName: r.fullName, domain: r.domain })),
-        50,
+        5,
         2,
         (completed, total) => {
           setStatusDirectText(`Processing ${completed}/${total}`)
@@ -419,6 +420,7 @@ export default function BulkFinderPage() {
       setProgressDirect(100)
       setIsProcessingDirect(false)
       setStatusDirectText('Completed')
+      setValidatedDirectCount(totalCredits)
       toast.success(`Bulk find completed${totalCredits ? ` • Credits used: ${totalCredits}` : ''}`)
       invalidateCreditsData()
     } catch (e) {
@@ -481,7 +483,10 @@ export default function BulkFinderPage() {
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Bulk Email Finder</h1>
         <p className="text-gray-600 mt-2">
-          Expected columns: Full Name and Domain. Optional: Role.
+          Upload a CSV with columns: First Name, Last Name, Website. Optional: Role.
+        </p>
+        <p className="text-gray-600 mt-1">
+          Use a company website as a domain (hostname only). Tip: remove http://, https://, and www. Example: https://www.example.org → example.org
         </p>
       </div>
 
@@ -561,7 +566,11 @@ export default function BulkFinderPage() {
                   <CheckCircle className="h-6 w-6 text-green-600" />
                   <span className="text-lg font-medium text-green-600">Bulk Find Complete</span>
                 </div>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-4 gap-4">
+                  <div>
+                    <p className="text-2xl font-bold text-blue-600">{validatedDirectCount}</p>
+                    <p className="text-sm text-gray-600">Validated emails</p>
+                  </div>
                   <div>
                     <p className="text-2xl font-bold text-green-600">{successDirectCount}</p>
                     <p className="text-sm text-gray-600">Found</p>
