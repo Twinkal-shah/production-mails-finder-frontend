@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getBackendBaseUrl } from '@/lib/api'
 
 export async function GET(request: NextRequest) {
   try {
@@ -31,7 +32,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const backend = process.env.NEXT_PUBLIC_LOCAL_URL || 'http://server.mailsfinder.com:8081/.'
+    const backend = getBackendBaseUrl()
     const { jobId } = await request.json()
     if (!jobId) return NextResponse.json({ error: 'Job ID is required' }, { status: 400 })
 

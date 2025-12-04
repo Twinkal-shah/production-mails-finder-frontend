@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getBackendBaseUrl } from '@/lib/api'
 
 export async function POST(request: NextRequest) {
   try {
-    const backend = process.env.NEXT_PUBLIC_LOCAL_URL || 'http://server.mailsfinder.com:8081/.'
+    const backend = getBackendBaseUrl()
     const url = `${backend}/api/bulk-verify/jobs`
     
     // Forward the request to the backend with authentication

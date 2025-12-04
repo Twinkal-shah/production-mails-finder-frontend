@@ -23,11 +23,9 @@ export async function verifyEmailReal(
     // Get JWT token from cookies
     const { getAccessTokenFromCookies } = await import('@/lib/auth-server')
     const accessToken = await getAccessTokenFromCookies()
+    const { getBackendBaseUrl } = await import('@/lib/api')
 
-    const backend =
-      process.env.NEXT_PUBLIC_SERVER_URL ||
-      process.env.NEXT_PUBLIC_LOCAL_URL ||
-      'http://server.mailsfinder.com:8081/.'
+    const backend = getBackendBaseUrl()
 
     // Prepare body
     const params = new URLSearchParams()

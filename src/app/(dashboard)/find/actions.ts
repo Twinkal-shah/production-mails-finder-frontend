@@ -80,21 +80,9 @@ export async function findEmail(request: FindEmailRequest): Promise<FindEmailRes
           domain: request.company_domain,
           role: request.role
         }
-        const port = process.env.PORT
-        const origin = port ? `http://localhost:${port}` : (process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_LOCAL_FRONTEND_URL || 'http://localhost:3000')
-        const res = await fetch(`${origin.replace(/\/$/, '')}/api/email/findEmail`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(cookieHeader ? { Cookie: cookieHeader } : {}),
-            ...(token ? { Authorization: `Bearer ${token}` } : {})
-          },
-          body: JSON.stringify(payload),
-          cache: 'no-store'
-        })
-        const text = await res.text()
-        let data: Record<string, unknown> = {}
-        try { data = JSON.parse(text) as Record<string, unknown> } catch { data = {} }
+        const { apiPost } = await import('@/lib/api')
+        const apiRes = await apiPost<Record<string, unknown>>('/api/email/findEmail', payload, { useProxy: true, includeAuth: true, token })
+        const data: Record<string, unknown> = apiRes.ok && apiRes.data ? (apiRes.data as Record<string, unknown>) : {}
         const root = data
         const p = (typeof root?.data === 'object' && root.data !== null)
           ? (root.data as Record<string, unknown>)
@@ -121,31 +109,18 @@ if (result.status === 'found') {
     const cookieHeader = cookies().toString()
     const token = await getAccessTokenFromCookies()
 
-    const port = process.env.PORT
-    const origin = port ? `http://localhost:${port}` : (process.env.NEXT_PUBLIC_FRONTEND_URL || process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_LOCAL_FRONTEND_URL || "http://localhost:3000")
+    const { apiPut } = await import('@/lib/api')
+    await apiPut('/api/user/profile/updateProfile', {
+      credits_find: credits.find - 1,
+      metadata: {
+        email: result.email,
+        confidence: result.confidence,
+        status: result.status,
+        operation: 'email_find'
+      }
+    }, { useProxy: true, includeAuth: true, token })
 
-    const deductResponse = await fetch(`${origin.replace(/\/$/, '')}/api/user/profile/updateProfile`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(cookieHeader ? { Cookie: cookieHeader } : {}),
-        ...(token ? { Authorization: `Bearer ${token}` } : {})
-      },
-      body: JSON.stringify({
-        credits_find: credits.find - 1,
-        metadata: {
-          email: result.email,
-          confidence: result.confidence,
-          status: result.status,
-          operation: 'email_find'
-        }
-      }),
-      cache: "no-store" // <-- REQUIRED IN SERVER ACTIONS
-    })
-
-    if (!deductResponse.ok) {
-      console.error('Failed to deduct credits:', await deductResponse.text())
-    }
+    // No need to handle response; proxy route updates profile
   } catch (error) {
     console.error('Error deducting credits:', error)
   }

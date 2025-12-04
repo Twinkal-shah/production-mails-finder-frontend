@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getBackendBaseUrl } from '@/lib/api'
 
 export async function POST(req: NextRequest) {
-  const backend = process.env.NEXT_PUBLIC_SERVER_URL || process.env.NEXT_PUBLIC_LOCAL_URL || 'http://server.mailsfinder.com:8081/.'
+  const backend = getBackendBaseUrl()
   const url = `${backend}/api/email/verifyEmail`
   const cookie = req.headers.get('cookie') || ''
   const auth = req.headers.get('authorization') || ''

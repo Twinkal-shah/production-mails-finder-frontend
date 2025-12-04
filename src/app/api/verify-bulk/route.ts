@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getBackendBaseUrl } from '@/lib/api'
 
 export const runtime = 'nodejs'
 
 export async function POST(req: NextRequest) {
-  const backend = process.env.LOCAL_URL || process.env.NEXT_PUBLIC_LOCAL_URL || 'http://server.mailsfinder.com:8081/.'
+  const backend = getBackendBaseUrl()
   const urlPrimary = `${backend}/api/email/verifyBulkEmail`
 
   const cookie = req.headers.get('cookie') || ''

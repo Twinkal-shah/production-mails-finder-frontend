@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getBackendBaseUrl } from '@/lib/api'
 
 export async function POST(request: NextRequest) {
   try {
@@ -6,7 +7,7 @@ export async function POST(request: NextRequest) {
     const jobId = searchParams.get('jobId')
     if (!jobId) return NextResponse.json({ error: 'Job ID is required' }, { status: 400 })
 
-    const backend = process.env.NEXT_PUBLIC_LOCAL_URL || 'http://server.mailsfinder.com:8081/.'
+    const backend = getBackendBaseUrl()
     const url = `${backend}/api/bulk-verify/stop?jobId=${encodeURIComponent(jobId)}`
     const cookie = request.headers.get('cookie') || ''
     const auth = request.headers.get('authorization') || ''
