@@ -168,53 +168,6 @@ export async function processJobInBackground(jobId: string) {
           request.status = 'processing'
           console.log(`Processing request ${globalIndex + 1}/${requests.length}: ${request.full_name} @ ${request.domain}`)
 
-          // Check if user has credits before processing
-          const { data: userProfile, error: profileError } = await supabase
-            .from('profiles')
-            .select('credits_find, credits_verify')
-            .eq('id', job.user_id)
-            .single()
-          
-          if (profileError || !userProfile) {
-            console.error(`Error getting user profile for request ${globalIndex + 1}:`, profileError)
-            request.status = 'failed'
-            request.error = 'Failed to access user profile'
-            return { success: false, index: globalIndex }
-          }
-          
-          const currentFindCredits = userProfile.credits_find || 0
-          const currentVerifyCredits = userProfile.credits_verify || 0
-          const totalCredits = currentFindCredits + currentVerifyCredits
-          
-          if (totalCredits < 1) {
-            console.log('User has insufficient credits')
-            request.status = 'failed'
-            request.error = 'Insufficient credits'
-            return { success: false, index: globalIndex }
-          }
-          
-          // Deduct 1 credit (prefer find credits first)
-          const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() };
-          
-          if (currentFindCredits > 0) {
-            updateData.credits_find = currentFindCredits - 1
-          } else {
-            updateData.credits_verify = currentVerifyCredits - 1
-          }
-          
-          // Update user credits
-          const { error: updateError } = await supabase
-            .from('profiles')
-            .update(updateData)
-            .eq('id', job.user_id)
-          
-          if (updateError) {
-            console.error('Error deducting credit:', updateError)
-            request.status = 'failed'
-            request.error = 'Failed to deduct credit'
-            return { success: false, index: globalIndex }
-          }
-
           // Find email
           console.log(`Calling email finder API for request ${globalIndex + 1}`)
           const result = await findEmail({
@@ -317,18 +270,18 @@ export async function processJobInBackground(jobId: string) {
       }
     }
 
-    // Log single bulk transaction for all processed requests
-    if (totalProcessedRequests > 0) {
+    // Log single bulk transaction for successful finds only
+    if (successCount > 0) {
       const { error: transactionError } = await supabase
         .from('credit_transactions')
         .insert({
           user_id: job.user_id,
-          amount: -totalProcessedRequests,
+          amount: -successCount,
           operation: 'email_find',
           meta: {
             bulk: true,
             job_id: jobId,
-            total_requests: totalProcessedRequests,
+            total_successful_finds: successCount,
             batch_operation: true
           },
           created_at: new Date().toISOString()
@@ -338,7 +291,38 @@ export async function processJobInBackground(jobId: string) {
         console.error('Error logging bulk credit transaction:', transactionError)
         // Continue even if transaction logging fails
       } else {
-        console.log(`Logged bulk credit transaction for ${totalProcessedRequests} credits`)
+        console.log(`Logged bulk credit transaction for ${successCount} credits`)
+      }
+    }
+
+    // Deduct credits equal to successful finds (prefer find credits, then verify)
+    if (successCount > 0) {
+      const { data: profileAfter, error: profileReadError } = await supabase
+        .from('profiles')
+        .select('credits_find, credits_verify')
+        .eq('id', job.user_id)
+        .single()
+
+      if (!profileReadError && profileAfter) {
+        const currentFind = Math.max(Number(profileAfter.credits_find || 0), 0)
+        const currentVerify = Math.max(Number(profileAfter.credits_verify || 0), 0)
+        const useFind = Math.min(successCount, currentFind)
+        const remaining = successCount - useFind
+        const useVerify = Math.min(remaining, currentVerify)
+        const updateData: Record<string, unknown> = { updated_at: new Date().toISOString() }
+        if (useFind > 0) updateData.credits_find = currentFind - useFind
+        if (useVerify > 0) updateData.credits_verify = currentVerify - useVerify
+        const { error: profileUpdateError } = await supabase
+          .from('profiles')
+          .update(updateData)
+          .eq('id', job.user_id)
+        if (profileUpdateError) {
+          console.error('Error updating profile credits after job:', profileUpdateError)
+        } else {
+          console.log(`Deducted ${successCount} credits (${useFind} find, ${useVerify} verify) for job ${jobId}`)
+        }
+      } else {
+        console.error('Failed to read profile for final credit deduction:', profileReadError)
       }
     }
 
