@@ -73,31 +73,7 @@ export default function VerifyPage() {
     loadUserJobs()
   }, [loadUserJobs])
 
-  const storageKey = 'verify:lastJob'
-  useEffect(() => {
-    try {
-      const raw = typeof window !== 'undefined' ? window.localStorage.getItem(storageKey) : null
-      if (raw) {
-        const data = JSON.parse(raw)
-        if (Array.isArray(data.rows)) setRows(data.rows)
-        if (typeof data.originalFileName === 'string') setOriginalFileName(data.originalFileName)
-        if (Array.isArray(data.originalColumnOrder)) setOriginalColumnOrder(data.originalColumnOrder)
-        if (data.currentJob) setCurrentJob(data.currentJob)
-      }
-    } catch {}
-  }, [])
-  useEffect(() => {
-    try {
-      if (typeof window === 'undefined') return
-      const payload = JSON.stringify({
-        rows,
-        originalFileName,
-        originalColumnOrder,
-        currentJob
-      })
-      window.localStorage.setItem(storageKey, payload)
-    } catch {}
-  }, [rows, originalFileName, originalColumnOrder, currentJob])
+  
 
   // Update progress when current job changes
   useEffect(() => {
