@@ -9,12 +9,12 @@ interface RequestOptions {
   token?: string | null
 }
 
-function getBackendBaseUrl(): string {
+export function getBackendBaseUrl(): string {
   return (
     process.env.NEXT_PUBLIC_SERVER_URL ||
     process.env.NEXT_PUBLIC_LOCAL_URL ||
     process.env.NEXT_PUBLIC_CORE_API_BASE ||
-    'http://server.mailsfinder.com:8081/.'
+    'http://server.mailsfinder.com:8081'
   )
 }
 
