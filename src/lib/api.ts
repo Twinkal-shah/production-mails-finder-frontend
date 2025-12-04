@@ -10,12 +10,13 @@ interface RequestOptions {
 }
 
 export function getBackendBaseUrl(): string {
-  return (
+  const raw = (
     process.env.NEXT_PUBLIC_SERVER_URL ||
     process.env.NEXT_PUBLIC_LOCAL_URL ||
     process.env.NEXT_PUBLIC_CORE_API_BASE ||
     'http://server.mailsfinder.com:8081'
   )
+  return raw.replace(/\/+$/, '')
 }
 
 
