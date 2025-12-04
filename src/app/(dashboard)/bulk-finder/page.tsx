@@ -419,7 +419,40 @@ export default function BulkFinderPage() {
       setProgressDirect(100)
       setIsProcessingDirect(false)
       setStatusDirectText('Completed')
-      toast.success(`Bulk find completed${totalCredits ? ` • Credits used: ${totalCredits}` : ''}`)
+      const used = Number(totalCredits || 0)
+      const delta = Math.max(0, totals.found - used)
+      if (delta > 0) {
+        try {
+          const res = await fetch('/api/user/credits/deduct', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ amount: delta, operation: 'email_find', meta: { bulk: true, filename: originalFileName, processed: totals.processed, found: totals.found } })
+          })
+          if (!res.ok) {
+            let latestFind = creditsFind
+            let latestVerify = creditsVerify
+            try {
+              const cur = await fetch('/api/user/credits', { method: 'GET' })
+              if (cur.ok) {
+                const cd = await cur.json()
+                latestFind = Number(cd?.credits_find ?? cd?.find ?? latestFind)
+                latestVerify = Number(cd?.credits_verify ?? cd?.verify ?? latestVerify)
+              }
+            } catch {}
+            const useFind = Math.min(delta, latestFind)
+            const remaining = delta - useFind
+            const useVerify = Math.min(remaining, latestVerify)
+            const newFind = Math.max(0, latestFind - useFind)
+            const newVerify = Math.max(0, latestVerify - useVerify)
+            await fetch('/api/user/profile/updateProfile', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ credits_find: newFind, credits_verify: newVerify })
+            })
+          }
+        } catch {}
+      }
+      toast.success(`Bulk find completed${used ? ` • Credits used: ${used}` : ''}`)
       invalidateCreditsData()
     } catch (e) {
       setIsProcessingDirect(false)
