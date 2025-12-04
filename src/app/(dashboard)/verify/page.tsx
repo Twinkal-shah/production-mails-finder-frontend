@@ -280,7 +280,6 @@ export default function VerifyPage() {
         return ok ? r : { ...r, status: 'invalid' }
       }))
 
-      const backend = process.env.NEXT_PUBLIC_LOCAL_URL || 'http://server.mailsfinder.com:8081/.'
       const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
       const chunk = (list: string[], size: number) => {
         const out: string[][] = []
@@ -288,7 +287,7 @@ export default function VerifyPage() {
         return out
       }
       const verifyBulkChunk = async (emailsBatch: string[]) => {
-        const resp = await fetch(`${backend}/api/email/verifyBulkEmail`, {
+        const resp = await fetch('/api/verify-bulk', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
