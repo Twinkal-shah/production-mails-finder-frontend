@@ -108,6 +108,12 @@ export default function VerifyPage() {
     }
   }, [currentJob])
 
+  const formatLabel = (key: string) => {
+    return key
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, (c) => c.toUpperCase())
+  }
+
   const verifySingle = async () => {
     if (!singleEmail.trim()) {
       toast.error('Please enter an email address')
@@ -532,25 +538,25 @@ export default function VerifyPage() {
                   {singleResult.status === 'risky' && <AlertCircle className="h-5 w-5 text-yellow-600" />}
                   <div>
                     <p className="font-medium">
-                      Status: <span className="capitalize">{singleResult.status === 'valid' ? 'Valid' : singleResult.status}</span>
+                      Status: <span>{singleResult.status}</span>
                     </p>
-                    {singleResult.reason && singleResult.reason.trim() && (
-                      <p className="text-sm text-gray-600">
-                        Reason: {singleResult.reason}
-                      </p>
-                    )}
-                    {singleResult.error && singleResult.error.trim() && (
-                      <p className="text-sm text-red-600">
-                        Error: {singleResult.error}
-                      </p>
-                    )}
+                    {singleResult.status !== 'valid' && singleResult.status !== 'invalid' && (() => {
+                      const msg = (typeof singleRaw?.reason === 'string' && singleRaw.reason) || singleResult.reason || singleResult.error
+                      return msg ? (
+                        <p className="text-sm text-gray-600">Reason: {String(msg)}</p>
+                      ) : null
+                    })()}
                   </div>
                 </div>
-                {singleRaw && (
-                  <div className="mt-4 bg-muted rounded-md p-4 max-h-96 overflow-auto">
-                    <pre className="text-sm font-mono whitespace-pre-wrap">
-                      {JSON.stringify(singleRaw, null, 2)}
-                    </pre>
+                {singleResult.status === 'valid' && singleRaw && (
+                  <div className="mt-4 space-y-1">
+                    {Object.entries(singleRaw)
+                      .filter(([key, value]) => key !== 'reason' && key !== 'status' && value !== undefined && value !== null && !(typeof value === 'string' && value.trim() === ''))
+                      .map(([key, value]) => (
+                        <p key={key} className="text-sm text-gray-800">
+                          {formatLabel(key)}: {String(value)}
+                        </p>
+                      ))}
                   </div>
                 )}
               </CardContent>
