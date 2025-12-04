@@ -45,7 +45,7 @@ export function chunk<T>(list: T[], size: number): T[][] {
 
 export async function bulkFind(
   rows: Array<{ fullName: string; domain: string }>,
-  startBatchSize = 5,
+  startBatchSize = 50,
   maxConcurrency = 2,
   onProgress?: (completed: number, total: number) => void
 ): Promise<{ items: Array<Record<string, unknown>>; totalCredits: number }> {
