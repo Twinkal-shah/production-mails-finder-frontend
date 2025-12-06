@@ -21,6 +21,10 @@ function createSupabaseClient() {
  * Recovers stuck jobs that have been processing for more than 30 minutes
  */
 export async function recoverStuckJobs() {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    console.log('recoverStuckJobs skipped: Supabase env not configured')
+    return
+  }
   const supabase = createSupabaseClient()
   
   try {

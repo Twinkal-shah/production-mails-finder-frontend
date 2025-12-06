@@ -12,9 +12,13 @@ export async function initializeApplication() {
     const jobQueue = getJobQueue()
     console.log('Job queue initialized')
     
-    // Recover any stuck jobs
-    await jobQueue.recoverStuckJobs()
-    console.log('Stuck job recovery completed')
+    // Recover any stuck jobs (only if Supabase is configured)
+    if (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      await jobQueue.recoverStuckJobs()
+      console.log('Stuck job recovery completed')
+    } else {
+      console.log('Skipping stuck job recovery: Supabase not configured')
+    }
     
     // Get initial queue status
     const status = await jobQueue.getQueueStatus()

@@ -26,14 +26,15 @@ export async function POST(request: NextRequest) {
     const { action, jobId } = body
     
     const jobQueue = getJobQueue()
+    const hasSupabase = !!process.env.NEXT_PUBLIC_SUPABASE_URL && !!process.env.SUPABASE_SERVICE_ROLE_KEY
     
     switch (action) {
       case 'recover':
+        if (!hasSupabase) {
+          return NextResponse.json({ success: true, message: 'Queue recovery skipped: Supabase not configured' })
+        }
         await jobQueue.recoverStuckJobs()
-        return NextResponse.json({ 
-          success: true, 
-          message: 'Stuck jobs recovery initiated' 
-        })
+        return NextResponse.json({ success: true, message: 'Stuck jobs recovery initiated' })
         
       case 'add':
         if (!jobId) {
