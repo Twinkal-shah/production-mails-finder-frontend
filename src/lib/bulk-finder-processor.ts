@@ -78,6 +78,11 @@ export async function processJobInBackground(jobId: string) {
   // Register this job as active for persistence tracking
   registerActiveJob(jobId)
   
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    console.log('processJobInBackground skipped: Supabase env not configured')
+    unregisterActiveJob(jobId)
+    return
+  }
   const supabase = createSupabaseClient()
 
   // Set up heartbeat to update job timestamp every 30 seconds

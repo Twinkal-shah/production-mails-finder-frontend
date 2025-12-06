@@ -62,22 +62,7 @@ const extractFullName = (row: CsvRow, mapping: { fullName?: string }) => {
   return ((row[mapping.fullName] as string) || '').trim()
 }
 
-const extractFirstLast = (row: CsvRow, mapping: { fullName?: string }): { first_name: string; last_name: string } => {
-  if (!mapping.fullName) return { first_name: '', last_name: '' }
-  if (mapping.fullName.includes('+')) {
-    const [firstName, lastName] = mapping.fullName.split('+')
-    const first = ((row[firstName] as string) || '').trim()
-    const last = ((row[lastName] as string) || '').trim()
-    return { first_name: first, last_name: last }
-  }
-  const full = ((row[mapping.fullName] as string) || '').trim()
-  const parts = full.split(/\s+/)
-  const first = parts[0] || ''
-  const last = parts.slice(1).join(' ') || ''
-  return { first_name: first, last_name: last }
-}
-
-const normalizeName = (name: string) => name.toLowerCase().replace(/[^a-z\s]/g, '').replace(/\s+/g, ' ').trim()
+ 
 
 const normalizeDomain = (value: string) => {
   let s = (value || '').trim()
@@ -277,8 +262,6 @@ export default function BulkFinderPage() {
     setStatusDirectText('')
     setRows(prev => prev.map(r => ({ ...r, status: 'processing' })))
     try {
-      const backend = process.env.NEXT_PUBLIC_LOCAL_URL || 'http://server.mailsfinder.com:8081/.'
-      const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
 
       let creditsFind = 0
       let creditsVerify = 0

@@ -43,12 +43,11 @@ export async function POST(request: NextRequest) {
             { status: 400 }
           )
         }
-        
+        if (!hasSupabase) {
+          return NextResponse.json({ success: false, message: 'Add job skipped: Supabase not configured' })
+        }
         const success = await jobQueue.addJob(jobId)
-        return NextResponse.json({ 
-          success, 
-          message: success ? 'Job added to queue' : 'Failed to add job to queue' 
-        })
+        return NextResponse.json({ success, message: success ? 'Job added to queue' : 'Failed to add job to queue' })
         
       case 'status':
         const status = await jobQueue.getQueueStatus()
