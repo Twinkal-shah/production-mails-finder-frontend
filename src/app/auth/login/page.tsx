@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -11,12 +12,13 @@ import { apiPost } from '@/lib/api'
  
 
 export default function LoginPage() {
+  const params = useSearchParams()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
-  const [isSignUp, setIsSignUp] = useState(false)
+  const [isSignUp, setIsSignUp] = useState(params.get('signup') === '1')
   const [fullName, setFullName] = useState('')
   const [company, setCompany] = useState('')
   const [phone, setPhone] = useState('')

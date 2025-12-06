@@ -49,9 +49,15 @@ export async function GET(req: NextRequest) {
       },
       cache: 'no-store',
     })
-    const contentType = res.headers.get('content-type') || 'application/json'
-    const text = await res.text()
-    if (res.status === 404 || res.status === 429) {
+  const contentType = res.headers.get('content-type') || 'application/json'
+  const text = await res.text()
+  if (res.status === 404) {
+      const response = NextResponse.json({ status: 404, success: false, message: 'User not found' }, { status: 401 })
+      response.cookies.set('access_token', '', { httpOnly: true, sameSite: 'lax', maxAge: 0 })
+      response.cookies.set('user_data', '', { httpOnly: true, sameSite: 'lax', maxAge: 0 })
+      return response
+    }
+    if (res.status === 429) {
       const user = await getCurrentUserFromCookies()
       const find = Math.max(Number(user?.credits_find ?? 0), 0)
       const verify = Math.max(Number(user?.credits_verify ?? 0), 0)

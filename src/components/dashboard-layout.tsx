@@ -115,10 +115,25 @@ const [currentProfile, setCurrentProfile] = useState({
     const handleFocus = async () => {
       try {
         console.log('Trying to fetch profile from backend...')
-        const updatedProfile = await getProfileDataClient()
-        console.log('Backend profile result:', updatedProfile)
-        if (updatedProfile) {
-          const up = updatedProfile as Record<string, unknown>
+        const profileRes = await apiGet<Record<string, unknown>>('/api/user/profile/getProfile', { useProxy: true })
+        if (profileRes.status === 401) {
+          try {
+            await fetch('/api/user/auth/logout', { method: 'POST' })
+          } catch {}
+          try {
+            localStorage.removeItem('access_token')
+            localStorage.removeItem('user_data')
+            localStorage.removeItem('auth_token')
+            localStorage.removeItem('refresh_token')
+          } catch {}
+          router.push('/auth/login?signup=1')
+          return
+        }
+        console.log('Backend profile result:', profileRes)
+        if (profileRes.ok && profileRes.data) {
+          const up = (profileRes.data && typeof profileRes.data === 'object' && 'data' in profileRes.data)
+            ? ((profileRes.data as Record<string, unknown>)['data'] as Record<string, unknown>)
+            : (profileRes.data as Record<string, unknown>)
           // ⭐ FIX FLICKER: Remove old backend credits field immediately
   if ('credits' in up) {
     delete up.credits
