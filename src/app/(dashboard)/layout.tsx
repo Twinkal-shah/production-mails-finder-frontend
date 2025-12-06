@@ -2,6 +2,7 @@ import { DashboardLayout } from '@/components/dashboard-layout'
 import { getCurrentUserFromCookies } from '@/lib/auth-server'
 import { cookies } from 'next/headers'
 import { apiGet } from '@/lib/api'
+import { redirect } from 'next/navigation'
 
 // Force dynamic rendering for all dashboard pages
 export const dynamic = 'force-dynamic'
@@ -23,26 +24,8 @@ export default async function Layout({
   const allCookies = cookieStore.getAll()
   console.log('All cookies:', allCookies.map(c => ({ name: c.name, value: c.value.substring(0, 50) + '...' })))
   
-  // If no user found via cookies, don't redirect immediately
-  // Let the client-side handle authentication
- if (!user) {
-  return (
-    <DashboardLayout userProfile={{
-      full_name: '',
-      email: '',
-      company: null,
-      plan: 'free',
-      plan_expiry: null,
-
-      // ⭐ Prevent flicker — do NOT initialize credits to 0
-      credits: undefined as unknown as number,
-      credits_find: undefined as unknown as number,
-      credits_verify: undefined as unknown as number,
-    }}>
-
-        {children}
-      </DashboardLayout>
-    )
+  if (!user) {
+    redirect('/auth/login')
   }
   
   // User found via cookies, proceed normally

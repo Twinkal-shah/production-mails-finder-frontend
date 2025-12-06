@@ -4,14 +4,21 @@ import type { NextRequest } from 'next/server'
 export async function middleware(request: NextRequest) {
   const url = request.nextUrl.clone()
   const pathname = url.pathname
+  const hasAccessToken = !!request.cookies.get('access_token')?.value
+  const isAuthPath = pathname.startsWith('/auth')
+  const isStaticAsset = pathname.startsWith('/_next') || pathname === '/favicon.svg'
+  const isApiRoute = pathname.startsWith('/api')
   
-  // Always redirect root to /find to show dashboard directly
   if (pathname === '/') {
-    url.pathname = '/find'
+    url.pathname = hasAccessToken ? '/find' : '/auth/login'
     return NextResponse.redirect(url)
   }
-  
-  // Allow all other routes without authentication
+
+  if (!isApiRoute && !isStaticAsset && !isAuthPath && !hasAccessToken) {
+    url.pathname = '/auth/login'
+    return NextResponse.redirect(url)
+  }
+
   return NextResponse.next()
 }
 
