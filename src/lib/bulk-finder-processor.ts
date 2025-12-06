@@ -5,22 +5,27 @@ import type { BulkFindRequest } from '@/app/(dashboard)/bulk-finder/types'
 
 function createSupabaseClient() {
   // Use service role key for background processing to avoid session dependency
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false
-      }
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!url || !key) {
+    throw new Error('Supabase disabled')
+  }
+  return createClient(url, key, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
     }
-  )
+  })
 }
 
 /**
  * Recovers stuck jobs that have been processing for more than 30 minutes
  */
 export async function recoverStuckJobs() {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    console.log('recoverStuckJobs skipped: Supabase disabled')
+    return
+  }
   const supabase = createSupabaseClient()
   
   try {
@@ -74,6 +79,11 @@ export async function processJobInBackground(jobId: string) {
   // Register this job as active for persistence tracking
   registerActiveJob(jobId)
   
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    console.log('processJobInBackground skipped: Supabase disabled')
+    unregisterActiveJob(jobId)
+    return
+  }
   const supabase = createSupabaseClient()
 
   // Set up heartbeat to update job timestamp every 30 seconds

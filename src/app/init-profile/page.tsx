@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { createClient } from '@/lib/supabase'
+// Supabase-based profile init disabled
 import { useRouter } from 'next/navigation'
 
 export default function InitProfilePage() {
@@ -13,60 +13,8 @@ export default function InitProfilePage() {
     setLoading(true)
     setMessage('')
     
-    try {
-      const supabase = createClient()
-      const { data: { user }, error: userError } = await supabase.auth.getUser()
-      
-      if (userError || !user) {
-        setMessage('Error: Not authenticated. Please log in first.')
-        return
-      }
-
-      // Check if profile already exists
-      const { data: existingProfile } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('id', user.id)
-        .single()
-
-      if (existingProfile) {
-        setMessage('Profile already exists! Redirecting to credits page...')
-        setTimeout(() => router.push('/credits'), 2000)
-        return
-      }
-
-      // Create the profile
-      const { error: insertError } = await supabase
-        .from('profiles')
-        .insert({
-          id: user.id,
-          email: user.email || '',
-          full_name: user.user_metadata?.full_name || 'User',
-          company: user.user_metadata?.company || null,
-          plan: 'free',
-          plan_expiry: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(), // 3 days from now
-          credits: 25,
-          credits_find: 25,
-          credits_verify: 25,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-
-      if (insertError) {
-        console.error('Error creating profile:', insertError)
-        setMessage(`Error creating profile: ${insertError.message}`)
-        return
-      }
-
-      setMessage('Profile created successfully! Redirecting to credits page...')
-      setTimeout(() => router.push('/credits'), 2000)
-      
-    } catch (error) {
-      console.error('Error:', error)
-      setMessage(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`)
-    } finally {
-      setLoading(false)
-    }
+    setMessage('Profile initialization is disabled')
+    setLoading(false)
   }
 
   return (

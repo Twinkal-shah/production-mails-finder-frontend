@@ -1,9 +1,11 @@
-import { createServiceRoleClient } from '@/lib/supabase'
 import { NextResponse } from 'next/server'
 
 export async function GET() {
   try {
-    const supabase = createServiceRoleClient()
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return NextResponse.json({ error: 'Supabase disabled' }, { status: 501 })
+    }
+    const supabase = (await import('@/lib/supabase')).createServiceRoleClient()
     
     // Check profiles with NULL customer data
     const { data: profilesWithNulls, error: nullError } = await supabase

@@ -4,16 +4,17 @@ import { createClient } from '@supabase/supabase-js'
 const activeJobs = new Map<string, NodeJS.Timeout>()
 
 export function createSupabaseClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false
-      }
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!url || !key) {
+    throw new Error('Supabase disabled')
+  }
+  return createClient(url, key, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
     }
-  )
+  })
 }
 
 /**
@@ -23,6 +24,10 @@ export function createSupabaseClient() {
 export async function initializeJobPersistence() {
   console.log('Initializing job persistence...')
   
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    console.log('Job persistence skipped: Supabase disabled')
+    return
+  }
   const supabase = createSupabaseClient()
   
   try {
@@ -78,6 +83,10 @@ export async function initializeJobPersistence() {
 export async function processPendingJobs() {
   console.log('Checking for pending jobs to process...')
   
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    console.log('Pending jobs processing skipped: Supabase disabled')
+    return
+  }
   const supabase = createSupabaseClient()
   
   try {
@@ -151,6 +160,11 @@ export function getActiveJobs(): string[] {
 export async function gracefulShutdown() {
   console.log('Performing graceful shutdown...')
   
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    console.log('Graceful shutdown skipped: Supabase disabled')
+    activeJobs.clear()
+    return
+  }
   const supabase = createSupabaseClient()
   const activeJobIds = getActiveJobs()
   
