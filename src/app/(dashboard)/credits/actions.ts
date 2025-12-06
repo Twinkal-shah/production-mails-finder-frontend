@@ -50,27 +50,15 @@ export async function getUserProfileWithCredits() {
       }
     }
     
-    // Map user data from cookies to profile structure with type guards
-    const u = user as Record<string, unknown>
-    const id = (typeof u.id === 'string' && u.id) || (typeof u._id === 'string' && u._id) || 'client-user'
-    const email = typeof u.email === 'string' ? u.email : ''
-    const firstName = typeof u.firstName === 'string' ? u.firstName : ''
-    const lastName = typeof u.lastName === 'string' ? u.lastName : ''
-    const fullNameField = typeof u.full_name === 'string' ? u.full_name : ''
-    const nameFromFields = `${firstName} ${lastName}`.trim()
-    const fallbackName = email ? email.split('@')[0] : ''
-    const plan = typeof u.plan === 'string' ? u.plan : 'free'
-    const creditsFind = Math.max(Number(u.credits_find ?? 0), 0)
-    const creditsVerify = Math.max(Number(u.credits_verify ?? 0), 0)
-
+    // Map user data from cookies to profile structure
     return {
-      id,
-      email,
-      full_name: fullNameField || nameFromFields || fallbackName || null,
-      plan,
-      credits_find: creditsFind,
-      credits_verify: creditsVerify,
-      total_credits: creditsFind + creditsVerify
+      id: user.id || user._id || 'client-user',
+      email: user.email || '',
+      full_name: user.full_name || `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email?.split('@')[0] || null,
+      plan: user.plan || 'free',
+      credits_find: user.credits_find || 0,
+      credits_verify: user.credits_verify || 0,
+      total_credits: (user.credits_find || 0) + (user.credits_verify || 0)
     }
   } catch (error) {
     console.error('Error fetching user profile:', error)

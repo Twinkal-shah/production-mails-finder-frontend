@@ -1,16 +1,11 @@
 import { NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
 // Create Supabase client with service role for API authentication
 function createServiceClient() {
-  if (!supabaseUrl || !supabaseServiceKey) {
-    return {
-      rpc: async () => ({ data: null, error: { message: 'supabase disabled' } })
-    } as unknown as ReturnType<typeof createServerClient>
-  }
   return createServerClient(supabaseUrl, supabaseServiceKey, {
     cookies: {
       get() { return undefined },
@@ -44,9 +39,6 @@ setInterval(() => {
 
 export async function authenticateApiRequest(request: NextRequest): Promise<ApiAuthResult> {
   try {
-    if (!supabaseUrl || !supabaseServiceKey) {
-      return { success: false, error: 'API key auth disabled' }
-    }
     // Get API key from Authorization header
     const authHeader = request.headers.get('authorization')
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -161,9 +153,6 @@ export async function deductApiCredits(
   creditType: 'find' | 'verify'
 ): Promise<boolean> {
   try {
-    if (!supabaseUrl || !supabaseServiceKey) {
-      return false
-    }
     const supabase = createServiceClient()
     
     const { error } = await supabase.rpc('deduct_credits', {

@@ -31,35 +31,19 @@ export async function POST(req: NextRequest) {
     }
     
     // Handle different backend response formats
-    let accessToken: string | undefined, user: unknown
+    let accessToken, user
     
-    // Preferred: { data: { user, access_token | token } }
-    if (responseData && typeof responseData === 'object' && 'data' in responseData) {
-      const d = (responseData as Record<string, unknown>).data as Record<string, unknown>
-      const t1 = d?.access_token
-      const t2 = d?.token
-      const u1 = d?.user
-      if (typeof t1 === 'string' || typeof t2 === 'string') {
-        accessToken = (typeof t1 === 'string' ? t1 : (typeof t2 === 'string' ? t2 : undefined))
-        user = u1 ?? user
-        console.log('Detected backend format inside data')
-      }
+    // Check for your backend format: { data: { user, access_token } }
+    if (responseData.data && responseData.data.user && responseData.data.access_token) {
+      accessToken = responseData.data.access_token
+      user = responseData.data.user
+      console.log('Detected your backend format with data wrapper')
     }
-    // Alternate: { access_token | token, user }
-    if (!accessToken && responseData && typeof responseData === 'object') {
-      const t3 = (responseData as Record<string, unknown>).access_token
-      const t4 = (responseData as Record<string, unknown>).token
-      const u2 = (responseData as Record<string, unknown>).user
-      if (typeof t3 === 'string' || typeof t4 === 'string') {
-        accessToken = (typeof t3 === 'string' ? (t3 as string) : (typeof t4 === 'string' ? (t4 as string) : undefined))
-        user = u2 ?? user
-        console.log('Detected top-level token format')
-      }
-    }
-    // As a last resort, accept any non-empty string token and try to read user from text
-    if (!accessToken && typeof responseData === 'string' && responseData.length > 0) {
-      accessToken = responseData
-      console.log('Detected raw token string format')
+    // Check for standard format: { accessToken, user }
+    else if (responseData.accessToken && responseData.user) {
+      accessToken = responseData.accessToken
+      user = responseData.user
+      console.log('Detected standard format')
     }
     
     // If login was successful and we have the data, set cookies

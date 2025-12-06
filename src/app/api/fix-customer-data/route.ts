@@ -1,12 +1,10 @@
+import { createServiceRoleClient } from '@/lib/supabase'
 import { NextResponse } from 'next/server'
 import { createLemonSqueezyPortal } from '@/lib/services/lemonsqueezy'
 
 export async function POST() {
   try {
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      return NextResponse.json({ error: 'Supabase disabled' }, { status: 501 })
-    }
-    const supabase = (await import('@/lib/supabase')).createServiceRoleClient()
+    const supabase = createServiceRoleClient()
     
     // Find profiles with missing customer data
     const { data: profilesWithNulls } = await supabase

@@ -1,13 +1,17 @@
 import { cookies } from 'next/headers'
 import { NextRequest } from 'next/server'
 
+// Server-side function to get user from cookies
 export async function getCurrentUserFromCookies() {
   try {
-    const { apiGet } = await import('@/lib/api')
-    const res = await apiGet<Record<string, unknown>>('/api/user/me', { useProxy: true })
-    if (!res.ok || !res.data) return null
-    const data = res.data as Record<string, unknown>
-    return data
+    const cookieStore = await cookies()
+    const userCookie = cookieStore.get('user_data')
+    
+    if (!userCookie) {
+      return null
+    }
+    
+    return JSON.parse(userCookie.value)
   } catch (error) {
     console.error('Error getting user from cookies:', error)
     return null

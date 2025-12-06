@@ -347,10 +347,6 @@ export function verifyLemonSqueezyWebhook(
 
 // Handle LemonSqueezy webhook events
 export async function handleLemonSqueezyWebhook(event: LemonSqueezyWebhookEvent) {
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    console.log('Webhook handling: Supabase disabled, skipping DB updates')
-    return
-  }
   const supabase = createServiceRoleClient()
   
   try {

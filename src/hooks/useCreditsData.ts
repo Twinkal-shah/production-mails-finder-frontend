@@ -33,7 +33,15 @@ export function useUserProfile() {
           total_credits: Math.max(findCredits, 0) + Math.max(verifyCredits, 0)
         }
       }
-      return null
+      return {
+        id: 'guest',
+        email: 'Please log in',
+        full_name: 'Guest User',
+        plan: 'free',
+        credits_find: 0,
+        credits_verify: 0,
+        total_credits: 0
+      }
     },
     staleTime: 0,
     gcTime: 5 * 60 * 1000,
