@@ -155,51 +155,8 @@ const [currentProfile, setCurrentProfile] = useState({
           return
         }
 
-        const userDataStr = localStorage.getItem('user_data')
-        console.log('Client-side user data from localStorage:', userDataStr)
-        if (userDataStr && userDataStr !== 'undefined' && userDataStr !== 'null') {
-          try {
-            const userData = JSON.parse(userDataStr)
-            console.log('Parsed user data:', userData)
-            const nameFromLocal = `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || userData.full_name || null
-            const findCredits = Math.max(Number(currentProfile.credits_find ?? 0), 0)
-            const verifyCredits = Math.max(Number(currentProfile.credits_verify ?? 0), 0)
-            const totalCredits = Math.max(findCredits, 0) + Math.max(verifyCredits, 0)
-
-            const emailValue = typeof userData.email === 'string' ? userData.email : (currentProfile.email || '')
-            const companyValue = typeof userData.company === 'string' ? userData.company : (currentProfile.company ?? null)
-            const planValue = typeof userData.plan === 'string' ? userData.plan : (currentProfile.plan || 'free')
-            const planExpiryValue = typeof userData.plan_expiry === 'string' ? userData.plan_expiry : (currentProfile.plan_expiry ?? null)
-            const newUserProfile = {
-              full_name: nameFromLocal || currentProfile.full_name || 'User',
-              credits: totalCredits,
-              email: emailValue,
-              company: companyValue,
-              plan: planValue,
-              plan_expiry: planExpiryValue,
-              credits_find: findCredits,
-              credits_verify: verifyCredits
-            }
-            console.log('New user profile from localStorage:', newUserProfile)
-            setCurrentProfile(newUserProfile)
-            return
-          } catch (parseError) {
-            console.error('Error parsing user data from localStorage:', parseError)
-          }
-        } else {
-          console.log('No user_data found in localStorage')
-        }
-
-        setCurrentProfile({
-          full_name: 'Guest User',
-          credits: 0,
-          email: 'Please log in to access features',
-          company: null,
-          plan: 'free',
-          plan_expiry: null,
-          credits_find: 0,
-          credits_verify: 0
-        })
+        router.replace('/auth/login')
+        return
       } catch (error) {
         console.error('Failed to refresh profile data:', error)
       }

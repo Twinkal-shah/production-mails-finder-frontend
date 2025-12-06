@@ -1,17 +1,25 @@
 import { cookies } from 'next/headers'
 import { NextRequest } from 'next/server'
 
-// Server-side function to get user from cookies
 export async function getCurrentUserFromCookies() {
   try {
     const cookieStore = await cookies()
-    const userCookie = cookieStore.get('user_data')
-    
-    if (!userCookie) {
-      return null
-    }
-    
-    return JSON.parse(userCookie.value)
+    const token = cookieStore.get('access_token')?.value
+    if (!token) return null
+
+    const backend = process.env.NEXT_PUBLIC_SERVER_URL || process.env.NEXT_PUBLIC_LOCAL_URL || 'http://server.mailsfinder.com:8081/.'
+    const res = await fetch(`${backend}/api/user/me`, {
+      method: 'GET',
+      headers: {
+        Cookie: `access_token=${token}`,
+        Authorization: `Bearer ${token}`,
+        'content-type': 'application/json'
+      },
+      cache: 'no-store'
+    })
+    if (!res.ok) return null
+    const data = await res.json()
+    return data
   } catch (error) {
     console.error('Error getting user from cookies:', error)
     return null
