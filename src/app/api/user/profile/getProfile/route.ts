@@ -23,16 +23,20 @@ export async function GET(req: NextRequest) {
     const text = await res.text()
     if (res.status === 404 || res.status === 429) {
       const user = await getCurrentUserFromCookies()
-      const fullName = user?.full_name || `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || user?.email?.split('@')[0] || 'User'
+      const u = (user ?? null) as (Record<string, unknown> | null)
+      const emailVal = u && typeof u.email === 'string' ? (u.email as string) : ''
+      const fullNameField = u && typeof u.full_name === 'string' ? (u.full_name as string) : ''
+      const fullNameFromFields = `${u && typeof u.firstName === 'string' ? (u.firstName as string) : ''} ${u && typeof u.lastName === 'string' ? (u.lastName as string) : ''}`.trim()
+      const computedName = fullNameField || fullNameFromFields || (emailVal ? emailVal.split('@')[0] : '') || 'User'
       const profileFallback = {
-        id: user?._id || user?.id || 'client-user',
-        full_name: fullName,
-        email: user?.email || '',
-        company: user?.company ?? null,
-        plan: user?.plan || 'free',
-        plan_expiry: user?.plan_expiry ?? null,
-        credits_find: user?.credits_find ?? 0,
-        credits_verify: user?.credits_verify ?? 0
+        id: (u && typeof u._id === 'string' ? (u._id as string) : (u && typeof u.id === 'string' ? (u.id as string) : 'client-user')),
+        full_name: computedName,
+        email: emailVal,
+        company: u && typeof u.company === 'string' ? (u.company as string) : null,
+        plan: u && typeof u.plan === 'string' ? (u.plan as string) : 'free',
+        plan_expiry: u && typeof u.plan_expiry === 'string' ? (u.plan_expiry as string) : null,
+        credits_find: Math.max(Number(u?.credits_find ?? 0), 0),
+        credits_verify: Math.max(Number(u?.credits_verify ?? 0), 0)
       }
       return NextResponse.json(profileFallback, { status: 200 })
     }

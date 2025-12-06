@@ -64,13 +64,20 @@ if (!serverFind && !serverVerify) {
   serverVerify = Number(fullProfile?.credits_verify ?? user.credits_verify ?? 0)
 }
 
+  const u = user as Record<string, unknown>
+  const fp = (fullProfile ?? null) as (Record<string, unknown> | null)
+  const emailVal = typeof (fp?.email) === 'string' ? (fp!.email as string) : (typeof u.email === 'string' ? (u.email as string) : '')
+  const fullNameFP = typeof (fp?.full_name) === 'string' ? (fp!.full_name as string) : ''
+  const fullNameU = `${typeof u.firstName === 'string' ? (u.firstName as string) : ''} ${typeof u.lastName === 'string' ? (u.lastName as string) : ''}`.trim()
+  const computedName = fullNameFP || fullNameU || (emailVal ? emailVal.split('@')[0] : '')
+
   const userProfile = {
-    full_name: fullProfile?.full_name || `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.full_name || null,
+    full_name: computedName || null,
     credits: serverFind + serverVerify,
-    email: fullProfile?.email || user.email || '',
-    company: fullProfile?.company ?? user.company ?? null,
-    plan: fullProfile?.plan || user.plan || 'free',
-    plan_expiry: fullProfile?.plan_expiry ?? user.plan_expiry ?? null,
+    email: emailVal,
+    company: typeof (fp?.company) === 'string' ? (fp!.company as string) : (typeof u.company === 'string' ? (u.company as string) : null),
+    plan: typeof (fp?.plan) === 'string' ? (fp!.plan as string) : (typeof u.plan === 'string' ? (u.plan as string) : 'free'),
+    plan_expiry: typeof (fp?.plan_expiry) === 'string' ? (fp!.plan_expiry as string) : (typeof u.plan_expiry === 'string' ? (u.plan_expiry as string) : null),
     credits_find: serverFind,
     credits_verify: serverVerify
   }
