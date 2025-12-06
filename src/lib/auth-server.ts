@@ -3,22 +3,10 @@ import { NextRequest } from 'next/server'
 
 export async function getCurrentUserFromCookies() {
   try {
-    const cookieStore = await cookies()
-    const token = cookieStore.get('access_token')?.value
-    if (!token) return null
-
-    const backend = process.env.NEXT_PUBLIC_SERVER_URL || process.env.NEXT_PUBLIC_LOCAL_URL || 'http://server.mailsfinder.com:8081/.'
-    const res = await fetch(`${backend}/api/user/me`, {
-      method: 'GET',
-      headers: {
-        Cookie: `access_token=${token}`,
-        Authorization: `Bearer ${token}`,
-        'content-type': 'application/json'
-      },
-      cache: 'no-store'
-    })
-    if (!res.ok) return null
-    const data = await res.json()
+    const { apiGet } = await import('@/lib/api')
+    const res = await apiGet<Record<string, unknown>>('/api/user/me', { useProxy: true })
+    if (!res.ok || !res.data) return null
+    const data = res.data as Record<string, unknown>
     return data
   } catch (error) {
     console.error('Error getting user from cookies:', error)
