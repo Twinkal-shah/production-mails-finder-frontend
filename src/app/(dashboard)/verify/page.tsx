@@ -264,74 +264,78 @@ export default function VerifyPage() {
         return ok ? r : { ...r, status: 'invalid' }
       }))
 
-      const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
-      const verifyBulkChunk = async (emailsBatch: string[]) => {
-        const resp = await fetch('/api/verify-bulk', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {})
-          },
-          body: JSON.stringify({ emails: emailsBatch })
-        })
-        const body = await resp.json()
-        if (!resp.ok || body?.success === false) {
-          const status = resp.status || body?.status
-          throw { status, body }
-        }
-        return body?.data
-      }
-      const normalizeStatus = (s: unknown): VerifyRow['status'] => {
-        const v = typeof s === 'string' ? s.toLowerCase() : ''
-        if (v === 'valid' || v === 'deliverable' || v === 'ok') return 'valid'
-        if (v === 'invalid' || v === 'undeliverable') return 'invalid'
-        if (v === 'risky' || v === 'unknown' || v === 'catch_all' || v === 'catchall') return 'risky'
-        if (v === 'error' || v === 'failed') return 'error'
-        return 'unknown'
-      }
-      setStatusText('Processing...')
+      setStatusText('Creating job...')
+      const createResp = await fetch('/api/bulk-verify/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ emails: uniqueEmails, filename: originalFileName })
+      })
+      const createText = await createResp.text()
+      let createJson: Record<string, unknown> = {}
+      try { createJson = JSON.parse(createText) } catch {}
+      if (!createResp.ok || (createJson?.['success'] === false)) throw new Error('Failed to create verification job')
+      const createdData = (createJson?.['data'] as Record<string, unknown>) || createJson
+      const jobIdFromBackend = String(
+        (createdData?.['jobId']) ?? (createdData?.['job_id']) ?? (createdData?.['id']) ?? ''
+      )
+      const jobIdFinal = jobIdFromBackend || (currentJob?.jobId || (typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `job-${Date.now()}`))
+      setCurrentJob(prev => prev ? { ...prev, jobId: jobIdFinal } : {
+        jobId: jobIdFinal,
+        status: 'processing',
+        totalEmails: uniqueEmails.length,
+        processedEmails: 0,
+        successfulVerifications: 0,
+        failedVerifications: 0,
+        filename: originalFileName
+      })
+
+      setStatusText('Starting job...')
+      await fetch(`/api/bulk-verify/process?jobId=${encodeURIComponent(jobIdFinal)}`, { method: 'POST' })
+
+      setStatusText('Processing 0/...')
       setProgress(0)
-      const data = await verifyBulkChunk(uniqueEmails)
-      const s = data?.summary || {}
-      const v = Number(s?.valid_emails || 0)
-      const inv = Number(s?.invalid_emails || 0)
-      const unk = Number(s?.unknown_emails || 0)
-      const proc = Number(s?.total_emails || (Array.isArray(data?.results) ? data.results.length : 0))
-      const items: { email?: string; status?: string; result?: string; email_status?: string; catch_all?: boolean; connections?: number; domain?: string; message?: string; mx?: string; time_exec?: number; user_name?: string }[] = Array.isArray(data?.results) ? data.results : []
-      if (items.length > 0) {
-        setResults(prev => [...prev, ...items.map(it => ({
-          email: it?.email || '',
-          status: (it?.status ?? it?.result ?? it?.email_status),
-          catch_all: it?.catch_all,
-          connections: it?.connections,
-          domain: it?.domain,
-          message: it?.message,
-          mx: it?.mx,
-          time_exec: it?.time_exec,
-          user_name: it?.user_name
-        }))])
-        setRows(prev => prev.map(r => {
-          const found = items.find(it => normalizeEmail(it?.email || '') === normalizeEmail(r.email || ''))
-          if (!found) return r
-          const st = normalizeStatus(found?.status ?? found?.result ?? found?.email_status)
-          return { ...r, status: st, catch_all: (typeof found.catch_all === 'boolean' ? found.catch_all : r.catch_all), domain: (typeof found.domain === 'string' ? found.domain : r.domain), mx: (typeof found.mx === 'string' ? found.mx : r.mx), user_name: (typeof found.user_name === 'string' ? found.user_name : r.user_name) }
-        }))
+      let done = false
+      let lastProcessed = 0
+      while (!done) {
+        const statusResp = await fetch(`/api/bulk-verify/status?jobId=${encodeURIComponent(jobIdFinal)}`)
+        const statusTextResp = await statusResp.text()
+        let statusJson: Record<string, unknown> = {}
+        try { statusJson = JSON.parse(statusTextResp) } catch {}
+        if (!statusResp.ok) throw new Error('Failed to get job status')
+        const dataObj = (statusJson?.['data'] as Record<string, unknown>) || statusJson
+        const statusVal = String(dataObj?.['status'] ?? '')
+        const statusNorm: BulkVerificationJob['status'] =
+          statusVal === 'completed' ? 'completed' :
+          statusVal === 'failed' ? 'failed' :
+          statusVal === 'paused' ? 'paused' :
+          statusVal === 'pending' ? 'pending' : 'processing'
+        const totalEmails = Number(dataObj?.['totalEmails'] ?? uniqueEmails.length)
+        const processedEmails = Number(dataObj?.['processedEmails'] ?? lastProcessed)
+        const successCount = Number(dataObj?.['successfulVerifications'] ?? 0)
+        const failedCount = Number(dataObj?.['failedVerifications'] ?? 0)
+
+        setCurrentJob(prev => prev ? {
+          ...prev,
+          status: statusNorm,
+          totalEmails,
+          processedEmails,
+          successfulVerifications: successCount,
+          failedVerifications: failedCount,
+        } : prev)
+        setValidCount(successCount)
+        setInvalidCount(failedCount)
+        setProcessedCount(processedEmails)
+        setStatusText(`Processing ${processedEmails}/${totalEmails}`)
+        setProgress(Math.min(100, Math.round((processedEmails / Math.max(1, totalEmails)) * 100)))
+        lastProcessed = processedEmails
+
+        if (statusNorm === 'completed' || statusNorm === 'failed' || statusNorm === 'paused') done = true
+        else await new Promise(r => setTimeout(r, 2000))
       }
-      setValidCount(v)
-      setInvalidCount(inv)
-      setUnknownCount(unk)
-      setProcessedCount(Math.max(proc, validRows.length))
-      setCurrentJob(prev => prev ? {
-        ...prev,
-        status: 'completed',
-        processedEmails: Math.max(proc, validRows.length),
-        successfulVerifications: v,
-        failedVerifications: inv
-      } : prev)
-      setProgress(100)
+
       setIsProcessing(false)
       setStatusText('Completed')
-      toast.success('Bulk verification completed')
+      setProgress(100)
       invalidateCreditsData()
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : 'Failed to run bulk verification'
