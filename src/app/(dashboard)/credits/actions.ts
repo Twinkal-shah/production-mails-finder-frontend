@@ -1,7 +1,7 @@
 'use server'
 
 import { apiGet } from '@/lib/api'
-import { LemonSqueezyWebhookEvent } from '@/lib/services/lemonsqueezy'
+import type { LemonSqueezyWebhookEvent } from '@/lib/services/lemonsqueezy'
 
 interface CreditUsage {
   date: string
@@ -284,22 +284,67 @@ export async function getTransactionHistory(): Promise<Transaction[]> {
             ? ((root as Record<string, unknown>)['result'] as Array<Record<string, unknown>>)
             : []
     return arr.map((t) => {
-      const id = t['id'] ?? t['transaction_id'] ?? t['order_id'] ?? t['subscription_id'] ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`
-      const user_id = t['user_id'] ?? ''
-      const lemonsqueezy_order_id = typeof t['lemonsqueezy_order_id'] === 'string' ? t['lemonsqueezy_order_id'] : (typeof t['order_id'] === 'string' ? t['order_id'] : undefined)
-      const lemonsqueezy_subscription_id = typeof t['lemonsqueezy_subscription_id'] === 'string' ? t['lemonsqueezy_subscription_id'] : (typeof t['subscription_id'] === 'string' ? t['subscription_id'] : undefined)
-      const product_name = String(t['product_name'] ?? t['product'] ?? t['plan_name'] ?? 'Transaction')
-      const product_type = String(t['product_type'] ?? t['type'] ?? '')
-      const amount = Number(t['amount'] ?? t['total'] ?? 0)
-      const credits_find_added = Number(t['credits_find_added'] ?? t['find_credits'] ?? 0)
-      const credits_verify_added = Number(t['credits_verify_added'] ?? t['verify_credits'] ?? 0)
-      const status = String(t['status'] ?? 'completed')
-      const webhook_event = String(t['webhook_event'] ?? t['event'] ?? '')
-      const metadata = typeof t['metadata'] === 'object' && t['metadata'] !== null ? (t['metadata'] as Record<string, unknown>) : undefined
-      const created_at = typeof t['created_at'] === 'string' ? (t['created_at'] as string) : (typeof t['createdAt'] === 'string' ? (t['createdAt'] as string) : new Date().toISOString())
+      const dataObj = (t['data'] && typeof t['data'] === 'object') ? (t['data'] as Record<string, unknown>) : {}
+      const attributes = (dataObj['attributes'] && typeof dataObj['attributes'] === 'object') ? (dataObj['attributes'] as Record<string, unknown>) : {}
+      const meta = (t['meta'] && typeof t['meta'] === 'object') ? (t['meta'] as Record<string, unknown>) : {}
+      const customData = (attributes['custom_data'] && typeof attributes['custom_data'] === 'object')
+        ? (attributes['custom_data'] as Record<string, unknown>)
+        : (meta['custom_data'] && typeof meta['custom_data'] === 'object')
+          ? (meta['custom_data'] as Record<string, unknown>)
+          : {}
+
+      const idRaw = t['id'] ?? t['transaction_id'] ?? t['order_id'] ?? t['subscription_id'] ?? dataObj['id']
+      const id = idRaw ? String(idRaw) : `${Date.now()}-${Math.random().toString(36).slice(2)}`
+      const user_id = String(t['user_id'] ?? '')
+
+      const lemonsqueezy_order_id = typeof (t['lemonsqueezy_order_id'] ?? dataObj['id']) === 'string' 
+        ? String(t['lemonsqueezy_order_id'] ?? dataObj['id']) 
+        : (typeof t['order_id'] === 'string' ? String(t['order_id']) : undefined)
+      const lemonsqueezy_subscription_id = typeof (t['lemonsqueezy_subscription_id'] ?? attributes['subscription_id']) === 'string' 
+        ? String(t['lemonsqueezy_subscription_id'] ?? attributes['subscription_id']) 
+        : (typeof t['subscription_id'] === 'string' ? String(t['subscription_id']) : undefined)
+
+      const product_name = String(attributes['product_name'] ?? t['product_name'] ?? t['product'] ?? t['plan_name'] ?? 'Transaction')
+      let product_type = String(t['product_type'] ?? t['type'] ?? '')
+
+      const amountCandidates = [
+        t['amount'],
+        t['total'],
+        t['amount_paid'],
+        t['price'],
+        t['subtotal'],
+        t['sub_total'],
+        attributes['total'],
+        attributes['amount_paid'],
+      ]
+      let amount = 0
+      for (const c of amountCandidates) {
+        const n = Number(c)
+        if (!Number.isNaN(n) && n !== 0) { amount = n; break }
+      }
+      const isLemon = !!lemonsqueezy_order_id || !!lemonsqueezy_subscription_id || typeof meta['event_name'] === 'string'
+      if (isLemon && amount >= 100) amount = Math.round(amount) / 100
+
+      const credits_find_added = Number(t['credits_find_added'] ?? t['find_credits'] ?? customData['find_credits'] ?? 0)
+      const credits_verify_added = Number(t['credits_verify_added'] ?? t['verify_credits'] ?? customData['verify_credits'] ?? 0)
+      const status = String(t['status'] ?? attributes['status'] ?? 'completed')
+      let webhook_event = String(t['webhook_event'] ?? t['event'] ?? meta['event_name'] ?? '')
+
+      if (!webhook_event && isLemon) webhook_event = 'order_created'
+      if (!product_type && isLemon) product_type = 'purchase'
+
+      const metadata = typeof t['metadata'] === 'object' && t['metadata'] !== null 
+        ? (t['metadata'] as Record<string, unknown>) 
+        : (typeof attributes['custom_data'] === 'object' ? (attributes['custom_data'] as Record<string, unknown>) : undefined)
+      const created_at = typeof t['created_at'] === 'string' 
+        ? String(t['created_at']) 
+        : (typeof t['createdAt'] === 'string' 
+          ? String(t['createdAt']) 
+          : (typeof attributes['ends_at'] === 'string' ? String(attributes['ends_at']) : new Date().toISOString()))
+
       return {
-        id: String(id),
-        user_id: String(user_id),
+        id,
+        user_id,
         lemonsqueezy_order_id,
         lemonsqueezy_subscription_id,
         product_name,

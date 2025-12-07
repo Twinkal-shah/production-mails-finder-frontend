@@ -6,18 +6,16 @@ import { SupabaseClient } from '@supabase/supabase-js'
 function validateLemonSqueezyConfig() {
   const apiKey = process.env.LEMONSQUEEZY_API_KEY
   const storeId = process.env.LEMONSQUEEZY_STORE_ID
-  const webhookSecret = process.env.LEMONSQUEEZY_WEBHOOK_SECRET
   
   const missing = []
   if (!apiKey) missing.push('LEMONSQUEEZY_API_KEY')
   if (!storeId) missing.push('LEMONSQUEEZY_STORE_ID')
-  if (!webhookSecret) missing.push('LEMONSQUEEZY_WEBHOOK_SECRET')
   
   if (missing.length > 0) {
     throw new Error(`Missing LemonSqueezy environment variables: ${missing.join(', ')}`)
   }
   
-  return { apiKey, storeId, webhookSecret }
+  return { apiKey, storeId }
 }
 
 export interface LemonSqueezyCheckoutData {
@@ -155,24 +153,31 @@ export async function createLemonSqueezyPortal(
   customerId: string
 ): Promise<LemonSqueezyPortalResponse> {
   try {
-    // First, try to get stored portal URL from user profile
-    const supabase = createServiceRoleClient()
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('lemonsqueezy_portal_url')
-      .eq('lemonsqueezy_customer_id', customerId)
-      .single()
-    
-    if (profile?.lemonsqueezy_portal_url) {
-      console.log('Using stored portal URL for customer:', customerId)
-      return {
-        url: profile.lemonsqueezy_portal_url
+    // Try to load stored portal URL from Supabase if envs are present
+    let storedPortalUrl: string | null = null
+    let supabaseAvailable = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY)
+    if (supabaseAvailable) {
+      try {
+        const supabase = createServiceRoleClient()
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('lemonsqueezy_portal_url')
+          .eq('lemonsqueezy_customer_id', customerId)
+          .single()
+        storedPortalUrl = profile?.lemonsqueezy_portal_url ?? null
+        if (storedPortalUrl) {
+          console.log('Using stored portal URL for customer:', customerId)
+          return { url: storedPortalUrl }
+        }
+      } catch (dbErr) {
+        console.warn('Supabase not available for storing portal URL:', dbErr)
+        supabaseAvailable = false
       }
     }
-    
+
     console.log('No stored portal URL found, fetching from LemonSqueezy API for customer:', customerId)
-    
-    // Validate environment variables
+
+    // Validate environment variables needed for API calls
     const { apiKey } = validateLemonSqueezyConfig()
 
     // First try to get customer data directly
@@ -183,23 +188,26 @@ export async function createLemonSqueezyPortal(
         'Authorization': `Bearer ${apiKey}`,
       },
     })
-    
+
     if (customerResponse.ok) {
       const customerData = await customerResponse.json()
       const customerPortalUrl = customerData.data?.attributes?.urls?.customer_portal
-      
+
       if (customerPortalUrl) {
         console.log('Found customer portal URL in customer data:', customerPortalUrl)
-        
-        // Store the portal URL for future use
-        await supabase
-          .from('profiles')
-          .update({ lemonsqueezy_portal_url: customerPortalUrl })
-          .eq('lemonsqueezy_customer_id', customerId)
-        
-        return {
-          url: customerPortalUrl
+        // Attempt to store the portal URL if Supabase is available
+        if (supabaseAvailable) {
+          try {
+            const supabase = createServiceRoleClient()
+            await supabase
+              .from('profiles')
+              .update({ lemonsqueezy_portal_url: customerPortalUrl })
+              .eq('lemonsqueezy_customer_id', customerId)
+          } catch (dbErr) {
+            console.warn('Failed to store portal URL in Supabase:', dbErr)
+          }
         }
+        return { url: customerPortalUrl }
       }
     }
 
@@ -219,7 +227,7 @@ export async function createLemonSqueezyPortal(
     }
 
     const subscriptions = await response.json()
-    
+
     if (subscriptions.data.length === 0) {
       throw new Error('No active subscriptions found for customer')
     }
@@ -227,23 +235,28 @@ export async function createLemonSqueezyPortal(
     // Get the first subscription's customer portal URL
     const subscription = subscriptions.data[0]
     const customerPortalUrl = subscription.attributes?.urls?.customer_portal
-    
+
     if (!customerPortalUrl) {
       throw new Error('Customer portal URL not available')
     }
 
     console.log('Found customer portal URL in subscription data:', customerPortalUrl)
-    
-    // Store the portal URL for future use
-    await supabase
-      .from('profiles')
-      .update({ lemonsqueezy_portal_url: customerPortalUrl })
-      .eq('lemonsqueezy_customer_id', customerId)
+
+    // Attempt to store the portal URL if Supabase is available
+    if (supabaseAvailable) {
+      try {
+        const supabase = createServiceRoleClient()
+        await supabase
+          .from('profiles')
+          .update({ lemonsqueezy_portal_url: customerPortalUrl })
+          .eq('lemonsqueezy_customer_id', customerId)
+      } catch (dbErr) {
+        console.warn('Failed to store portal URL in Supabase:', dbErr)
+      }
+    }
 
     // Return the actual LemonSqueezy customer portal URL
-    return {
-      url: customerPortalUrl,
-    }
+    return { url: customerPortalUrl }
   } catch (error) {
     console.error('LemonSqueezy portal error:', error)
     throw new Error('Failed to create portal session')
