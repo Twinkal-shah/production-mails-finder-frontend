@@ -265,11 +265,6 @@ export default function VerifyPage() {
       }))
 
       const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
-      const chunk = (list: string[], size: number) => {
-        const out: string[][] = []
-        for (let i = 0; i < list.length; i += size) out.push(list.slice(i, i + size))
-        return out
-      }
       const verifyBulkChunk = async (emailsBatch: string[]) => {
         const resp = await fetch('/api/verify-bulk', {
           method: 'POST',
@@ -294,97 +289,44 @@ export default function VerifyPage() {
         if (v === 'error' || v === 'failed') return 'error'
         return 'unknown'
       }
-      const chunkSize = 25
-      const concurrency = 3
-      const batches = chunk(uniqueEmails, chunkSize)
-      const totals = { valid: 0, invalid: 0, unknown: 0, processed: 0 }
-      let completed = 0
-      const queue = [...batches]
-      const minChunkSize = 5
-      const backoffAttempts = new Map<string, number>()
-      setStatusText(`Processing 0/${batches.length}`)
+      setStatusText('Processing...')
       setProgress(0)
-      const workers = Array(concurrency).fill(0).map(async () => {
-        while (queue.length) {
-          const batch = queue.shift() as string[]
-          try {
-            const data = await verifyBulkChunk(batch)
-            const s = data?.summary || {}
-            const v = Number(s?.valid_emails || 0)
-            const inv = Number(s?.invalid_emails || 0)
-            const unk = Number(s?.unknown_emails || 0)
-            const proc = Number(s?.total_emails || (Array.isArray(data?.results) ? data.results.length : 0))
-            totals.valid += v
-            totals.invalid += inv
-            totals.unknown += unk
-            totals.processed += proc
-            const items: { email?: string; status?: string; result?: string; email_status?: string; catch_all?: boolean; connections?: number; domain?: string; message?: string; mx?: string; time_exec?: number; user_name?: string }[] = Array.isArray(data?.results) ? data.results : []
-            if (items.length > 0) {
-              setResults(prev => [...prev, ...items.map(it => ({
-                email: it?.email || '',
-                status: (it?.status ?? it?.result ?? it?.email_status),
-                catch_all: it?.catch_all,
-                connections: it?.connections,
-                domain: it?.domain,
-                message: it?.message,
-                mx: it?.mx,
-                time_exec: it?.time_exec,
-                user_name: it?.user_name
-              }))])
-              setRows(prev => prev.map(r => {
-                const found = items.find(it => normalizeEmail(it?.email || '') === normalizeEmail(r.email || ''))
-                if (!found) return r
-                const st = normalizeStatus(found?.status ?? found?.result ?? found?.email_status)
-                return { ...r, status: st, catch_all: (typeof found.catch_all === 'boolean' ? found.catch_all : r.catch_all), domain: (typeof found.domain === 'string' ? found.domain : r.domain), mx: (typeof found.mx === 'string' ? found.mx : r.mx), user_name: (typeof found.user_name === 'string' ? found.user_name : r.user_name) }
-              }))
-            }
-            setValidCount(prev => prev + v)
-            setInvalidCount(prev => prev + inv)
-            setUnknownCount(prev => prev + unk)
-            setProcessedCount(prev => Math.min(prev + proc, validRows.length))
-            setCurrentJob(prev => prev ? {
-              ...prev,
-              processedEmails: Math.min(totals.processed, validRows.length),
-              successfulVerifications: totals.valid,
-              failedVerifications: totals.invalid,
-              status: 'processing'
-            } : prev)
-          } catch (err: unknown) {
-            const status = (err as { status?: number }).status
-            if (status === 504 && batch.length > minChunkSize) {
-              const halves = chunk(batch, Math.max(minChunkSize, Math.floor(batch.length / 2)))
-              queue.unshift(...halves)
-              continue
-            }
-            if (status === 429) {
-              const id = batch.join(',')
-              const attempt = backoffAttempts.get(id) || 0
-              if (attempt < 3) {
-                const delay = Math.min(5000, 500 * Math.pow(2, attempt) + Math.floor(Math.random() * 300))
-                await new Promise(r => setTimeout(r, delay))
-                backoffAttempts.set(id, attempt + 1)
-                queue.unshift(batch)
-                continue
-              }
-            }
-          } finally {
-            completed++
-            setStatusText(`Processing ${completed}/${batches.length}`)
-            setProgress(Math.round((completed / batches.length) * 100))
-          }
-        }
-      })
-      await Promise.all(workers)
-      setValidCount(totals.valid)
-      setInvalidCount(totals.invalid)
-      setUnknownCount(totals.unknown)
-      setProcessedCount(Math.max(totals.processed, validRows.length))
+      const data = await verifyBulkChunk(uniqueEmails)
+      const s = data?.summary || {}
+      const v = Number(s?.valid_emails || 0)
+      const inv = Number(s?.invalid_emails || 0)
+      const unk = Number(s?.unknown_emails || 0)
+      const proc = Number(s?.total_emails || (Array.isArray(data?.results) ? data.results.length : 0))
+      const items: { email?: string; status?: string; result?: string; email_status?: string; catch_all?: boolean; connections?: number; domain?: string; message?: string; mx?: string; time_exec?: number; user_name?: string }[] = Array.isArray(data?.results) ? data.results : []
+      if (items.length > 0) {
+        setResults(prev => [...prev, ...items.map(it => ({
+          email: it?.email || '',
+          status: (it?.status ?? it?.result ?? it?.email_status),
+          catch_all: it?.catch_all,
+          connections: it?.connections,
+          domain: it?.domain,
+          message: it?.message,
+          mx: it?.mx,
+          time_exec: it?.time_exec,
+          user_name: it?.user_name
+        }))])
+        setRows(prev => prev.map(r => {
+          const found = items.find(it => normalizeEmail(it?.email || '') === normalizeEmail(r.email || ''))
+          if (!found) return r
+          const st = normalizeStatus(found?.status ?? found?.result ?? found?.email_status)
+          return { ...r, status: st, catch_all: (typeof found.catch_all === 'boolean' ? found.catch_all : r.catch_all), domain: (typeof found.domain === 'string' ? found.domain : r.domain), mx: (typeof found.mx === 'string' ? found.mx : r.mx), user_name: (typeof found.user_name === 'string' ? found.user_name : r.user_name) }
+        }))
+      }
+      setValidCount(v)
+      setInvalidCount(inv)
+      setUnknownCount(unk)
+      setProcessedCount(Math.max(proc, validRows.length))
       setCurrentJob(prev => prev ? {
         ...prev,
         status: 'completed',
-        processedEmails: Math.max(totals.processed, validRows.length),
-        successfulVerifications: totals.valid,
-        failedVerifications: totals.invalid
+        processedEmails: Math.max(proc, validRows.length),
+        successfulVerifications: v,
+        failedVerifications: inv
       } : prev)
       setProgress(100)
       setIsProcessing(false)
