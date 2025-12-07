@@ -227,46 +227,48 @@ function CreditsPageComponent() {
   }
 
   const handleManageBilling = async () => {
+    setIsCreatingPortal(true)
     try {
-      setIsCreatingPortal(true)
-      const { url } = await createLemonSqueezyPortal()
+      const { url, error } = await createLemonSqueezyPortal()
+      if (error) {
+        toast.error(error)
+        return
+      }
       if (url) {
-        // If it's a local URL (pricing tab), navigate within the app
         if (url.startsWith('/')) {
           router.push(url)
           toast.success('Redirecting to pricing plans...')
         } else {
-          // External LemonSqueezy URL, open in new tab
           window.open(url, '_blank')
           toast.success('Redirecting to billing portal...')
         }
+      } else {
+        toast.error('Billing portal URL unavailable')
       }
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to open billing portal'
-      toast.error(errorMessage)
     } finally {
       setIsCreatingPortal(false)
     }
   }
 
   const handleCancelSubscription = async () => {
+    setIsCreatingPortal(true)
     try {
-      setIsCreatingPortal(true)
-      const { url } = await createLemonSqueezyPortal()
+      const { url, error } = await createLemonSqueezyPortal()
+      if (error) {
+        toast.error(error)
+        return
+      }
       if (url) {
-        // If it's a local URL (pricing tab), navigate within the app
         if (url.startsWith('/')) {
           router.push(url)
           toast.success('Redirecting to pricing plans...')
         } else {
-          // External LemonSqueezy URL, open in new tab
           window.open(url, '_blank')
           toast.success('Redirecting to billing portal to manage your subscription...')
         }
+      } else {
+        toast.error('Billing portal URL unavailable')
       }
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to open billing portal'
-      toast.error(errorMessage)
     } finally {
       setIsCreatingPortal(false)
     }

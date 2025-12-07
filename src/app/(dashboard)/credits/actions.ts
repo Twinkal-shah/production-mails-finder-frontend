@@ -233,38 +233,37 @@ export async function createCustomCreditCheckout(creditData: {
   }
 }
 
-export async function createLemonSqueezyPortal() {
-  const { getCurrentUserFromCookies } = await import('@/lib/auth-server')
-  const user = await getCurrentUserFromCookies()
-  if (!user) {
-    throw new Error('User not authenticated')
-  }
-  // Get user's profile including plan information from backend
-  interface ProfileResponse {
-    plan?: string
-    lemonsqueezy_customer_id?: string
-  }
-  const profRes = await apiGet<ProfileResponse>('/api/user/profile/getProfile', { useProxy: true })
-  const profile = profRes.ok ? profRes.data : null
-  // Check if user is on free plan
-  if (profile?.plan === 'free') {
-    throw new Error('You are currently on the Free Plan. Billing management is available only on paid plans. 👉 Upgrade to our Agency or Lifetime plan to unlock billing and advanced features.')
-  }
-  const customerId = profile?.lemonsqueezy_customer_id
-  
-  if (!customerId) {
-    throw new Error('No billing information found. Please make a purchase first to access billing management.')
-  }
-  
+export async function createLemonSqueezyPortal(): Promise<{ url?: string; error?: string }> {
   try {
+    const { getCurrentUserFromCookies } = await import('@/lib/auth-server')
+    const user = await getCurrentUserFromCookies()
+    if (!user) {
+      return { error: 'Not authenticated. Please log in to manage billing.' }
+    }
+
+    // Get user's profile including plan information from backend
+    interface ProfileResponse {
+      plan?: string
+      lemonsqueezy_customer_id?: string
+    }
+    const profRes = await apiGet<ProfileResponse>('/api/user/profile/getProfile', { useProxy: true })
+    const profile = profRes.ok ? profRes.data : null
+
+    if (profile?.plan === 'free') {
+      return { error: 'You are currently on the Free Plan. Upgrade to a paid plan to manage billing.' }
+    }
+
+    const customerId = profile?.lemonsqueezy_customer_id
+    if (!customerId) {
+      return { error: 'No billing record found. Complete a purchase or subscription first.' }
+    }
+
     const { createLemonSqueezyPortal: createLSPortal } = await import('@/lib/services/lemonsqueezy')
-    
-    // Get the actual LemonSqueezy customer portal URL
     const portalResponse = await createLSPortal(customerId)
-    return portalResponse
+    return { url: portalResponse.url }
   } catch (error) {
     console.error('LemonSqueezy portal error:', error)
-    throw new Error('Failed to create billing portal session')
+    return { error: 'Failed to open billing portal. Please try again later.' }
   }
 }
 
