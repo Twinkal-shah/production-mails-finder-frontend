@@ -271,9 +271,48 @@ export async function createLemonSqueezyPortal() {
 // Mock transaction history for demo
 export async function getTransactionHistory(): Promise<Transaction[]> {
   try {
-    // Mock implementation - return empty array for now
-    // TODO: Implement actual transaction history fetching
-    return []
+    const res = await apiGet<Record<string, unknown>>('/api/transaction/getMyTransaction', { useProxy: true })
+    if (!res.ok || !res.data) return []
+    const root = res.data as Record<string, unknown>
+    const arr = Array.isArray(root)
+      ? (root as Array<Record<string, unknown>>)
+      : Array.isArray((root as Record<string, unknown>)['data'])
+        ? ((root as Record<string, unknown>)['data'] as Array<Record<string, unknown>>)
+        : Array.isArray((root as Record<string, unknown>)['transactions'])
+          ? ((root as Record<string, unknown>)['transactions'] as Array<Record<string, unknown>>)
+          : Array.isArray((root as Record<string, unknown>)['result'])
+            ? ((root as Record<string, unknown>)['result'] as Array<Record<string, unknown>>)
+            : []
+    return arr.map((t) => {
+      const id = t['id'] ?? t['transaction_id'] ?? t['order_id'] ?? t['subscription_id'] ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`
+      const user_id = t['user_id'] ?? ''
+      const lemonsqueezy_order_id = typeof t['lemonsqueezy_order_id'] === 'string' ? t['lemonsqueezy_order_id'] : (typeof t['order_id'] === 'string' ? t['order_id'] : undefined)
+      const lemonsqueezy_subscription_id = typeof t['lemonsqueezy_subscription_id'] === 'string' ? t['lemonsqueezy_subscription_id'] : (typeof t['subscription_id'] === 'string' ? t['subscription_id'] : undefined)
+      const product_name = String(t['product_name'] ?? t['product'] ?? t['plan_name'] ?? 'Transaction')
+      const product_type = String(t['product_type'] ?? t['type'] ?? '')
+      const amount = Number(t['amount'] ?? t['total'] ?? 0)
+      const credits_find_added = Number(t['credits_find_added'] ?? t['find_credits'] ?? 0)
+      const credits_verify_added = Number(t['credits_verify_added'] ?? t['verify_credits'] ?? 0)
+      const status = String(t['status'] ?? 'completed')
+      const webhook_event = String(t['webhook_event'] ?? t['event'] ?? '')
+      const metadata = typeof t['metadata'] === 'object' && t['metadata'] !== null ? (t['metadata'] as Record<string, unknown>) : undefined
+      const created_at = typeof t['created_at'] === 'string' ? (t['created_at'] as string) : (typeof t['createdAt'] === 'string' ? (t['createdAt'] as string) : new Date().toISOString())
+      return {
+        id: String(id),
+        user_id: String(user_id),
+        lemonsqueezy_order_id,
+        lemonsqueezy_subscription_id,
+        product_name,
+        product_type,
+        amount,
+        credits_find_added,
+        credits_verify_added,
+        status,
+        webhook_event,
+        metadata,
+        created_at,
+      }
+    })
   } catch (error) {
     console.error('Get transactions error:', error)
     return []
