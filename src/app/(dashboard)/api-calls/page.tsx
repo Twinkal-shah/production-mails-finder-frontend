@@ -253,19 +253,16 @@ const API_DOCS: ApiDoc[] = [
     success: { success: true, data: { email: 'john.doe@example.com', confidence: 95, status: 'found', catch_all: false, domain: 'example.com', mx: 'mx.example.com', time_exec: 350, user_name: 'john', connections: 3, ver_ops: 1 }, message: 'Email found' },
     error: { error: { message: 'Invalid JSON in request body', code: 400 } },
     responseFields: {
-      success: "Whether the request was successful",
-      message: "General message about the result",
-      data: "Main result containing the found email details",
-      "data.email": "Predicted or discovered email address",
-      "data.confidence": "Confidence score (0–100) based on matching patterns & verification signals",
-      "data.status": "Status of the email: found, not_found, unknown",
-      "data.catch_all": "Whether the domain accepts all email addresses",
-      "data.domain": "Domain used for generating or verifying the email",
-      "data.mx": "Mail server responsible for receiving emails for this domain",
-      "data.time_exec": "Processing time taken to find the email (seconds)",
-      "data.user_name": "Normalized username used from the input name",
-      "data.connections": "SMTP connections attempted during discovery",
-      "data.ver_ops": "Total verification operations performed"
+      email: "The email address found or generated based on the provided name + domain.",
+      status: "Whether the email was found (found / not_found / unknown).",
+      confidence: "Score (0–100) predicting how accurate the found/generated email is.",
+      catch_all: "Indicates whether the domain accepts all emails.",
+      domain: "The domain used during lookup.",
+      mx: "Mail server (MX record) used by the domain.",
+      time_exec: "Time taken to process the request.",
+      user_name: "Username portion generated from the name.",
+      connections: "Number of SMTP connections attempted.",
+      ver_ops: "Number of verification operations executed."
     }
   },
   {
@@ -280,16 +277,14 @@ const API_DOCS: ApiDoc[] = [
     success: { success: true, data: { results: [ { email: 'john.doe@example.com', confidence: 95, status: 'found', domain: 'example.com', first_name: 'John', last_name: 'Doe' }, { email: null, confidence: 0, status: 'not_found', domain: 'example.com', first_name: 'Jane', last_name: 'Smith' } ], totalCredits: 2 } },
     error: { error: { message: 'Unauthorized', code: 401 } },
     responseFields: {
-      success: "Whether the request was successful",
-      data: "The result list containing email discovery attempts",
-      "data.results": "Array of results for each email",
-      "data.results[].email": "Predicted or discovered email address (null if not found)",
-      "data.results[].confidence": "Confidence score (0–100) for this item",
-      "data.results[].status": "found, not_found, or unknown",
-      "data.results[].domain": "Domain used for generation",
-      "data.results[].first_name": "First name provided for lookup",
-      "data.results[].last_name": "Last name provided for lookup",
-      "data.totalCredits": "Total credits consumed for the bulk operation"
+      results: "List of results for each name/domain entry.",
+      "results[].email": "The email found for this entry (or null if not found).",
+      "results[].confidence": "Score (0–100) for each individual email prediction.",
+      "results[].status": "Result for each: found / not_found / unknown.",
+      "results[].domain": "Domain used for this lookup.",
+      "results[].first_name": "First name provided for this entry.",
+      "results[].last_name": "Last name provided for this entry.",
+      totalCredits: "Number of credits consumed for the entire bulk operation."
     }
   },
   {
@@ -304,18 +299,16 @@ const API_DOCS: ApiDoc[] = [
     success: { success: true, data: { results: [ { email: 'john.doe@example.com', status: 'valid', confidence: 90, deliverable: true, reason: 'Accepted', catch_all: false, domain: 'example.com', mx: 'mx.example.com' }, { email: 'jane.smith@example.com', status: 'invalid', confidence: 0, deliverable: false, reason: 'Undeliverable' } ], totalCredits: 2 } },
     error: { error: { message: 'email list is required', code: 400 } },
     responseFields: {
-      success: "Whether the request was successful",
-      data: "Bulk verification results",
-      "data.results": "Array of verification outcomes for each email",
-      "data.results[].email": "Email address that was checked",
-      "data.results[].status": "valid, invalid, or unknown",
-      "data.results[].confidence": "Confidence score based on SMTP & DNS checks",
-      "data.results[].deliverable": "Whether the email can actually receive messages",
-      "data.results[].reason": "SMTP server’s message explaining the result",
-      "data.results[].catch_all": "Whether the domain accepts all emails",
-      "data.results[].domain": "Email domain",
-      "data.results[].mx": "Mail server (MX record) handling this domain",
-      "data.totalCredits": "Total credits used during the verification process"
+      results: "List of verification results for each email.",
+      "results[].email": "Email address being checked.",
+      "results[].status": "valid / invalid / unknown.",
+      "results[].confidence": "Verification confidence score.",
+      "results[].deliverable": "Whether the email can receive messages.",
+      "results[].reason": "Explanation from SMTP server.",
+      "results[].catch_all": "Whether this domain accepts all emails.",
+      "results[].domain": "Domain of the email.",
+      "results[].mx": "Mail server used for verification.",
+      totalCredits: "Credits used for the entire verification request."
     }
   },
   {
@@ -330,18 +323,15 @@ const API_DOCS: ApiDoc[] = [
     success: { success: true, data: { email: 'john.doe@example.com', status: 'valid', confidence: 80, deliverable: true, reason: 'OK', catch_all: false, domain: 'example.com', mx: 'mx.example.com', user_name: 'john' }, message: 'Verified' },
     error: { error: { message: 'email is required', code: 400 } },
     responseFields: {
-      success: "Whether the request was successful",
-      message: "General response message",
-      data: "Verification details for the requested email",
-      "data.email": "Email address that was verified",
-      "data.status": "valid, invalid, or unknown",
-      "data.confidence": "Confidence score (0–100)",
-      "data.deliverable": "Whether emails can be delivered to this address",
-      "data.reason": "SMTP server message describing the result",
-      "data.catch_all": "Whether the domain accepts all emails",
-      "data.domain": "Domain of the email address",
-      "data.mx": "Mail server (MX record) handling this domain",
-      "data.user_name": "Local-part username extracted from the address"
+      email: "The email address that was verified.",
+      status: "valid / invalid / unknown based on verification.",
+      confidence: "Score indicating verification certainty.",
+      deliverable: "Whether the mailbox can actually receive emails.",
+      reason: "SMTP server message explaining the status.",
+      catch_all: "Whether the domain accepts all addresses.",
+      domain: "The domain of the email.",
+      mx: "Mail server used during verification.",
+      user_name: "Username portion extracted from the email."
     }
   }
 ]
@@ -1047,9 +1037,8 @@ export default function ApiCallsPage() {
                 const curl = buildCurl(doc.method, url, doc.headers, doc.requestBody)
                 const js = buildJs(doc.method, url, doc.headers, doc.requestBody)
                 const py = buildPy(doc.method, url, doc.headers, doc.requestBody)
-                const wrapperTypes = extractTypes(doc.success)
-                const dataPayload: unknown = (doc.success as { data?: unknown })?.data
-                const dataTypes = extractTypes(dataPayload)
+                const wrapperTypes = [] as { key: string; type: string }[]
+                const dataTypes = [] as { key: string; type: string }[]
                 return (
                   <Card key={doc.id}>
                     <CardHeader>
@@ -1118,43 +1107,20 @@ export default function ApiCallsPage() {
                       <div className="space-y-2">
                         <div className="text-sm font-medium">Response Fields</div>
                         {doc.responseFields ? (
-                          <div className="border rounded-md p-3 space-y-1">
+                          <div className="space-y-2">
                             {Object.entries(doc.responseFields).map(([key, desc]) => (
-                              <div key={key} className="flex items-center justify-between text-xs">
-                                <span className="font-mono">{key}</span>
-                                <span className="text-muted-foreground ml-2">{desc}</span>
+                              <div key={key} className="flex items-center gap-3">
+                                <Badge variant="secondary" className="rounded-full font-mono text-[11px] px-2 py-1">
+                                  {key}
+                                </Badge>
+                                <div className="text-xs text-muted-foreground">
+                                  {desc}
+                                </div>
                               </div>
                             ))}
                           </div>
                         ) : (
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="border rounded-md p-3">
-                              <div className="text-xs font-semibold mb-2">Wrapper</div>
-                              <div className="space-y-1">
-                                {wrapperTypes.map((f) => (
-                                  <div key={f.key} className="flex items-center justify-between text-xs">
-                                    <span>{f.key}</span>
-                                    <Badge variant="outline" className="text-[10px]">{f.type}</Badge>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                            <div className="border rounded-md p-3">
-                              <div className="text-xs font-semibold mb-2">Data</div>
-                              <div className="space-y-1">
-                                {dataTypes.length === 0 ? (
-                                  <span className="text-xs text-muted-foreground">No data fields</span>
-                                ) : (
-                                  dataTypes.map((f) => (
-                                    <div key={f.key} className="flex items-center justify-between text-xs">
-                                      <span>{f.key}</span>
-                                      <Badge variant="outline" className="text-[10px]">{f.type}</Badge>
-                                    </div>
-                                  ))
-                                )}
-                              </div>
-                            </div>
-                          </div>
+                          <div className="text-xs text-muted-foreground">No fields documented yet</div>
                         )}
                       </div>
                     </CardContent>
