@@ -99,32 +99,91 @@ const PREDEFINED_ENDPOINTS: PredefinedEndpoint[] = [
     ]
   },
   {
-    name: 'Find Email',
+    name: 'Email • Find',
     method: 'POST',
-    url: '/api/v1/find',
-    description: 'Find email addresses',
+    url: '/api/email/findEmail',
+    description: 'Find email by name and domain (JWT required)',
     headers: [
       { id: '1', key: 'Content-Type', value: 'application/json', enabled: true },
-      { id: '2', key: 'Authorization', value: 'Bearer YOUR_API_KEY', enabled: true }
+      { id: '2', key: 'Authorization', value: 'Bearer ACCESS_TOKEN', enabled: true }
     ],
     body: JSON.stringify({
-      first_name: 'John',
-      last_name: 'Doe',
-      domain: 'example.com'
+      full_name: 'John Doe',
+      domain: 'example.com',
+      role: 'CTO'
     }, null, 2)
   },
   {
-    name: 'Verify Email',
+    name: 'Email • Find Bulk',
     method: 'POST',
-    url: '/api/v1/verify',
-    description: 'Verify email address',
+    url: '/api/email/findBulkEmail',
+    description: 'Find emails in bulk (array of name+domain objects)',
     headers: [
       { id: '1', key: 'Content-Type', value: 'application/json', enabled: true },
-      { id: '2', key: 'Authorization', value: 'Bearer YOUR_API_KEY', enabled: true }
+      { id: '2', key: 'Authorization', value: 'Bearer ACCESS_TOKEN', enabled: true }
+    ],
+    body: JSON.stringify([
+      { domain: 'example.com', first_name: 'John', last_name: 'Doe' },
+      { domain: 'example.com', first_name: 'Jane', last_name: 'Smith' }
+    ], null, 2)
+  },
+  {
+    name: 'Email • Verify Bulk',
+    method: 'POST',
+    url: '/api/email/verifyBulkEmail',
+    description: 'Verify a list of emails',
+    headers: [
+      { id: '1', key: 'Content-Type', value: 'application/json', enabled: true },
+      { id: '2', key: 'Authorization', value: 'Bearer ACCESS_TOKEN', enabled: true }
+    ],
+    body: JSON.stringify({
+      emails: ['john.doe@example.com', 'jane.smith@example.com']
+    }, null, 2)
+  },
+  {
+    name: 'Email • Verify',
+    method: 'POST',
+    url: '/api/email/verifyEmail',
+    description: 'Verify a single email (JWT required)',
+    headers: [
+      { id: '1', key: 'Content-Type', value: 'application/json', enabled: true },
+      { id: '2', key: 'Authorization', value: 'Bearer ACCESS_TOKEN', enabled: true }
     ],
     body: JSON.stringify({
       email: 'john.doe@example.com'
     }, null, 2)
+  },
+  {
+    name: 'API-Key • List',
+    method: 'GET',
+    url: 'https://server.mailsfinder.com/api/api-key/getApiKeys',
+    description: 'List all API keys (JWT required)',
+    headers: [
+      { id: '1', key: 'Authorization', value: 'Bearer ACCESS_TOKEN', enabled: true }
+    ]
+  },
+  {
+    name: 'API-Key • Create',
+    method: 'POST',
+    url: 'https://server.mailsfinder.com/api/api-key/createApiKey',
+    description: 'Create a new API key (JWT required)',
+    headers: [
+      { id: '1', key: 'Content-Type', value: 'application/json', enabled: true },
+      { id: '2', key: 'Authorization', value: 'Bearer ACCESS_TOKEN', enabled: true }
+    ],
+    body: JSON.stringify({
+      key_name: 'Production Client',
+      rate_limit_per_minute: 60
+    }, null, 2)
+  },
+  {
+    name: 'API-Key • Deactivate',
+    method: 'DELETE',
+    url: 'https://server.mailsfinder.com/api/api-key/deactivateAPIKey/REPLACE_KEY_ID',
+    description: 'Deactivate an API key by ID (JWT required)',
+    headers: [
+      { id: '1', key: 'Authorization', value: 'Bearer ACCESS_TOKEN', enabled: true }
+    ]
   }
 ]
 
