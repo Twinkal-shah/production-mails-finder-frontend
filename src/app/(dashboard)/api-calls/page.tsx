@@ -409,6 +409,8 @@ export default function ApiCallsPage() {
   const [deactivatingId, setDeactivatingId] = useState<string | null>(null)
   const [newKeyName, setNewKeyName] = useState('')
   const [revealed, setRevealed] = useState<Record<string, boolean>>({})
+  const [accessTokenDisplay, setAccessTokenDisplay] = useState<string>('')
+  const [tokenLoading, setTokenLoading] = useState(false)
 
   const unwrapData = <T,>(root: unknown): T | null => {
     if (root && typeof root === 'object') {
@@ -449,6 +451,35 @@ export default function ApiCallsPage() {
       setKeysLoading(false)
     }
   }, [])
+
+  const generateAccessToken = async () => {
+    setTokenLoading(true)
+    try {
+      const refresh = typeof window !== 'undefined' ? localStorage.getItem('refresh_token') : null
+      const headers: Record<string, string> = {}
+      if (refresh) headers['refreshtoken'] = `Bearer ${refresh}`
+      const res = await apiGet<Record<string, unknown>>('/api/user/auth/refresh', { useProxy: true, includeAuth: false, headers })
+      if (!res.ok) {
+        const msg = typeof res.error === 'string' ? res.error : (res.error && typeof res.error === 'object' && 'message' in res.error ? String((res.error as Record<string, unknown>).message) : 'Failed to generate access token')
+        toast.error(msg)
+        return
+      }
+      const d = (res.data as Record<string, unknown>)?.['data'] as Record<string, unknown> | undefined
+      const newAccess = typeof d?.['access_token'] === 'string' ? (d['access_token'] as string) : undefined
+      const newRefresh = typeof d?.['refresh_token'] === 'string' ? (d['refresh_token'] as string) : undefined
+      if (newAccess) {
+        setAccessTokenDisplay(newAccess)
+        if (typeof window !== 'undefined') localStorage.setItem('access_token', newAccess)
+      }
+      if (newRefresh && typeof window !== 'undefined') localStorage.setItem('refresh_token', newRefresh)
+      toast.success('Access token generated')
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to generate access token'
+      toast.error(msg)
+    } finally {
+      setTokenLoading(false)
+    }
+  }
 
   const handleCreateKey = async () => {
     const name = newKeyName.trim()
@@ -796,6 +827,49 @@ export default function ApiCallsPage() {
           />
         </div>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Access Token</CardTitle>
+          <CardDescription>Generate and copy your JWT for Postman and API examples</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Button onClick={generateAccessToken} disabled={tokenLoading}>
+              {tokenLoading ? (
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Generating
+                </div>
+              ) : (
+                'Generate Access Token'
+              )}
+            </Button>
+            <Button
+              variant="outline"
+              disabled={!accessTokenDisplay}
+              onClick={() => {
+                if (!accessTokenDisplay) return
+                navigator.clipboard.writeText(accessTokenDisplay).then(() => toast.success('Copied'))
+              }}
+            >
+              <Copy className="h-4 w-4 mr-2" />
+              Copy Token
+            </Button>
+          </div>
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Your Access Token</Label>
+            <div className="rounded-md border bg-muted p-3 overflow-auto">
+              <pre className="text-sm font-mono whitespace-pre-wrap break-all">{accessTokenDisplay || 'Generate a token to display it here'}</pre>
+            </div>
+          </div>
+          <div className="text-xs text-muted-foreground space-y-1">
+            <div>✔ Use this token in Postman or API examples</div>
+            <div>✔ Do NOT share it with anyone</div>
+            <div>✔ You can regenerate anytime</div>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
