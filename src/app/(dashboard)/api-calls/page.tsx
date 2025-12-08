@@ -170,9 +170,9 @@ const PREDEFINED_ENDPOINTS: PredefinedEndpoint[] = [
       { id: '1', key: 'Content-Type', value: 'application/json', enabled: true },
       { id: '2', key: 'Authorization', value: 'Bearer ACCESS_TOKEN', enabled: true }
     ],
-    body: JSON.stringify({
-      key_name: 'Production Client',
-      rate_limit_per_minute: 60
+     body: JSON.stringify({
+      keyName: 'Production Client',
+      rateLimitPerMinute: 60
     }, null, 2)
   },
   {
@@ -187,6 +187,141 @@ const PREDEFINED_ENDPOINTS: PredefinedEndpoint[] = [
 ]
 
 const HTTP_METHODS: HttpMethod[] = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH']
+
+type ApiDoc = {
+  id: string
+  name: string
+  method: HttpMethod
+  url: string
+  displayUrl?: string
+  description: string
+  headers: Record<string, string>
+  requestBody?: unknown
+  requestBodyAlt?: unknown
+  success: unknown
+  error: unknown
+}
+
+const stringifyJson = (obj: unknown) => (typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2))
+
+const buildCurl = (method: string, url: string, headers: Record<string, string>, body?: unknown) => {
+  const parts: string[] = [`curl -X ${method} "${url}"`]
+  for (const [k, v] of Object.entries(headers)) parts.push(`  -H "${k}: ${v}"`)
+  if (body !== undefined) parts.push(`  -d '${JSON.stringify(body)}'`)
+  return parts.join(' \\\n')
+}
+
+const buildJs = (method: string, url: string, headers: Record<string, string>, body?: unknown) => {
+  let s = `await fetch("${url}", {\n  method: "${method}",\n  headers: ${JSON.stringify(headers, null, 2)}`
+  if (body !== undefined) s += `,\n  body: JSON.stringify(${JSON.stringify(body, null, 2)})`
+  s += `\n})`
+  return s
+}
+
+const buildPy = (method: string, url: string, headers: Record<string, string>, body?: unknown) => {
+  const m = method.toLowerCase()
+  let s = `import requests\nr = requests.${m}("${url}", headers=${JSON.stringify(headers, null, 2)}`
+  if (body !== undefined) s += `, json=${JSON.stringify(body, null, 2)}`
+  s += `)\nprint(r.json())`
+  return s
+}
+
+const extractTypes = (obj: unknown): { key: string; type: string }[] => {
+  if (!obj || typeof obj !== 'object') return []
+  const out: { key: string; type: string }[] = []
+  for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
+    let t = Array.isArray(v) ? 'array' : typeof v
+    if (v === null) t = 'null'
+    out.push({ key: k, type: t })
+  }
+  return out
+}
+
+const API_DOCS: ApiDoc[] = [
+  {
+    id: 'doc-keys-create',
+    name: 'API-Keys • Create',
+    method: 'POST',
+    url: 'https://server.mailsfinder.com/api/api-key/createApiKey',
+    displayUrl: 'https://server.mailsfinder.com/api/api-key/createApiKey',
+    description: 'Create a new API key',
+    headers: { 'Authorization': 'Bearer <ACCESS_TOKEN>', 'Content-Type': 'application/json' },
+    requestBody: { keyName: 'Production Client', rateLimitPerMinute: 60 },
+    success: { success: true, message: 'API key created', data: { id: 'uuid', api_key: 'sk_...', key_prefix: 'sk_......', key_name: 'Production Client', rate_limit_per_minute: 60, is_active: true, usage_count: 0, created_at: '2025-01-01T00:00:00Z' } },
+    error: { error: { message: 'reason', code: 400 } }
+  },
+  {
+    id: 'doc-keys-list',
+    name: 'API-Keys • List',
+    method: 'GET',
+    url: 'https://server.mailsfinder.com/api/api-key/getApiKeys',
+    displayUrl: 'https://server.mailsfinder.com/api/api-key/getApiKeys',
+    description: 'List all API keys',
+    headers: { 'Authorization': 'Bearer <ACCESS_TOKEN>' },
+    success: { success: true, data: [ { id: 'uuid', key_name: 'Production Client', key_prefix: 'sk_......', is_active: true, rate_limit_per_minute: 60, usage_count: 12, created_at: '2025-01-01T00:00:00Z', last_used_at: '2025-01-15T12:04:00Z' } ] },
+    error: { error: { message: 'reason', code: 401 } }
+  },
+  {
+    id: 'doc-keys-deactivate',
+    name: 'API-Keys • Deactivate',
+    method: 'DELETE',
+    url: 'https://server.mailsfinder.com/api/api-key/deactivateAPIKey/:apiKeyId',
+    displayUrl: 'https://server.mailsfinder.com/api/api-key/deactivateAPIKey/:apiKeyId',
+    description: 'Deactivate an API key',
+    headers: { 'Authorization': 'Bearer <ACCESS_TOKEN>' },
+    success: { success: true, message: 'API key deactivated', data: { id: 'uuid', is_active: false } },
+    error: { error: { message: 'reason', code: 404 } }
+  },
+  {
+    id: 'doc-email-find',
+    name: 'Email • Find',
+    method: 'POST',
+    url: '/api/email/findEmail',
+    displayUrl: '<FRONTEND_BASE>/api/email/findEmail',
+    description: 'Find email by name and domain',
+    headers: { 'Authorization': 'Bearer <ACCESS_TOKEN>', 'Content-Type': 'application/json' },
+    requestBody: { full_name: 'John Doe', domain: 'example.com', role: 'CTO' },
+    requestBodyAlt: { first_name: 'John', last_name: 'Doe', domain: 'example.com', role: 'CTO' },
+    success: { success: true, data: { email: 'john.doe@example.com', confidence: 95, status: 'found', catch_all: false, domain: 'example.com', mx: 'mx.example.com', time_exec: 350, user_name: 'john', connections: 3, ver_ops: 1 }, message: 'Email found' },
+    error: { error: { message: 'Invalid JSON in request body', code: 400 } }
+  },
+  {
+    id: 'doc-email-find-bulk',
+    name: 'Email • Find Bulk',
+    method: 'POST',
+    url: '/api/email/findBulkEmail',
+    displayUrl: '<FRONTEND_BASE>/api/email/findBulkEmail',
+    description: 'Find emails in bulk',
+    headers: { 'Authorization': 'Bearer <ACCESS_TOKEN>', 'Content-Type': 'application/json' },
+    requestBody: [ { domain: 'example.com', first_name: 'John', last_name: 'Doe' }, { domain: 'example.com', first_name: 'Jane', last_name: 'Smith' } ],
+    success: { success: true, data: { results: [ { email: 'john.doe@example.com', confidence: 95, status: 'found', domain: 'example.com', first_name: 'John', last_name: 'Doe' }, { email: null, confidence: 0, status: 'not_found', domain: 'example.com', first_name: 'Jane', last_name: 'Smith' } ], totalCredits: 2 } },
+    error: { error: { message: 'Unauthorized', code: 401 } }
+  },
+  {
+    id: 'doc-email-verify-bulk',
+    name: 'Email • Verify Bulk',
+    method: 'POST',
+    url: '/api/email/verifyBulkEmail',
+    displayUrl: '<FRONTEND_BASE>/api/email/verifyBulkEmail',
+    description: 'Verify a list of emails',
+    headers: { 'Authorization': 'Bearer <ACCESS_TOKEN>', 'Content-Type': 'application/json' },
+    requestBody: { emails: ['john.doe@example.com', 'jane.smith@example.com'] },
+    success: { success: true, data: { results: [ { email: 'john.doe@example.com', status: 'valid', confidence: 90, deliverable: true, reason: 'Accepted', catch_all: false, domain: 'example.com', mx: 'mx.example.com' }, { email: 'jane.smith@example.com', status: 'invalid', confidence: 0, deliverable: false, reason: 'Undeliverable' } ], totalCredits: 2 } },
+    error: { error: { message: 'email list is required', code: 400 } }
+  },
+  {
+    id: 'doc-email-verify',
+    name: 'Email • Verify',
+    method: 'POST',
+    url: '/api/email/verifyEmail',
+    displayUrl: '<FRONTEND_BASE>/api/email/verifyEmail',
+    description: 'Verify a single email',
+    headers: { 'Authorization': 'Bearer <ACCESS_TOKEN>', 'Content-Type': 'application/json' },
+    requestBody: { email: 'john.doe@example.com' },
+    success: { success: true, data: { email: 'john.doe@example.com', status: 'valid', confidence: 80, deliverable: true, reason: 'OK', catch_all: false, domain: 'example.com', mx: 'mx.example.com', user_name: 'john' }, message: 'Verified' },
+    error: { error: { message: 'email is required', code: 400 } }
+  }
+]
 
 export default function ApiCallsPage() {
   const router = useRouter()
@@ -282,7 +417,7 @@ export default function ApiCallsPage() {
     }
     setCreatingKey(true)
     try {
-      const res = await apiPost<unknown>('https://server.mailsfinder.com/api/api-key/createApiKey', { key_name: name }, { includeAuth: true })
+      const res = await apiPost<unknown>('https://server.mailsfinder.com/api/api-key/createApiKey', { keyName: name }, { includeAuth: true })
       if (!res.ok) {
         const msg = typeof res.error === 'string' ? res.error : (res.error && typeof res.error === 'object' && 'message' in res.error ? String((res.error as Record<string, unknown>).message) : 'Failed to create API key')
         toast.error(msg)
@@ -722,9 +857,10 @@ export default function ApiCallsPage() {
         {/* Main Request/Response Area */}
         <div className="lg:col-span-2 space-y-6">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="request">Request Builder</TabsTrigger>
               <TabsTrigger value="response">Response</TabsTrigger>
+              <TabsTrigger value="docs">API Docs</TabsTrigger>
             </TabsList>
 
             <TabsContent value="request" className="space-y-4">
@@ -880,6 +1016,117 @@ export default function ApiCallsPage() {
                 </Alert>
               )}
               <ResponseViewer response={state.response} />
+            </TabsContent>
+
+            <TabsContent value="docs" className="space-y-6">
+              {API_DOCS.map((doc) => {
+                const url = doc.displayUrl || doc.url
+                const curl = buildCurl(doc.method, url, doc.headers, doc.requestBody)
+                const js = buildJs(doc.method, url, doc.headers, doc.requestBody)
+                const py = buildPy(doc.method, url, doc.headers, doc.requestBody)
+                const wrapperTypes = extractTypes(doc.success)
+                const dataPayload: unknown = (doc.success as { data?: unknown })?.data
+                const dataTypes = extractTypes(dataPayload)
+                return (
+                  <Card key={doc.id}>
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="secondary" className="text-xs">{doc.method}</Badge>
+                          <CardTitle className="text-lg">{doc.name}</CardTitle>
+                        </div>
+                      </div>
+                      <CardDescription>{doc.description}</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-mono">{url}</span>
+                      </div>
+                      <Tabs defaultValue="curl">
+                        <TabsList className="grid w-full grid-cols-3">
+                          <TabsTrigger value="curl">cURL</TabsTrigger>
+                          <TabsTrigger value="javascript">JavaScript</TabsTrigger>
+                          <TabsTrigger value="python">Python</TabsTrigger>
+                        </TabsList>
+                        <TabsContent value="curl">
+                          <div className="bg-muted rounded-md p-4 overflow-auto">
+                            <pre className="text-sm font-mono whitespace-pre-wrap">{curl}</pre>
+                          </div>
+                        </TabsContent>
+                        <TabsContent value="javascript">
+                          <div className="bg-muted rounded-md p-4 overflow-auto">
+                            <pre className="text-sm font-mono whitespace-pre-wrap">{js}</pre>
+                          </div>
+                        </TabsContent>
+                        <TabsContent value="python">
+                          <div className="bg-muted rounded-md p-4 overflow-auto">
+                            <pre className="text-sm font-mono whitespace-pre-wrap">{py}</pre>
+                          </div>
+                        </TabsContent>
+                      </Tabs>
+                      {doc.requestBody !== undefined && (
+                        <div className="space-y-2">
+                          <div className="text-sm font-medium">Request Body</div>
+                          <div className="bg-muted rounded-md p-4 overflow-auto">
+                            <pre className="text-sm font-mono whitespace-pre-wrap">{stringifyJson(doc.requestBody)}</pre>
+                          </div>
+                        </div>
+                      )}
+                      {doc.requestBodyAlt !== undefined && (
+                        <div className="space-y-2">
+                          <div className="text-sm font-medium">Alternative Body</div>
+                          <div className="bg-muted rounded-md p-4 overflow-auto">
+                            <pre className="text-sm font-mono whitespace-pre-wrap">{stringifyJson(doc.requestBodyAlt)}</pre>
+                          </div>
+                        </div>
+                      )}
+                      <div className="space-y-2">
+                        <div className="text-sm font-medium">Response Example</div>
+                        <div className="bg-muted rounded-md p-4 overflow-auto">
+                          <pre className="text-sm font-mono whitespace-pre-wrap">{stringifyJson(doc.success)}</pre>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="text-sm font-medium">Error Example</div>
+                        <div className="bg-muted rounded-md p-4 overflow-auto">
+                          <pre className="text-sm font-mono whitespace-pre-wrap">{stringifyJson(doc.error)}</pre>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="text-sm font-medium">Response Fields</div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="border rounded-md p-3">
+                            <div className="text-xs font-semibold mb-2">Wrapper</div>
+                            <div className="space-y-1">
+                              {wrapperTypes.map((f) => (
+                                <div key={f.key} className="flex items-center justify-between text-xs">
+                                  <span>{f.key}</span>
+                                  <Badge variant="outline" className="text-[10px]">{f.type}</Badge>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="border rounded-md p-3">
+                            <div className="text-xs font-semibold mb-2">Data</div>
+                            <div className="space-y-1">
+                              {dataTypes.length === 0 ? (
+                                <span className="text-xs text-muted-foreground">No data fields</span>
+                              ) : (
+                                dataTypes.map((f) => (
+                                  <div key={f.key} className="flex items-center justify-between text-xs">
+                                    <span>{f.key}</span>
+                                    <Badge variant="outline" className="text-[10px]">{f.type}</Badge>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )
+              })}
             </TabsContent>
           </Tabs>
         </div>
