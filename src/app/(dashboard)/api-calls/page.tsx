@@ -238,40 +238,7 @@ const extractTypes = (obj: unknown): { key: string; type: string }[] => {
 }
 
 const API_DOCS: ApiDoc[] = [
-  {
-    id: 'doc-keys-create',
-    name: 'API-Keys • Create',
-    method: 'POST',
-    url: 'https://server.mailsfinder.com/api/api-key/createApiKey',
-    displayUrl: 'https://server.mailsfinder.com/api/api-key/createApiKey',
-    description: 'Create a new API key',
-    headers: { 'Authorization': 'Bearer <ACCESS_TOKEN>', 'Content-Type': 'application/json' },
-    requestBody: { keyName: 'Production Client', rateLimitPerMinute: 60 },
-    success: { success: true, message: 'API key created', data: { id: 'uuid', api_key: 'sk_...', key_prefix: 'sk_......', key_name: 'Production Client', rate_limit_per_minute: 60, is_active: true, usage_count: 0, created_at: '2025-01-01T00:00:00Z' } },
-    error: { error: { message: 'reason', code: 400 } }
-  },
-  {
-    id: 'doc-keys-list',
-    name: 'API-Keys • List',
-    method: 'GET',
-    url: 'https://server.mailsfinder.com/api/api-key/getApiKeys',
-    displayUrl: 'https://server.mailsfinder.com/api/api-key/getApiKeys',
-    description: 'List all API keys',
-    headers: { 'Authorization': 'Bearer <ACCESS_TOKEN>' },
-    success: { success: true, data: [ { id: 'uuid', key_name: 'Production Client', key_prefix: 'sk_......', is_active: true, rate_limit_per_minute: 60, usage_count: 12, created_at: '2025-01-01T00:00:00Z', last_used_at: '2025-01-15T12:04:00Z' } ] },
-    error: { error: { message: 'reason', code: 401 } }
-  },
-  {
-    id: 'doc-keys-deactivate',
-    name: 'API-Keys • Deactivate',
-    method: 'DELETE',
-    url: 'https://server.mailsfinder.com/api/api-key/deactivateAPIKey/:apiKeyId',
-    displayUrl: 'https://server.mailsfinder.com/api/api-key/deactivateAPIKey/:apiKeyId',
-    description: 'Deactivate an API key',
-    headers: { 'Authorization': 'Bearer <ACCESS_TOKEN>' },
-    success: { success: true, message: 'API key deactivated', data: { id: 'uuid', is_active: false } },
-    error: { error: { message: 'reason', code: 404 } }
-  },
+
   {
     id: 'doc-email-find',
     name: 'Email • Find',
