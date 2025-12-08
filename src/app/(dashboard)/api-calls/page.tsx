@@ -18,7 +18,10 @@ import {
   Minus, 
   AlertCircle,
   History,
-  Send
+  Send,
+  Eye,
+  EyeOff,
+  Copy
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -34,6 +37,7 @@ import type {
 import { JsonEditor } from '@/components/api-testing/json-editor'
 import { ResponseViewer } from '@/components/api-testing/response-viewer'
 import { useUserProfile } from '@/hooks/useCreditsData'
+import { apiGet, apiPost, apiDelete } from '@/lib/api'
 
 // Predefined endpoints for testing
 const PREDEFINED_ENDPOINTS: PredefinedEndpoint[] = [
@@ -154,8 +158,115 @@ export default function ApiCallsPage() {
     router.push('/credits')
   }
 
+  type ApiKeyRecord = {
+    id: string
+    key_name?: string
+    api_key?: string
+    key_prefix?: string
+    is_active?: boolean
+    rate_limit_per_minute?: number
+    usage_count?: number
+    created_at?: string
+    last_used_at?: string | null
+  }
+  const [apiKeys, setApiKeys] = useState<ApiKeyRecord[]>([])
+  const [keysLoading, setKeysLoading] = useState(false)
+  const [creatingKey, setCreatingKey] = useState(false)
+  const [deactivatingId, setDeactivatingId] = useState<string | null>(null)
+  const [newKeyName, setNewKeyName] = useState('')
+  const [revealed, setRevealed] = useState<Record<string, boolean>>({})
+
+  const unwrapData = <T,>(root: unknown): T | null => {
+    if (root && typeof root === 'object') {
+      const obj = root as Record<string, unknown>
+      const d = obj['data'] as T | undefined
+      return (d ?? (root as T)) || null
+    }
+    return null
+  }
+
+  const maskKey = (key?: string, prefix?: string) => {
+    if (key && key.length > 8) {
+      const start = key.slice(0, 4)
+      const end = key.slice(-4)
+      return `${start}••••••••${end}`
+    }
+    if (prefix) return prefix
+    return '••••••••'
+  }
+
+  const fetchApiKeys = useCallback(async () => {
+    setKeysLoading(true)
+    try {
+      const res = await apiGet<unknown>('/api/api-key/getApiKeys', { useProxy: true, includeAuth: true })
+      if (!res.ok) {
+        const msg = typeof res.error === 'string' ? res.error : (res.error && typeof res.error === 'object' && 'message' in res.error ? String((res.error as Record<string, unknown>).message) : 'Failed to fetch API keys')
+        toast.error(msg)
+        setApiKeys([])
+        return
+      }
+      const list = unwrapData<ApiKeyRecord[]>(res.data)
+      setApiKeys(Array.isArray(list) ? list : [])
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to fetch API keys'
+      toast.error(msg)
+      setApiKeys([])
+    } finally {
+      setKeysLoading(false)
+    }
+  }, [])
+
+  const handleCreateKey = async () => {
+    const name = newKeyName.trim()
+    if (!name) {
+      toast.error('Key name is required')
+      return
+    }
+    setCreatingKey(true)
+    try {
+      const res = await apiPost<unknown>('/api/api-key/createApiKey', { key_name: name }, { useProxy: true, includeAuth: true })
+      if (!res.ok) {
+        const msg = typeof res.error === 'string' ? res.error : (res.error && typeof res.error === 'object' && 'message' in res.error ? String((res.error as Record<string, unknown>).message) : 'Failed to create API key')
+        toast.error(msg)
+        return
+      }
+      const root = res.data as Record<string, unknown>
+      const message = typeof root?.message === 'string' ? root.message : 'API key created'
+      toast.success(message)
+      setNewKeyName('')
+      await fetchApiKeys()
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to create API key'
+      toast.error(msg)
+    } finally {
+      setCreatingKey(false)
+    }
+  }
+
+  const handleDeactivate = async (id: string) => {
+    setDeactivatingId(id)
+    try {
+      const res = await apiDelete<unknown>(`/api/api-key/deactivateAPIKey/${id}`, { useProxy: true, includeAuth: true })
+      if (!res.ok) {
+        const msg = typeof res.error === 'string' ? res.error : (res.error && typeof res.error === 'object' && 'message' in res.error ? String((res.error as Record<string, unknown>).message) : 'Failed to deactivate API key')
+        toast.error(msg)
+        return
+      }
+      const root = res.data as Record<string, unknown>
+      const message = typeof root?.message === 'string' ? root.message : 'API key deactivated'
+      toast.success(message)
+      await fetchApiKeys()
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to deactivate API key'
+      toast.error(msg)
+    } finally {
+      setDeactivatingId(null)
+    }
+  }
+
   // Load history from localStorage on mount
   useEffect(() => {
+    fetchApiKeys()
     const savedHistory = localStorage.getItem('api-testing-history')
     if (savedHistory) {
       try {
@@ -165,7 +276,7 @@ export default function ApiCallsPage() {
         console.error('Failed to load history:', error)
       }
     }
-  }, [])
+  }, [fetchApiKeys])
 
   // Save history to localStorage whenever it changes
   useEffect(() => {
@@ -451,6 +562,103 @@ export default function ApiCallsPage() {
           />
         </div>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">API Keys</CardTitle>
+          <CardDescription>Manage your API keys for authenticated requests</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-end gap-2">
+            <div className="flex-1">
+              <Label className="text-sm font-medium">Key name</Label>
+              <Input
+                placeholder="e.g., Production Client"
+                value={newKeyName}
+                onChange={(e) => setNewKeyName(e.target.value)}
+              />
+            </div>
+            <Button onClick={handleCreateKey} disabled={creatingKey || !newKeyName.trim()}>
+              {creatingKey ? (
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Creating
+                </div>
+              ) : (
+                'Create Key'
+              )}
+            </Button>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-medium">Your Keys</Label>
+              {keysLoading && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <div className="w-3 h-3 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin" />
+                  Loading
+                </div>
+              )}
+            </div>
+            {apiKeys.length === 0 && !keysLoading ? (
+              <p className="text-sm text-muted-foreground">No API keys yet</p>
+            ) : (
+              <div className="space-y-2">
+                {apiKeys.map((k) => {
+                  const isRevealed = revealed[k.id]
+                  const displayed = isRevealed ? (k.api_key || k.key_prefix || '') : maskKey(k.api_key, k.key_prefix)
+                  const statusText = k.is_active ? 'Active' : 'Inactive'
+                  const rate = typeof k.rate_limit_per_minute === 'number' ? k.rate_limit_per_minute : undefined
+                  return (
+                    <div key={k.id} className="p-3 rounded-lg border flex items-center justify-between">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className={cn('text-xs', k.is_active ? 'text-green-600 border-green-600' : 'text-red-600 border-red-600')}>{statusText}</Badge>
+                          {typeof rate === 'number' && (
+                            <Badge variant="secondary" className="text-xs">{rate}/min</Badge>
+                          )}
+                        </div>
+                        <p className="text-sm font-medium">{k.key_name || 'API Key'}</p>
+                        <p className="text-xs text-muted-foreground">{displayed}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button variant="outline" size="sm" onClick={() => setRevealed(prev => ({ ...prev, [k.id]: !isRevealed }))}>
+                          {isRevealed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const valueToCopy = isRevealed ? (k.api_key || '') : (k.api_key ? maskKey(k.api_key) : (k.key_prefix || ''))
+                            navigator.clipboard.writeText(valueToCopy).then(() => toast.success('Copied'))
+                          }}
+                        >
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          disabled={!k.is_active || deactivatingId === k.id}
+                          onClick={() => handleDeactivate(k.id)}
+                        >
+                          {deactivatingId === k.id ? (
+                            <div className="flex items-center gap-2">
+                              <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                              Deactivating
+                            </div>
+                          ) : (
+                            'Deactivate'
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Request/Response Area */}
