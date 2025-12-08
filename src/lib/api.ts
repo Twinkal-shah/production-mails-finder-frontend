@@ -22,13 +22,12 @@ export function getBackendBaseUrl(): string {
 
 function resolveUrl(path: string, useProxy?: boolean): string {
   if (path.startsWith('http://') || path.startsWith('https://')) return path
+  const makeRelative = (s: string) => ('/' + s.replace(/^\/+/, '')).replace(/\/{2,}/g, '/')
   if (useProxy || path.startsWith('/api/')) {
-    // Prefer relative path so Next.js routes to current origin/port
-    const p = path.startsWith('/') ? path : `/${path}`
-    return p
+    return makeRelative(path)
   }
-  const base = getBackendBaseUrl().replace(/\/$/, '')
-  const p = path.startsWith('/') ? path : `/${path}`
+  const base = getBackendBaseUrl().replace(/\/+$/, '')
+  const p = makeRelative(path)
   return `${base}${p}`
 }
 
