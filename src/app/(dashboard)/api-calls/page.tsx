@@ -200,6 +200,7 @@ type ApiDoc = {
   requestBodyAlt?: unknown
   success: unknown
   error: unknown
+  responseFields?: Record<string, string>
 }
 
 const stringifyJson = (obj: unknown) => (typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2))
@@ -250,7 +251,22 @@ const API_DOCS: ApiDoc[] = [
     requestBody: { full_name: 'John Doe', domain: 'example.com', role: 'CTO' },
     requestBodyAlt: { first_name: 'John', last_name: 'Doe', domain: 'example.com' },
     success: { success: true, data: { email: 'john.doe@example.com', confidence: 95, status: 'found', catch_all: false, domain: 'example.com', mx: 'mx.example.com', time_exec: 350, user_name: 'john', connections: 3, ver_ops: 1 }, message: 'Email found' },
-    error: { error: { message: 'Invalid JSON in request body', code: 400 } }
+    error: { error: { message: 'Invalid JSON in request body', code: 400 } },
+    responseFields: {
+      success: "Whether the request was successful",
+      message: "General message about the result",
+      data: "Main result containing the found email details",
+      "data.email": "Predicted or discovered email address",
+      "data.confidence": "Confidence score (0–100) based on matching patterns & verification signals",
+      "data.status": "Status of the email: found, not_found, unknown",
+      "data.catch_all": "Whether the domain accepts all email addresses",
+      "data.domain": "Domain used for generating or verifying the email",
+      "data.mx": "Mail server responsible for receiving emails for this domain",
+      "data.time_exec": "Processing time taken to find the email (seconds)",
+      "data.user_name": "Normalized username used from the input name",
+      "data.connections": "SMTP connections attempted during discovery",
+      "data.ver_ops": "Total verification operations performed"
+    }
   },
   {
     id: 'doc-email-find-bulk',
@@ -262,7 +278,19 @@ const API_DOCS: ApiDoc[] = [
     headers: { 'Authorization': 'Bearer <ACCESS_TOKEN>', 'Content-Type': 'application/json' },
     requestBody: [ { domain: 'example.com', first_name: 'John', last_name: 'Doe' }, { domain: 'example.com', first_name: 'Jane', last_name: 'Smith' } ],
     success: { success: true, data: { results: [ { email: 'john.doe@example.com', confidence: 95, status: 'found', domain: 'example.com', first_name: 'John', last_name: 'Doe' }, { email: null, confidence: 0, status: 'not_found', domain: 'example.com', first_name: 'Jane', last_name: 'Smith' } ], totalCredits: 2 } },
-    error: { error: { message: 'Unauthorized', code: 401 } }
+    error: { error: { message: 'Unauthorized', code: 401 } },
+    responseFields: {
+      success: "Whether the request was successful",
+      data: "The result list containing email discovery attempts",
+      "data.results": "Array of results for each email",
+      "data.results[].email": "Predicted or discovered email address (null if not found)",
+      "data.results[].confidence": "Confidence score (0–100) for this item",
+      "data.results[].status": "found, not_found, or unknown",
+      "data.results[].domain": "Domain used for generation",
+      "data.results[].first_name": "First name provided for lookup",
+      "data.results[].last_name": "Last name provided for lookup",
+      "data.totalCredits": "Total credits consumed for the bulk operation"
+    }
   },
   {
     id: 'doc-email-verify-bulk',
@@ -274,7 +302,21 @@ const API_DOCS: ApiDoc[] = [
     headers: { 'Authorization': 'Bearer <ACCESS_TOKEN>', 'Content-Type': 'application/json' },
     requestBody: { emails: ['john.doe@example.com', 'jane.smith@example.com'] },
     success: { success: true, data: { results: [ { email: 'john.doe@example.com', status: 'valid', confidence: 90, deliverable: true, reason: 'Accepted', catch_all: false, domain: 'example.com', mx: 'mx.example.com' }, { email: 'jane.smith@example.com', status: 'invalid', confidence: 0, deliverable: false, reason: 'Undeliverable' } ], totalCredits: 2 } },
-    error: { error: { message: 'email list is required', code: 400 } }
+    error: { error: { message: 'email list is required', code: 400 } },
+    responseFields: {
+      success: "Whether the request was successful",
+      data: "Bulk verification results",
+      "data.results": "Array of verification outcomes for each email",
+      "data.results[].email": "Email address that was checked",
+      "data.results[].status": "valid, invalid, or unknown",
+      "data.results[].confidence": "Confidence score based on SMTP & DNS checks",
+      "data.results[].deliverable": "Whether the email can actually receive messages",
+      "data.results[].reason": "SMTP server’s message explaining the result",
+      "data.results[].catch_all": "Whether the domain accepts all emails",
+      "data.results[].domain": "Email domain",
+      "data.results[].mx": "Mail server (MX record) handling this domain",
+      "data.totalCredits": "Total credits used during the verification process"
+    }
   },
   {
     id: 'doc-email-verify',
@@ -286,7 +328,21 @@ const API_DOCS: ApiDoc[] = [
     headers: { 'Authorization': 'Bearer <ACCESS_TOKEN>', 'Content-Type': 'application/json' },
     requestBody: { email: 'john.doe@example.com' },
     success: { success: true, data: { email: 'john.doe@example.com', status: 'valid', confidence: 80, deliverable: true, reason: 'OK', catch_all: false, domain: 'example.com', mx: 'mx.example.com', user_name: 'john' }, message: 'Verified' },
-    error: { error: { message: 'email is required', code: 400 } }
+    error: { error: { message: 'email is required', code: 400 } },
+    responseFields: {
+      success: "Whether the request was successful",
+      message: "General response message",
+      data: "Verification details for the requested email",
+      "data.email": "Email address that was verified",
+      "data.status": "valid, invalid, or unknown",
+      "data.confidence": "Confidence score (0–100)",
+      "data.deliverable": "Whether emails can be delivered to this address",
+      "data.reason": "SMTP server message describing the result",
+      "data.catch_all": "Whether the domain accepts all emails",
+      "data.domain": "Domain of the email address",
+      "data.mx": "Mail server (MX record) handling this domain",
+      "data.user_name": "Local-part username extracted from the address"
+    }
   }
 ]
 
@@ -1061,34 +1117,45 @@ export default function ApiCallsPage() {
                       </div>
                       <div className="space-y-2">
                         <div className="text-sm font-medium">Response Fields</div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="border rounded-md p-3">
-                            <div className="text-xs font-semibold mb-2">Wrapper</div>
-                            <div className="space-y-1">
-                              {wrapperTypes.map((f) => (
-                                <div key={f.key} className="flex items-center justify-between text-xs">
-                                  <span>{f.key}</span>
-                                  <Badge variant="outline" className="text-[10px]">{f.type}</Badge>
-                                </div>
-                              ))}
-                            </div>
+                        {doc.responseFields ? (
+                          <div className="border rounded-md p-3 space-y-1">
+                            {Object.entries(doc.responseFields).map(([key, desc]) => (
+                              <div key={key} className="flex items-center justify-between text-xs">
+                                <span className="font-mono">{key}</span>
+                                <span className="text-muted-foreground ml-2">{desc}</span>
+                              </div>
+                            ))}
                           </div>
-                          <div className="border rounded-md p-3">
-                            <div className="text-xs font-semibold mb-2">Data</div>
-                            <div className="space-y-1">
-                              {dataTypes.length === 0 ? (
-                                <span className="text-xs text-muted-foreground">No data fields</span>
-                              ) : (
-                                dataTypes.map((f) => (
+                        ) : (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="border rounded-md p-3">
+                              <div className="text-xs font-semibold mb-2">Wrapper</div>
+                              <div className="space-y-1">
+                                {wrapperTypes.map((f) => (
                                   <div key={f.key} className="flex items-center justify-between text-xs">
                                     <span>{f.key}</span>
                                     <Badge variant="outline" className="text-[10px]">{f.type}</Badge>
                                   </div>
-                                ))
-                              )}
+                                ))}
+                              </div>
+                            </div>
+                            <div className="border rounded-md p-3">
+                              <div className="text-xs font-semibold mb-2">Data</div>
+                              <div className="space-y-1">
+                                {dataTypes.length === 0 ? (
+                                  <span className="text-xs text-muted-foreground">No data fields</span>
+                                ) : (
+                                  dataTypes.map((f) => (
+                                    <div key={f.key} className="flex items-center justify-between text-xs">
+                                      <span>{f.key}</span>
+                                      <Badge variant="outline" className="text-[10px]">{f.type}</Badge>
+                                    </div>
+                                  ))
+                                )}
+                              </div>
                             </div>
                           </div>
-                        </div>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
