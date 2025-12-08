@@ -109,8 +109,7 @@ const PREDEFINED_ENDPOINTS: PredefinedEndpoint[] = [
     ],
     body: JSON.stringify({
       full_name: 'John Doe',
-      domain: 'example.com',
-      role: 'CTO'
+      domain: 'example.com'
     }, null, 2)
   },
   {
