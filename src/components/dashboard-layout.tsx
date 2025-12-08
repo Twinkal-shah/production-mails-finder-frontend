@@ -63,10 +63,7 @@ const getNavigation = (userPlan: string) => {
     },
   ]
 
-  // Add API Testing page for agency or lifetime plan users
-  if (userPlan === 'agency' || userPlan === 'lifetime') {
-    baseNavigation[1].items.push({ name: 'API Testing', href: '/api-calls', icon: Code2 })
-  }
+  baseNavigation[1].items.push({ name: 'API', href: '/api-calls', icon: Code2 })
 
   // Add Video Tutorials section for agency or lifetime plan users
   if (userPlan === 'agency' || userPlan === 'lifetime') {

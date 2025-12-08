@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -32,6 +33,7 @@ import type {
 } from '@/types/api-testing'
 import { JsonEditor } from '@/components/api-testing/json-editor'
 import { ResponseViewer } from '@/components/api-testing/response-viewer'
+import { useUserProfile } from '@/hooks/useCreditsData'
 
 // Predefined endpoints for testing
 const PREDEFINED_ENDPOINTS: PredefinedEndpoint[] = [
@@ -125,6 +127,8 @@ const PREDEFINED_ENDPOINTS: PredefinedEndpoint[] = [
 const HTTP_METHODS: HttpMethod[] = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH']
 
 export default function ApiCallsPage() {
+  const router = useRouter()
+  const { data: profile, isLoading: profileLoading } = useUserProfile()
   const [state, setState] = useState<ApiTestingState>({
     currentRequest: {
       id: crypto.randomUUID(),
@@ -145,6 +149,10 @@ export default function ApiCallsPage() {
   })
 
   const [activeTab, setActiveTab] = useState('request')
+  const restricted = !profileLoading && (profile?.plan === 'free' || profile?.plan === 'pro')
+  const handleUpgrade = () => {
+    router.push('/credits')
+  }
 
   // Load history from localStorage on mount
   useEffect(() => {
@@ -394,10 +402,24 @@ export default function ApiCallsPage() {
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">API Testing</h1>
+    <div className="container mx-auto p-6 space-y-6 relative">
+      {restricted && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/70 backdrop-blur-sm">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle>Upgrade Required</CardTitle>
+              <CardDescription>API access requires an upgraded plan</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button className="w-full" onClick={handleUpgrade}>Upgrade Your Plan</Button>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+      <div className={restricted ? 'pointer-events-none blur-sm' : ''}>
+        <div className="flex items-center justify-between">
+          <div>
+          <h1 className="text-3xl font-bold">API</h1>
           <p className="text-muted-foreground">
             Test and debug your API endpoints with a comprehensive testing interface
           </p>
@@ -679,6 +701,7 @@ export default function ApiCallsPage() {
             </CardContent>
           </Card>
         </div>
+      </div>
       </div>
     </div>
   )
