@@ -201,6 +201,7 @@ type ApiDoc = {
   success: unknown
   error: unknown
   responseFields?: Record<string, string>
+  statusCodes?: Record<string, string>
 }
 
 const stringifyJson = (obj: unknown) => (typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2))
@@ -263,6 +264,12 @@ const API_DOCS: ApiDoc[] = [
       user_name: "Username portion generated from the name.",
       connections: "Number of SMTP connections attempted.",
       ver_ops: "Number of verification operations executed."
+    },
+    statusCodes: {
+      "200": "We found the email successfully.",
+      "400": "You forgot to enter required information.",
+      "401": "You are not logged in.",
+      "500": "Something went wrong on our side."
     }
   },
   {
@@ -285,6 +292,13 @@ const API_DOCS: ApiDoc[] = [
       "results[].first_name": "First name provided for this entry.",
       "results[].last_name": "Last name provided for this entry.",
       totalCredits: "Number of credits consumed for the entire bulk operation."
+    },
+    statusCodes: {
+      "200": "All emails were processed.",
+      "400": "The list you sent is incorrect or incomplete.",
+      "401": "You are not logged in.",
+      "429": "You sent too many requests at once.",
+      "500": "Something went wrong while processing emails."
     }
   },
   {
@@ -309,6 +323,13 @@ const API_DOCS: ApiDoc[] = [
       "results[].domain": "Domain of the email.",
       "results[].mx": "Mail server used for verification.",
       totalCredits: "Credits used for the entire verification request."
+    },
+    statusCodes: {
+      "200": "All emails were checked.",
+      "400": "Your list of emails is missing or incorrect.",
+      "401": "You are not logged in.",
+      "429": "You tried verifying too many emails too fast.",
+      "500": "Verification failed due to server issues."
     }
   },
   {
@@ -332,6 +353,13 @@ const API_DOCS: ApiDoc[] = [
       domain: "The domain of the email.",
       mx: "Mail server used during verification.",
       user_name: "Username portion extracted from the email."
+    },
+    statusCodes: {
+      "200": "The email was checked successfully.",
+      "400": "You did not include the email to verify.",
+      "401": "You are not logged in.",
+      "422": "The email format is incorrect.",
+      "500": "The mail server did not respond or failed."
     }
   }
 ]
@@ -1121,6 +1149,26 @@ export default function ApiCallsPage() {
                           </div>
                         ) : (
                           <div className="text-xs text-muted-foreground">No fields documented yet</div>
+                        )}
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="text-sm font-medium">Status Codes</div>
+                        {doc.statusCodes ? (
+                          <div className="space-y-2">
+                            {Object.entries(doc.statusCodes).map(([code, desc]) => (
+                              <div key={code} className="flex items-center gap-3">
+                                <Badge variant="outline" className="rounded-full font-mono text-[11px] px-2 py-1">
+                                  {code}
+                                </Badge>
+                                <div className="text-xs text-muted-foreground">
+                                  {desc}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-xs text-muted-foreground">No status codes documented yet</div>
                         )}
                       </div>
                     </CardContent>
