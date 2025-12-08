@@ -17,6 +17,9 @@ interface EmailResult {
   email: string | null
   confidence: number
   status: 'found' | 'not_found' | 'error'
+  full_name?: string
+  domain?: string
+  mx?: string
 }
 
 interface SearchHistoryItem {
@@ -184,6 +187,17 @@ export default function FindPage() {
                     </div>
                     <div className="text-sm text-gray-600">
                       Status: Valid
+                    </div>
+                    <div className="mt-2 space-y-1">
+                      {result.full_name && (
+                        <p className="text-sm text-gray-800">Full Name: {result.full_name}</p>
+                      )}
+                      {result.domain && (
+                        <p className="text-sm text-gray-800">Domain: {result.domain}</p>
+                      )}
+                      {result.mx && (
+                        <p className="text-sm text-gray-800">MX: {result.mx}</p>
+                      )}
                     </div>
                   </div>
                 ) : (

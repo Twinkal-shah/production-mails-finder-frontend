@@ -12,6 +12,9 @@ interface FindEmailApiResponse {
   email: string | null
   confidence: number
   status: 'found' | 'not_found' | 'error'
+  full_name?: string
+  domain?: string
+  mx?: string
   credits_remaining: {
     find: number
     verify: number
@@ -78,15 +81,18 @@ export async function POST(request: NextRequest) {
       : (authResult.creditsFind || 0)
 
     // Map service result to API response format
-    const apiResponse: FindEmailApiResponse = {
-      email: serviceResult.email || null,
-      confidence: serviceResult.confidence || 0,
-      status: serviceResult.email ? 'found' : 'not_found',
-      credits_remaining: {
-        find: remainingFindCredits,
-        verify: authResult.creditsVerify || 0
-      }
+  const apiResponse: FindEmailApiResponse = {
+    email: serviceResult.email || null,
+    confidence: serviceResult.confidence || 0,
+    status: serviceResult.email ? 'found' : 'not_found',
+    full_name: body.full_name.trim(),
+    domain: body.domain.trim(),
+    mx: serviceResult.mx,
+    credits_remaining: {
+      find: remainingFindCredits,
+      verify: authResult.creditsVerify || 0
     }
+  }
 
     return createApiSuccessResponse(apiResponse)
 

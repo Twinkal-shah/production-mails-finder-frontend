@@ -15,6 +15,9 @@ interface EmailResult {
   email: string | null
   confidence: number
   status: 'found' | 'not_found' | 'error'
+  full_name?: string
+  domain?: string
+  mx?: string
 }
 
 interface FindEmailResponse {
@@ -62,12 +65,15 @@ export async function findEmail(request: FindEmailRequest): Promise<FindEmailRes
     const serviceResult = await findEmailService(emailRequest)
     
     // Map service result to expected format
-    const result: EmailResult = {
-      email: serviceResult.email || null,
-      confidence: serviceResult.confidence || 0,
-      status: serviceResult.status === 'valid' ? 'found' :
-              serviceResult.status === 'invalid' ? 'not_found' : 'error'
-    }
+  const result: EmailResult = {
+    email: serviceResult.email || null,
+    confidence: serviceResult.confidence || 0,
+    status: serviceResult.status === 'valid' ? 'found' :
+            serviceResult.status === 'invalid' ? 'not_found' : 'error',
+    full_name: request.full_name,
+    domain: request.company_domain,
+    mx: serviceResult.mx
+  }
 
     if (!result.email) {
       try {
@@ -95,6 +101,9 @@ export async function findEmail(request: FindEmailRequest): Promise<FindEmailRes
           result.email = email
           result.confidence = confidence
           result.status = 'found'
+          result.full_name = request.full_name
+          result.domain = request.company_domain
+          result.mx = typeof p?.mx === 'string' ? String(p.mx) : result.mx
         }
       } catch {}
     }
