@@ -31,17 +31,19 @@ export async function POST(req: NextRequest) {
     }
     
     // Handle different backend response formats
-    let accessToken, user
+    let accessToken, refreshTokenNew, user
     
     // Check for your backend format: { data: { user, access_token } }
     if (responseData.data && responseData.data.user && responseData.data.access_token) {
       accessToken = responseData.data.access_token
+      refreshTokenNew = responseData.data.refresh_token
       user = responseData.data.user
       console.log('Detected your backend format with data wrapper')
     }
     // Check for standard format: { accessToken, user }
     else if (responseData.accessToken && responseData.user) {
       accessToken = responseData.accessToken
+      refreshTokenNew = responseData.refreshToken
       user = responseData.user
       console.log('Detected standard format')
     }
@@ -65,6 +67,16 @@ export async function POST(req: NextRequest) {
         sameSite: 'lax',
         maxAge: 60 * 60 * 24 * 7 // 7 days
       })
+
+      // Set refresh token cookie if provided by backend
+      if (typeof refreshTokenNew === 'string' && refreshTokenNew.length > 0) {
+        response.cookies.set('refresh_token', refreshTokenNew, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          maxAge: 60 * 60 * 24 * 30 // 30 days
+        })
+      }
       
       return response
     }

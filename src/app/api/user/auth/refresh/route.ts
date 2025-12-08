@@ -6,8 +6,17 @@ export async function GET(req: NextRequest) {
   const url = `${backend}/api/user/auth/refresh`
   const cookie = req.headers.get('cookie') || ''
   const refreshToken = req.headers.get('refreshtoken') || ''
+  const accessCookie = req.cookies.get('access_token')?.value || ''
+  const refreshCookie = req.cookies.get('refresh_token')?.value || ''
   
   try {
+    // Fallback: if no refresh token provided via header or cookie, but access cookie exists,
+    // return the current access token to allow the UI to display/copy it.
+    if (!refreshToken && !refreshCookie && accessCookie) {
+      const response = NextResponse.json({ data: { access_token: accessCookie } }, { status: 200 })
+      return response
+    }
+
     const res = await fetch(url, {
       method: 'GET',
       headers: {

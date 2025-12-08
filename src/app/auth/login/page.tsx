@@ -37,7 +37,7 @@ function LoginInner() {
         return
       }
       // Handle different backend response formats
-      let accessToken, user
+      let accessToken, refreshToken, user
       
       const responseData = res.data as Record<string, unknown>
       
@@ -45,12 +45,14 @@ function LoginInner() {
       if (responseData.data && typeof responseData.data === 'object' && 'user' in responseData.data && 'access_token' in responseData.data) {
         const data = responseData.data as { user: unknown; access_token: string }
         accessToken = data.access_token
+        refreshToken = (responseData.data as Record<string, unknown>)['refresh_token'] as string | undefined
         user = data.user
         console.log('Detected your backend format with data wrapper')
       }
       // Check for standard format: { accessToken, user }
       else if (responseData.accessToken && responseData.user) {
         accessToken = responseData.accessToken as string
+        refreshToken = responseData.refreshToken as string | undefined
         user = responseData.user
         console.log('Detected standard format')
       }
@@ -63,6 +65,7 @@ function LoginInner() {
       // Store in localStorage
       try {
         localStorage.setItem('access_token', accessToken)
+        if (refreshToken) localStorage.setItem('refresh_token', refreshToken)
         localStorage.setItem('user_data', JSON.stringify(user))
       } catch (e) {
         console.error('Error storing in localStorage:', e)
