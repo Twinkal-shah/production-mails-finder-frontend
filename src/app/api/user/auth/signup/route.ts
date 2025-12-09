@@ -6,10 +6,46 @@ export async function POST(req: NextRequest) {
   const url = `${backend}/api/user/auth/signup`
   const cookie = req.headers.get('cookie') || ''
   try {
-    const body = await req.text()
+    const inboundType = req.headers.get('content-type') || ''
+    let outBody: string
+    
+    // Normalize payload to support different backend expectations
+    if (inboundType.includes('application/json')) {
+      const json = await req.json().catch(async () => {
+        const txt = await req.text()
+        try { return JSON.parse(txt) } catch { return {} }
+      }) as Record<string, unknown>
+      const email = typeof json.email === 'string' ? json.email.trim() : ''
+      const password = typeof json.password === 'string' ? json.password : ''
+      const fullNameRaw = typeof json.full_name === 'string' ? json.full_name : ''
+      const firstNameRaw = typeof (json.first_name ?? json.firstName) === 'string' ? String(json.first_name ?? json.firstName) : ''
+      const lastNameRaw = typeof (json.last_name ?? json.lastName) === 'string' ? String(json.last_name ?? json.lastName) : ''
+      const phone = typeof json.phone === 'string' ? json.phone : ''
+      const company = typeof json.company === 'string' ? json.company : ''
+      let first = firstNameRaw.trim()
+      let last = lastNameRaw.trim()
+      let full = fullNameRaw.trim()
+      if (!full && (first || last)) full = [first, last].filter(Boolean).join(' ').trim()
+      if (!first && full) {
+        const parts = full.trim().split(/\s+/)
+        first = parts[0] || ''
+        last = parts.slice(1).join(' ') || ''
+      }
+      const payload: Record<string, unknown> = { email, password }
+      if (full) payload.full_name = full
+      if (first) payload.first_name = first
+      if (last) payload.last_name = last
+      if (phone && phone.trim()) payload.phone = phone.trim()
+      if (company && company.trim()) payload.company = company.trim()
+      outBody = JSON.stringify(payload)
+    } else {
+      // Fallback: forward as-is
+      const txt = await req.text()
+      outBody = txt
+    }
     
     // Debug: Log what we're sending to backend
-    console.log('Signup proxy - Sending to backend:', body)
+    console.log('Signup proxy - Sending to backend:', outBody)
     
     const res = await fetch(url, {
       method: 'POST',
@@ -17,7 +53,7 @@ export async function POST(req: NextRequest) {
         ...(cookie ? { Cookie: cookie } : {}),
         'content-type': 'application/json'
       },
-      body,
+      body: outBody,
     })
     
     // Debug: Log backend response
