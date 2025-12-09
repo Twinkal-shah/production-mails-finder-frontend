@@ -32,9 +32,9 @@ export async function POST(req: NextRequest) {
         last = parts.slice(1).join(' ') || ''
       }
       const payload: Record<string, unknown> = { email, password }
-      if (first) payload.firstName = first
-      if (last) payload.lastName = last
-      // Omit phone/company to avoid backend 'additional properties' validation errors
+      const full_name = full || [first, last].filter(Boolean).join(' ').trim()
+      if (full_name) payload.full_name = full_name
+      // Omit any other fields to satisfy strict backend schema
       outBody = JSON.stringify(payload)
     } else {
       // Fallback: forward as-is
@@ -65,7 +65,16 @@ export async function POST(req: NextRequest) {
           const parsed = JSON.parse(outBody) as Record<string, unknown>
           const emailRetry = typeof parsed.email === 'string' ? parsed.email : ''
           const passwordRetry = typeof parsed.password === 'string' ? parsed.password : ''
-          const minimal = JSON.stringify({ email: emailRetry, password: passwordRetry })
+          const fullNameRetry = typeof parsed.full_name === 'string' && parsed.full_name.trim() 
+            ? parsed.full_name 
+            : (() => {
+                const fn = typeof parsed.firstName === 'string' ? parsed.firstName : ''
+                const ln = typeof parsed.lastName === 'string' ? parsed.lastName : ''
+                return [fn, ln].filter(Boolean).join(' ').trim()
+              })()
+          const minimalPayload: Record<string, string> = { email: emailRetry, password: passwordRetry }
+          if (fullNameRetry) minimalPayload.full_name = fullNameRetry
+          const minimal = JSON.stringify(minimalPayload)
           console.log('Signup proxy - Retrying with minimal payload:', minimal)
           res = await fetch(url, {
             method: 'POST',
