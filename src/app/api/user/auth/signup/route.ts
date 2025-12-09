@@ -32,9 +32,8 @@ export async function POST(req: NextRequest) {
         last = parts.slice(1).join(' ') || ''
       }
       const payload: Record<string, unknown> = { email, password }
-      if (full) payload.full_name = full
-      if (first) payload.first_name = first
-      if (last) payload.last_name = last
+      if (first) payload.firstName = first
+      if (last) payload.lastName = last
       if (phone && phone.trim()) payload.phone = phone.trim()
       if (company && company.trim()) payload.company = company.trim()
       outBody = JSON.stringify(payload)
