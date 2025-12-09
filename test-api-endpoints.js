@@ -3,8 +3,8 @@ const http = require('http');
 
 // Configuration
 const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_LOCAL_FRONTEND_URL || 'http://localhost:3000';
-const BACKEND_URL = `${process.env.NEXT_PUBLIC_LOCAL_URL || 'http://server.mailsfinder.com:8081/.'}/api`;
-const API_BASE = process.env.NEXT_PUBLIC_CORE_API_BASE || 'http://server.mailsfinder.com:8081/./api';
+const BACKEND_URL = `${process.env.NEXT_PUBLIC_LOCAL_URL || 'https://server.mailsfinder.com'}/api`;
+const API_BASE = process.env.NEXT_PUBLIC_CORE_API_BASE || 'https://server.mailsfinder.com/api';
 
 // Test data
 const testUser = {

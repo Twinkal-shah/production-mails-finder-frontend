@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(request: NextRequest) {
   try {
-    const backend = process.env.NEXT_PUBLIC_LOCAL_URL || 'http://server.mailsfinder.com:8081/.'
+    const backend = process.env.NEXT_PUBLIC_LOCAL_URL || 'https://server.mailsfinder.com'
     const url = `${backend}/api/user/credits/deduct`
     
     // Forward the request to the backend with authentication

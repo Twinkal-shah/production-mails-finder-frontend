@@ -21,11 +21,11 @@ async function testYourLogin() {
       rl.question('Enter your password: ', async (password) => {
         rl.close();
         
-        try {
-          console.log('\n--- Testing your login ---');
-          console.log('Backend URL: http://server.mailsfinder.com:8081/./api/user/auth/login');
+  try {
+    console.log('\n--- Testing your login ---');
+          console.log('Backend URL: https://server.mailsfinder.com/api/user/auth/login');
           
-          const response = await fetch('http://server.mailsfinder.com:8081/./api/user/auth/login', {
+          const response = await fetch('https://server.mailsfinder.com/api/user/auth/login', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

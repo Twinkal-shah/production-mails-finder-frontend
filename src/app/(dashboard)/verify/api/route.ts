@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     }
     
     // Check if plan has expired and get credits from profile data
-    const backend = process.env.NEXT_PUBLIC_SERVER_URL || 'http://server.mailsfinder.com:8081/.'
+    const backend = process.env.NEXT_PUBLIC_SERVER_URL || 'https://server.mailsfinder.com'
     const cookie = request.headers.get('cookie') || ''
     const accessToken = await getAccessTokenFromCookies()
     

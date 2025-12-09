@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
     const asNum = Number(variantId)
     if (!Number.isNaN(asNum)) payload.variant_id = asNum
   }
-  const backend = process.env.NEXT_PUBLIC_SERVER_URL || process.env.NEXT_PUBLIC_LOCAL_URL || 'http://server.mailsfinder.com:8081/.'
+  const backend = process.env.NEXT_PUBLIC_SERVER_URL || process.env.NEXT_PUBLIC_LOCAL_URL || 'https://server.mailsfinder.com'
   const res = await fetch(`${backend}/api/transaction/payment/createPayment`, {
     method: 'POST',
     headers: {

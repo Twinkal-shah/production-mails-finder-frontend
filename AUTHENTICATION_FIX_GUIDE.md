@@ -7,7 +7,7 @@
 - **Solution**: Created `/Users/jinaybulsara/Documents/mails-Dashboard/mails-dashboard/src/app/api/user/me/route.ts`
 
 ### 2. Authentication Flow Issues
-- **Problem**: Frontend was making direct calls to `http://server.mailsfinder.com:8081/.` instead of using the Next.js proxy
+- **Problem**: Frontend was making direct calls to `https://server.mailsfinder.com` instead of using the Next.js proxy
 - **Solution**: Updated all authentication calls in `useAuth.ts` to use `/api/user/*` routes
 
 ### 3. CORS Configuration
@@ -19,14 +19,14 @@
 In your backend `.env` file, update the CORS whitelist:
 
 ```env
-CORS_WHITELIST='["http://localhost:3000","http://localhost:3001","http://server.mailsfinder.com:8081/.","https://a52b49cd2593.ngrok-free.app"]'
+CORS_WHITELIST='["http://localhost:3000","http://localhost:3001","https://server.mailsfinder.com","https://a52b49cd2593.ngrok-free.app"]'
 ```
 
 ## Authentication Flow Overview:
 
 1. **Login**: 
    - Frontend calls `/api/user/auth/login` (Next.js proxy)
-   - Proxy forwards to `http://server.mailsfinder.com:8081/./api/user/auth/login`
+  - Proxy forwards to `https://server.mailsfinder.com/api/user/auth/login`
    - Backend returns `{ accessToken, user }`
    - Proxy sets HTTP-only cookies and returns response
 
@@ -41,7 +41,7 @@ CORS_WHITELIST='["http://localhost:3000","http://localhost:3001","http://server.
 
 ## Testing Steps:
 
-1. Make sure your backend is running on `http://server.mailsfinder.com:8081/.`
+1. Make sure your backend is running on `https://server.mailsfinder.com`
 2. Make sure your frontend is running on `http://localhost:3000`
 3. Update your backend CORS configuration
 4. Try logging in with existing credentials
@@ -50,7 +50,7 @@ CORS_WHITELIST='["http://localhost:3000","http://localhost:3001","http://server.
 
 Your frontend `.env.local` should include:
 - `NEXT_PUBLIC_APP_URL=http://localhost:3000`
-- `NEXT_PUBLIC_LOCAL_URL=http://server.mailsfinder.com:8081/.`
+- `NEXT_PUBLIC_LOCAL_URL=https://server.mailsfinder.com`
 - `NEXT_PUBLIC_LOCAL_FRONTEND_URL=http://localhost:3000`
 
 ## Common Issues:

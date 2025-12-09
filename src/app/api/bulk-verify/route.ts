@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(request: NextRequest) {
   try {
-    const backend = process.env.NEXT_PUBLIC_LOCAL_URL || 'http://server.mailsfinder.com:8081/.'
+    const backend = process.env.NEXT_PUBLIC_LOCAL_URL || 'https://server.mailsfinder.com'
     const url = `${backend}/api/bulk-verify`
     const cookie = request.headers.get('cookie') || ''
     const auth = request.headers.get('authorization') || ''
@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
     const jobId = searchParams.get('jobId')
     if (!jobId) return NextResponse.json({ error: 'Job ID is required' }, { status: 400 })
 
-    const backend = process.env.NEXT_PUBLIC_LOCAL_URL || 'http://server.mailsfinder.com:8081/.'
+    const backend = process.env.NEXT_PUBLIC_LOCAL_URL || 'https://server.mailsfinder.com'
     const url = `${backend}/api/bulk-verify?jobId=${encodeURIComponent(jobId)}`
     const cookie = request.headers.get('cookie') || ''
     const auth = request.headers.get('authorization') || ''

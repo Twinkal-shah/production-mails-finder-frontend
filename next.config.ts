@@ -7,7 +7,7 @@ const nextConfig: NextConfig = {
     },
   },
   async rewrites() {
-    const target = (process.env.NEXT_PUBLIC_SERVER_URL || process.env.NEXT_PUBLIC_LOCAL_URL || 'http://server.mailsfinder.com:8081').replace(/\/+$/, '')
+    const target = (process.env.NEXT_PUBLIC_SERVER_URL || process.env.NEXT_PUBLIC_LOCAL_URL || 'https://server.mailsfinder.com').replace(/\/+$/, '')
     return {
       afterFiles: [
         { source: '/api/:path*', destination: `${target}/api/:path*` },
