@@ -34,8 +34,7 @@ export async function POST(req: NextRequest) {
       const payload: Record<string, unknown> = { email, password }
       if (first) payload.firstName = first
       if (last) payload.lastName = last
-      if (phone && phone.trim()) payload.phone = phone.trim()
-      if (company && company.trim()) payload.company = company.trim()
+      // Omit phone/company to avoid backend 'additional properties' validation errors
       outBody = JSON.stringify(payload)
     } else {
       // Fallback: forward as-is
@@ -46,7 +45,7 @@ export async function POST(req: NextRequest) {
     // Debug: Log what we're sending to backend
     console.log('Signup proxy - Sending to backend:', outBody)
     
-    const res = await fetch(url, {
+    let res = await fetch(url, {
       method: 'POST',
       headers: {
         ...(cookie ? { Cookie: cookie } : {}),
@@ -54,6 +53,31 @@ export async function POST(req: NextRequest) {
       },
       body: outBody,
     })
+    
+    // If backend rejects due to additional properties, retry with minimal payload
+    if (res.status === 400) {
+      const firstText = await res.text()
+      let firstJson: Record<string, unknown> | null = null
+      try { firstJson = JSON.parse(firstText) as Record<string, unknown> } catch {}
+      const msg = typeof firstJson?.message === 'string' ? (firstJson?.message as string) : firstText
+      if (msg && msg.toLowerCase().includes('additional properties')) {
+        try {
+          const parsed = JSON.parse(outBody) as Record<string, unknown>
+          const emailRetry = typeof parsed.email === 'string' ? parsed.email : ''
+          const passwordRetry = typeof parsed.password === 'string' ? parsed.password : ''
+          const minimal = JSON.stringify({ email: emailRetry, password: passwordRetry })
+          console.log('Signup proxy - Retrying with minimal payload:', minimal)
+          res = await fetch(url, {
+            method: 'POST',
+            headers: {
+              ...(cookie ? { Cookie: cookie } : {}),
+              'content-type': 'application/json'
+            },
+            body: minimal,
+          })
+        } catch {}
+      }
+    }
     
     // Debug: Log backend response
     const responseText = await res.text()
