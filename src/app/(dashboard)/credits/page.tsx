@@ -143,19 +143,35 @@ useEffect(() => {
         }
       })
 
-      const text = await res.text()
-      let json: any = {}
-      try { json = text ? JSON.parse(text) : {} } catch (err) { json = {} }
+     const text = await res.text()
+let json: unknown = {}
+try {
+  json = text ? JSON.parse(text) : {}
+} catch (err) {
+  json = {}
+}
 
-      if (json?.success && Array.isArray(json.data)) {
-        setPurchaseHistory(json.data)
-      } else if (Array.isArray(json)) {
-        // fallback if API returns an array directly
-        setPurchaseHistory(json)
-      } else {
-        setPurchaseHistory([])
-        console.warn('Unexpected purchase history response', json)
-      }
+// Narrow `json` safely and set purchaseHistory
+if (Array.isArray(json)) {
+  // API returned array directly
+  setPurchaseHistory(json as PurchaseItem[])
+} else if (typeof json === 'object' && json !== null) {
+  // possible shape: { success: true, data: [...] }
+  const obj = json as Record<string, unknown>
+  if ('success' in obj && (obj as any).success && Array.isArray((obj as any).data)) {
+    setPurchaseHistory((obj as any).data as PurchaseItem[])
+  } else if (Array.isArray((obj as any).data)) {
+    // defensive fallback
+    setPurchaseHistory((obj as any).data as PurchaseItem[])
+  } else {
+    setPurchaseHistory([])
+    console.warn('Unexpected purchase history response', json)
+  }
+} else {
+  setPurchaseHistory([])
+  console.warn('Unexpected purchase history response', json)
+}
+
     } catch (err) {
       console.error('Failed to fetch purchase history', err)
       setPurchaseHistory([])
