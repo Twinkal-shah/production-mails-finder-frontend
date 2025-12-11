@@ -228,7 +228,8 @@ const buildPy = (method: string, url: string, headers: Record<string, string>, b
   return s
 }
 
-const extractTypes = (obj: unknown): { key: string; type: string }[] => {
+// keep helper but marked unused intentionally
+const _extractTypes = (obj: unknown): { key: string; type: string }[] => {
   if (!obj || typeof obj !== 'object') return []
   const out: { key: string; type: string }[] = []
   for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
@@ -392,34 +393,54 @@ export default function ApiCallsPage() {
     router.push('/credits')
   }
 
-// --- keep the ApiKeyRecord type but ensure we use this shape in UI ---
-type ApiKeyRecord = {
-  id: string
-  key_name?: string
-  api_key?: string | undefined
-  key_prefix?: string | undefined
-  is_active?: boolean
-  rate_limit_per_minute?: number
-  usage_count?: number
-  created_at?: string
-  last_used_at?: string | null
-}
-
-// helper: normalize backend item -> ApiKeyRecord
-const normalizeKey = (raw: any): ApiKeyRecord => {
-  if (!raw || typeof raw !== 'object') return { id: '' }
-  return {
-    id: raw._id ?? raw.id ?? '',
-    key_name: raw.keyName ?? raw.key_name ?? '',
-    api_key: typeof raw.apiKey === 'string' ? raw.apiKey : (raw.api_key ?? undefined),
-    key_prefix: raw.keyPrefix ?? raw.key_prefix ?? undefined,
-    is_active: typeof raw.isActive === 'boolean' ? raw.isActive : !!raw.is_active,
-    rate_limit_per_minute: typeof raw.rateLimitPerMinute === 'number' ? raw.rateLimitPerMinute : raw.rate_limit_per_minute,
-    usage_count: typeof raw.usageCount === 'number' ? raw.usageCount : raw.usage_count ?? 0,
-    created_at: raw.createdAt ?? raw.created_at ?? '',
-    last_used_at: raw.lastUsedAt ?? raw.last_used_at ?? null
+  // --- keep the ApiKeyRecord type but ensure we use this shape in UI ---
+  type ApiKeyRecord = {
+    id: string
+    key_name?: string
+    api_key?: string | undefined
+    key_prefix?: string | undefined
+    is_active?: boolean
+    rate_limit_per_minute?: number
+    usage_count?: number
+    created_at?: string
+    last_used_at?: string | null
   }
-}
+
+  // helper: normalize backend item -> ApiKeyRecord
+  const normalizeKey = useCallback((raw: unknown): ApiKeyRecord => {
+    if (!raw || typeof raw !== 'object') return { id: '' }
+    const r = raw as Record<string, unknown>
+
+    const id = String(r['_id'] ?? r['id'] ?? '')
+    const key_name = (r['keyName'] ?? r['key_name'] ?? '') as string
+    const api_key = typeof r['apiKey'] === 'string' ? (r['apiKey'] as string)
+                  : typeof r['api_key'] === 'string' ? (r['api_key'] as string)
+                  : undefined
+    const key_prefix = typeof r['keyPrefix'] === 'string' ? (r['keyPrefix'] as string)
+                    : typeof r['key_prefix'] === 'string' ? (r['key_prefix'] as string)
+                    : undefined
+    const is_active = typeof r['isActive'] === 'boolean' ? (r['isActive'] as boolean) : !!r['is_active']
+    const rate_limit_per_minute = typeof r['rateLimitPerMinute'] === 'number' ? (r['rateLimitPerMinute'] as number)
+                               : typeof r['rate_limit_per_minute'] === 'number' ? (r['rate_limit_per_minute'] as number)
+                               : undefined
+    const usage_count = typeof r['usageCount'] === 'number' ? (r['usageCount'] as number)
+                      : typeof r['usage_count'] === 'number' ? (r['usage_count'] as number)
+                      : 0
+    const created_at = (r['createdAt'] ?? r['created_at'] ?? '') as string
+    const last_used_at = (r['lastUsedAt'] ?? r['last_used_at'] ?? null) as string | null
+
+    return {
+      id,
+      key_name,
+      api_key,
+      key_prefix,
+      is_active,
+      rate_limit_per_minute,
+      usage_count,
+      created_at,
+      last_used_at
+    }
+  }, [])
 
   const [apiKeys, setApiKeys] = useState<ApiKeyRecord[]>([])
   const [keysLoading, setKeysLoading] = useState(false)
@@ -449,31 +470,29 @@ const normalizeKey = (raw: any): ApiKeyRecord => {
     return '••••••••'
   }
 
-const fetchApiKeys = useCallback(async () => {
-  setKeysLoading(true)
-  try {
-    const res = await apiGet<unknown>('https://server.mailsfinder.com/api/api-key/getApiKeys', { includeAuth: true })
-    if (!res.ok) {
-      const msg = typeof res.error === 'string' ? res.error : (res.error && typeof res.error === 'object' && 'message' in res.error ? String((res.error as Record<string, unknown>).message) : 'Failed to fetch API keys')
+  const fetchApiKeys = useCallback(async () => {
+    setKeysLoading(true)
+    try {
+      const res = await apiGet<unknown>('https://server.mailsfinder.com/api/api-key/getApiKeys', { includeAuth: true })
+      if (!res.ok) {
+        const msg = typeof res.error === 'string' ? res.error : (res.error && typeof res.error === 'object' && 'message' in res.error ? String((res.error as Record<string, unknown>).message) : 'Failed to fetch API keys')
+        toast.error(msg)
+        setApiKeys([])
+        return
+      }
+
+      const listRaw = unwrapData<unknown>(res.data)
+      const arr = Array.isArray(listRaw) ? listRaw : []
+      const mappedList = arr.map(item => normalizeKey(item))
+      setApiKeys(mappedList)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to fetch API keys'
       toast.error(msg)
       setApiKeys([])
-      return
+    } finally {
+      setKeysLoading(false)
     }
-
-    const listRaw = unwrapData<unknown>(res.data)
-    const arr = Array.isArray(listRaw) ? listRaw : []
-    const mappedList = arr.map(item => normalizeKey(item))
-
-    setApiKeys(mappedList)
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : 'Failed to fetch API keys'
-    toast.error(msg)
-    setApiKeys([])
-  } finally {
-    setKeysLoading(false)
-  }
-}, [])
-
+  }, [normalizeKey])
 
   const generateAccessToken = async () => {
     setTokenLoading(true)
@@ -505,49 +524,49 @@ const fetchApiKeys = useCallback(async () => {
   }
 
   const handleCreateKey = async () => {
-  const name = newKeyName.trim()
-  if (!name) {
-    toast.error('Key name is required')
-    return
-  }
-  setCreatingKey(true)
-  try {
-    const res = await apiPost<unknown>('https://server.mailsfinder.com/api/api-key/createApiKey', { keyName: name }, { includeAuth: true })
-    if (!res.ok) {
-      const msg = typeof res.error === 'string' ? res.error : (res.error && typeof res.error === 'object' && 'message' in res.error ? String((res.error as Record<string, unknown>).message) : 'Failed to create API key')
-      toast.error(msg)
+    const name = newKeyName.trim()
+    if (!name) {
+      toast.error('Key name is required')
       return
     }
-
-    const root = res.data as Record<string, unknown>
-    const message = typeof root?.message === 'string' ? root.message : 'API key created'
-    toast.success(message)
-
-    let createdRaw: any = null
-    if (root && typeof root === 'object' && 'data' in root) {
-      createdRaw = (root as any).data
-    } else {
-      createdRaw = res.data
-    }
-
-    if (createdRaw && typeof createdRaw === 'object') {
-      const created = normalizeKey(createdRaw)
-      if (created.id) {
-        setApiKeys(prev => [created, ...prev])
-        setRevealed(prev => ({ ...prev, [created.id]: true })) // auto-reveal new key
+    setCreatingKey(true)
+    try {
+      const res = await apiPost<unknown>('https://server.mailsfinder.com/api/api-key/createApiKey', { keyName: name }, { includeAuth: true })
+      if (!res.ok) {
+        const msg = typeof res.error === 'string' ? res.error : (res.error && typeof res.error === 'object' && 'message' in res.error ? String((res.error as Record<string, unknown>).message) : 'Failed to create API key')
+        toast.error(msg)
+        return
       }
+
+      const root = res.data as Record<string, unknown>
+      const message = typeof root?.message === 'string' ? root.message : 'API key created'
+      toast.success(message)
+
+      // createdRaw typed as unknown; narrow before use
+      let createdRaw: unknown = null
+      if (root && typeof root === 'object' && 'data' in root) {
+        createdRaw = (root as Record<string, unknown>)['data']
+      } else {
+        createdRaw = res.data
+      }
+
+      if (createdRaw && typeof createdRaw === 'object') {
+        const created = normalizeKey(createdRaw)
+        if (created.id) {
+          setApiKeys(prev => [created, ...prev])
+          setRevealed(prev => ({ ...prev, [created.id]: true })) // auto-reveal new key
+        }
+      }
+
+      setNewKeyName('')
+      await fetchApiKeys()
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to create API key'
+      toast.error(msg)
+    } finally {
+      setCreatingKey(false)
     }
-
-    setNewKeyName('')
-    await fetchApiKeys()
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : 'Failed to create API key'
-    toast.error(msg)
-  } finally {
-    setCreatingKey(false)
   }
-}
-
 
   const handleDeactivate = async (id: string) => {
     setDeactivatingId(id)
