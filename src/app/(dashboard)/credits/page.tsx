@@ -226,29 +226,60 @@ function CreditsPageComponent() {
     })
   }
 
+  // const handleManageBilling = async () => {
+  //   setIsCreatingPortal(true)
+  //   try {
+  //     const { url, error } = await createLemonSqueezyPortal()
+  //     if (error) {
+  //       toast.error(error)
+  //       return
+  //     }
+  //     if (url) {
+  //       if (url.startsWith('/')) {
+  //         router.push(url)
+  //         toast.success('Redirecting to pricing plans...')
+  //       } else {
+  //         window.open(url, '_blank')
+  //         toast.success('Redirecting to billing portal...')
+  //       }
+  //     } else {
+  //       toast.error('Billing portal URL unavailable')
+  //     }
+  //   } finally {
+  //     setIsCreatingPortal(false)
+  //   }
+  // }
+
+
   const handleManageBilling = async () => {
-    setIsCreatingPortal(true)
-    try {
-      const { url, error } = await createLemonSqueezyPortal()
-      if (error) {
-        toast.error(error)
-        return
-      }
-      if (url) {
-        if (url.startsWith('/')) {
-          router.push(url)
-          toast.success('Redirecting to pricing plans...')
-        } else {
-          window.open(url, '_blank')
-          toast.success('Redirecting to billing portal...')
-        }
-      } else {
-        toast.error('Billing portal URL unavailable')
-      }
-    } finally {
-      setIsCreatingPortal(false)
+  setIsCreatingPortal(true);
+
+  try {
+    // 1️⃣ Fetch profile from backend
+    const res = await fetch("https://server.mailsfinder.com/api/user/profile/getProfile", {
+      method: "GET",
+      credentials: "include",
+    });
+
+    const data = await res.json();
+
+    if (!data || !data.lemonsqueezy_portal_url) {
+      toast.error("No billing record found. Complete a purchase or subscription first.");
+      return;
     }
+
+    // 2️⃣ Open the billing portal
+    window.open(data.lemonsqueezy_portal_url, "_blank");
+    toast.success("Redirecting to billing portal...");
+
+  } catch (err) {
+    console.error(err);
+    toast.error("Failed to load billing portal.");
+  } finally {
+    setIsCreatingPortal(false);
   }
+};
+
 
   const handleCancelSubscription = async () => {
     setIsCreatingPortal(true)
