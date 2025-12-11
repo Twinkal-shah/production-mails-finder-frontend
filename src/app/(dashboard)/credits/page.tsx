@@ -251,34 +251,71 @@ function CreditsPageComponent() {
   // }
 
 
-  const handleManageBilling = async () => {
+ const handleManageBilling = async () => {
   setIsCreatingPortal(true);
 
   try {
-    // 1️⃣ Fetch profile from backend
+    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
+
     const res = await fetch("https://server.mailsfinder.com/api/user/profile/getProfile", {
       method: "GET",
       credentials: "include",
+      headers: {
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        Accept: "application/json",
+      },
     });
 
-    const data = await res.json();
+    console.log('[ManageBilling] HTTP status:', res.status);
+    const text = await res.text();
+    let data: any = null;
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch (err) {
+      console.warn('[ManageBilling] response is not JSON:', text);
+      data = null;
+    }
+    console.log('[ManageBilling] parsed response:', data);
 
-    if (!data || !data.lemonsqueezy_portal_url) {
-      toast.error("No billing record found. Complete a purchase or subscription first.");
+    if (res.status === 401 || res.status === 403) {
+      toast.error('Not authenticated. Please login first.');
+      saveRedirectUrl(window.location.pathname + window.location.search);
+      router.push('/auth/login');
       return;
     }
 
-    // 2️⃣ Open the billing portal
-    window.open(data.lemonsqueezy_portal_url, "_blank");
-    toast.success("Redirecting to billing portal...");
+    // Most explicit: backend returns data.data.lemonsqueezy_portal_url
+    const portalUrl =
+      data?.data?.lemonsqueezy_portal_url ||     // <-- preferred (your backend)
+      data?.lemonsqueezy_portal_url ||           // fallback
+      data?.data?.attributes?.lemonsqueezy_portal_url ||
+      data?.data?.attributes?.url ||
+      data?.data?.attributes?.checkout_url ||
+      data?.profile?.lemonsqueezy_portal_url ||
+      data?.user?.lemonsqueezy_portal_url ||
+      null;
+
+    if (!portalUrl) {
+      console.error('[ManageBilling] portal url not found. Full response:', data ?? text);
+      toast.error('No billing record found. Complete a purchase or subscription first. (See console for details.)');
+      return;
+    }
+
+    if (portalUrl.startsWith('/')) {
+      router.push(portalUrl);
+    } else {
+      window.open(portalUrl, '_blank', 'noopener,noreferrer');
+    }
+    toast.success('Redirecting to billing portal...');
 
   } catch (err) {
-    console.error(err);
-    toast.error("Failed to load billing portal.");
+    console.error('[ManageBilling] request failed:', err);
+    toast.error('Failed to load billing portal. Check console for details.');
   } finally {
     setIsCreatingPortal(false);
   }
 };
+
 
 
   const handleCancelSubscription = async () => {
