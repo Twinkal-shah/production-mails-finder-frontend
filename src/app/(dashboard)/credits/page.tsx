@@ -87,6 +87,21 @@ const PLANS = {
   }
 }
 
+interface PurchaseItem {
+  _id?: string
+  id?: string
+  product_name?: string
+  product?: string
+  amount?: number
+  total?: number
+  status?: string
+  payment_status?: string
+  createdAt?: string
+  created_at?: string
+  date?: string
+}
+
+
 function CreditsPageComponent() {
   const [loadingStates, setLoadingStates] = useState<{[key: string]: boolean}>({})
   const [isCreatingPortal, setIsCreatingPortal] = useState(false)
@@ -109,7 +124,8 @@ const planKey = (profile?.plan || 'free').toString().trim().toLowerCase() as key
 const currentPlan = PLANS[planKey] || PLANS.free;
 
 // ------------------ Purchase history (fetch from dedicated API) ------------------
-const [purchaseHistory, setPurchaseHistory] = useState<any[]>([]) // TEMP FIX
+const [purchaseHistory, setPurchaseHistory] = useState<PurchaseItem[]>([])
+
 const [isPurchaseLoading, setIsPurchaseLoading] = useState(true)
 
 useEffect(() => {
@@ -128,9 +144,7 @@ useEffect(() => {
       })
 
       const text = await res.text()
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-let json: any = {}
-
+      let json: any = {}
       try { json = text ? JSON.parse(text) : {} } catch (err) { json = {} }
 
       if (json?.success && Array.isArray(json.data)) {
