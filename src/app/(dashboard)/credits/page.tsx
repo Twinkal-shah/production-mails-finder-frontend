@@ -251,7 +251,7 @@ function CreditsPageComponent() {
   // }
 
 
- const handleManageBilling = async () => {
+const handleManageBilling = async () => {
   setIsCreatingPortal(true);
 
   try {
@@ -268,10 +268,12 @@ function CreditsPageComponent() {
 
     console.log('[ManageBilling] HTTP status:', res.status);
     const text = await res.text();
-    let data: any = null;
+
+    // parse as unknown (safe)
+    let data: unknown = null;
     try {
       data = text ? JSON.parse(text) : null;
-    } catch (err) {
+    } catch (parseErr) {
       console.warn('[ManageBilling] response is not JSON:', text);
       data = null;
     }
@@ -284,16 +286,28 @@ function CreditsPageComponent() {
       return;
     }
 
-    // Most explicit: backend returns data.data.lemonsqueezy_portal_url
+    // narrow helper to safely read nested keys from unknown object
+    const obj = (data as Record<string, unknown> | null);
+
+    const getNestedString = (base: Record<string, unknown> | null, ...keys: string[]): string | undefined => {
+      let cur: unknown = base;
+      for (const k of keys) {
+        if (typeof cur !== 'object' || cur === null) return undefined;
+        cur = (cur as Record<string, unknown>)[k];
+      }
+      return typeof cur === 'string' ? cur : undefined;
+    };
+
+    // Preferred path: data.data.lemonsqueezy_portal_url (based on backend output)
     const portalUrl =
-      data?.data?.lemonsqueezy_portal_url ||     // <-- preferred (your backend)
-      data?.lemonsqueezy_portal_url ||           // fallback
-      data?.data?.attributes?.lemonsqueezy_portal_url ||
-      data?.data?.attributes?.url ||
-      data?.data?.attributes?.checkout_url ||
-      data?.profile?.lemonsqueezy_portal_url ||
-      data?.user?.lemonsqueezy_portal_url ||
-      null;
+      getNestedString(obj, 'data', 'lemonsqueezy_portal_url') ||
+      getNestedString(obj, 'lemonsqueezy_portal_url') ||
+      getNestedString(obj, 'data', 'attributes', 'lemonsqueezy_portal_url') ||
+      getNestedString(obj, 'data', 'attributes', 'url') ||
+      getNestedString(obj, 'data', 'attributes', 'checkout_url') ||
+      getNestedString(obj, 'profile', 'lemonsqueezy_portal_url') ||
+      getNestedString(obj, 'user', 'lemonsqueezy_portal_url') ||
+      undefined;
 
     if (!portalUrl) {
       console.error('[ManageBilling] portal url not found. Full response:', data ?? text);
@@ -307,7 +321,6 @@ function CreditsPageComponent() {
       window.open(portalUrl, '_blank', 'noopener,noreferrer');
     }
     toast.success('Redirecting to billing portal...');
-
   } catch (err) {
     console.error('[ManageBilling] request failed:', err);
     toast.error('Failed to load billing portal. Check console for details.');
@@ -315,6 +328,7 @@ function CreditsPageComponent() {
     setIsCreatingPortal(false);
   }
 };
+
 
 
 
