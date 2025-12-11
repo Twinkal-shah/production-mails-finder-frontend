@@ -38,6 +38,16 @@ import { JsonEditor } from '@/components/api-testing/json-editor'
 import { ResponseViewer } from '@/components/api-testing/response-viewer'
 import { useUserProfile } from '@/hooks/useCreditsData'
 import { apiGet, apiPost, apiDelete } from '@/lib/api'
+import { 
+  Dialog, 
+  DialogTrigger, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogDescription, 
+  DialogFooter, 
+  DialogClose 
+} from '@/components/ui/dialog'
 
 // Predefined endpoints for testing
 const PREDEFINED_ENDPOINTS: PredefinedEndpoint[] = [
@@ -452,7 +462,6 @@ export default function ApiCallsPage() {
   const [deactivatingId, setDeactivatingId] = useState<string | null>(null)
   const [newKeyName, setNewKeyName] = useState('')
   const [revealed, setRevealed] = useState<Record<string, boolean>>({})
-  const [deletingId, setDeletingId] = useState<string | null>(null)
   
 
   const unwrapData = <T,>(root: unknown): T | null => {
@@ -488,7 +497,7 @@ export default function ApiCallsPage() {
       const listRaw = unwrapData<unknown>(res.data)
       const arr = Array.isArray(listRaw) ? listRaw : []
       const mappedList = arr.map(item => normalizeKey(item))
-      setApiKeys(mappedList)
+      setApiKeys(mappedList.filter(k => k.is_active))
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Failed to fetch API keys'
       toast.error(msg)
@@ -563,31 +572,6 @@ export default function ApiCallsPage() {
       toast.error(msg)
     } finally {
       setDeactivatingId(null)
-    }
-  }
-
-  const handleDeleteKey = async (id: string) => {
-    if (typeof window !== 'undefined') {
-      const confirmDelete = window.confirm('Delete this API key permanently?')
-      if (!confirmDelete) return
-    }
-    setDeletingId(id)
-    try {
-      const res = await apiDelete<unknown>(`https://server.mailsfinder.com/api/api-key/deleteAPIKey/${id}`, { includeAuth: true })
-      if (!res.ok) {
-        const msg = typeof res.error === 'string' ? res.error : (res.error && typeof res.error === 'object' && 'message' in res.error ? String((res.error as Record<string, unknown>).message) : 'Failed to delete API key')
-        toast.error(msg)
-        return
-      }
-      const root = res.data as Record<string, unknown>
-      const message = typeof root?.message === 'string' ? root.message : 'API key deleted'
-      toast.success(message)
-      await fetchApiKeys()
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Failed to delete API key'
-      toast.error(msg)
-    } finally {
-      setDeletingId(null)
     }
   }
 
@@ -964,36 +948,54 @@ export default function ApiCallsPage() {
                         >
                           <Copy className="h-4 w-4" />
                         </Button>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          disabled={!k.is_active || deactivatingId === k.id}
-                          onClick={() => handleDeactivate(k.id)}
-                        >
-                          {deactivatingId === k.id ? (
-                            <div className="flex items-center gap-2">
-                              <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                              Deactivating
-                            </div>
-                          ) : (
-                            'Deactivate'
-                          )}
-                        </Button>
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          disabled={deletingId === k.id}
-                          onClick={() => handleDeleteKey(k.id)}
-                        >
-                          {deletingId === k.id ? (
-                            <div className="flex items-center gap-2">
-                              <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                              Deleting
-                            </div>
-                          ) : (
-                            'Delete'
-                          )}
-                        </Button>
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              disabled={!k.is_active || deactivatingId === k.id}
+                            >
+                              {deactivatingId === k.id ? (
+                                <div className="flex items-center gap-2">
+                                  <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                  Deactivating
+                                </div>
+                              ) : (
+                                'Deactivate'
+                              )}
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent>
+                            <DialogHeader>
+                              <DialogTitle>Deactivate API Key</DialogTitle>
+                              <DialogDescription>
+                                Are you sure you want to deactivate this key? This action is permanent.
+                              </DialogDescription>
+                            </DialogHeader>
+                            <DialogFooter>
+                              <DialogClose asChild>
+                                <Button variant="outline" size="sm">Cancel</Button>
+                              </DialogClose>
+                              <DialogClose asChild>
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  onClick={() => handleDeactivate(k.id)}
+                                  disabled={deactivatingId === k.id}
+                                >
+                                  {deactivatingId === k.id ? (
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                      Deactivating
+                                    </div>
+                                  ) : (
+                                    'Confirm'
+                                  )}
+                                </Button>
+                              </DialogClose>
+                            </DialogFooter>
+                          </DialogContent>
+                        </Dialog>
                       </div>
                     </div>
                   )
