@@ -108,6 +108,51 @@ function CreditsPageComponent() {
 const planKey = (profile?.plan || 'free').toString().trim().toLowerCase() as keyof typeof PLANS;
 const currentPlan = PLANS[planKey] || PLANS.free;
 
+// ------------------ Purchase history (fetch from dedicated API) ------------------
+const [purchaseHistory, setPurchaseHistory] = useState<any[]>([])
+const [isPurchaseLoading, setIsPurchaseLoading] = useState(true)
+
+useEffect(() => {
+  const fetchPurchaseHistory = async () => {
+    setIsPurchaseLoading(true)
+    try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
+
+      const res = await fetch('https://server.mailsfinder.com/api/purchase/getMyPurchaseHistory', {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          'Content-Type': 'application/json'
+        }
+      })
+
+      const text = await res.text()
+      let json: any = {}
+      try { json = text ? JSON.parse(text) : {} } catch (err) { json = {} }
+
+      if (json?.success && Array.isArray(json.data)) {
+        setPurchaseHistory(json.data)
+      } else if (Array.isArray(json)) {
+        // fallback if API returns an array directly
+        setPurchaseHistory(json)
+      } else {
+        setPurchaseHistory([])
+        console.warn('Unexpected purchase history response', json)
+      }
+    } catch (err) {
+      console.error('Failed to fetch purchase history', err)
+      setPurchaseHistory([])
+    } finally {
+      setIsPurchaseLoading(false)
+    }
+  }
+
+  fetchPurchaseHistory()
+}, [])
+// -------------------------------------------------------------------------------
+
+
   
   
   // Memoize chart data to prevent unnecessary recalculations
@@ -971,7 +1016,7 @@ const handleManageBilling = async () => {
       </Card>
 
       {/* Transaction History */}
-      <Card>
+      {/* <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <History className="h-5 w-5" />
@@ -1042,7 +1087,64 @@ const handleManageBilling = async () => {
             </div>
           )}
         </CardContent>
-      </Card>
+      </Card> */}
+
+      {/* Payment History (sourced from purchase API) */}
+<Card>
+  <CardHeader>
+    <CardTitle className="flex items-center gap-2">
+      <History className="h-5 w-5" />
+      Payment History
+    </CardTitle>
+    <CardDescription>
+      See your previous purchases & subscription payments.
+    </CardDescription>
+  </CardHeader>
+
+  <CardContent>
+    {isPurchaseLoading ? (
+      <p className="text-gray-500 text-center py-8">Loading purchase history...</p>
+    ) : purchaseHistory.length === 0 ? (
+      <p className="text-gray-500 text-center py-8">No payments found.</p>
+    ) : (
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr className="border-b">
+              <th className="text-left p-2 font-medium">Date</th>
+              <th className="text-left p-2 font-medium">Product</th>
+              <th className="text-left p-2 font-medium">Amount</th>
+              <th className="text-left p-2 font-medium">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {purchaseHistory.map((p) => (
+              <tr key={p._id ?? p.id ?? JSON.stringify(p)} className="border-b">
+                <td className="p-2 text-sm">
+                  {formatDate(p.createdAt ?? p.created_at ?? p.date ?? '')}
+                </td>
+
+                <td className="p-2 text-sm">{p.product_name ?? p.product ?? 'Purchase'}
+</td>
+
+                <td className="p-2">
+                  <span className="text-sm font-medium text-green-600">
+                    ${p.amount ?? p.total ?? 0}
+                  </span>
+                </td>
+
+                <td className="p-2 text-sm text-gray-600">
+                  {p.status ?? p.payment_status ?? 'completed'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )}
+  </CardContent>
+</Card>
+
     </div>
   )
 }
