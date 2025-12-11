@@ -1049,13 +1049,28 @@ interface CreditTransaction {
   metadata?: Record<string, unknown>
   created_at?: string
   createdAt?: string
+  createdAtString?: string
 }
 
+// BackendTransaction is a partial of CreditTransaction (safe)
 type BackendTransaction = Partial<CreditTransaction>
 
 type CreditUsageItem = {
   date: string
   credits_used: number
+}
+
+/**
+ * Utility: safely parse JSON from a Response (avoids untyped `any`)
+ */
+async function safeJsonParse(response: Response): Promise<unknown> {
+  const text = await response.text()
+  try {
+    return text ? JSON.parse(text) : null
+  } catch {
+    // If not JSON, return raw text
+    return text
+  }
 }
 
 /**
@@ -1094,10 +1109,10 @@ const PLANS = {
     color: 'bg-green-100 text-green-800',
     icon: TrendingUp
   }
-}
+} as const
 
 function CreditsPageComponent() {
-  const [loadingStates, setLoadingStates] = useState<{[key: string]: boolean}>({})
+  const [loadingStates, setLoadingStates] = useState<Record<string, boolean>>({})
   const [isCreatingPortal, setIsCreatingPortal] = useState(false)
   const router = useRouter()
 
@@ -1112,37 +1127,9 @@ function CreditsPageComponent() {
   // Use React Query (or your custom hook) for profile, creditUsage
   const { profile, creditUsage, isLoading, isError, error } = useCreditsData()
 
-  // ---------- fetch payment transactions (from teammate endpoint) ----------
+  // ---------- fetch payment transactions (robust + logs) ----------
   const [paymentTransactions, setPaymentTransactions] = useState<BackendTransaction[]>([])
   const apiBase = process.env.NEXT_PUBLIC_SERVER_URL ?? ''
-
-  // Helper: safely parse JSON
-  const safeJsonParse = async (res: Response): Promise<unknown> => {
-    const text = await res.text()
-    try {
-      return text ? JSON.parse(text) : null
-    } catch {
-      // not JSON
-      return text
-    }
-  }
-
-  // Helper: normalize response to array of transactions
-  const normalizeTxArray = (payload: unknown): BackendTransaction[] => {
-    if (Array.isArray(payload)) {
-      return payload as BackendTransaction[]
-    }
-    if (payload && typeof payload === 'object') {
-      const obj = payload as Record<string, unknown>
-      // Common keys where backend might put transactions
-      if (Array.isArray(obj.data)) return obj.data as BackendTransaction[]
-      if (Array.isArray(obj.transactions)) return obj.transactions as BackendTransaction[]
-      if (Array.isArray(obj.items)) return obj.items as BackendTransaction[]
-      // maybe single object
-      return []
-    }
-    return []
-  }
 
   useEffect(() => {
     let mounted = true
@@ -1159,13 +1146,40 @@ function CreditsPageComponent() {
           },
         })
 
+        const parsed = await safeJsonParse(res)
+
+        // Debug logs — check browser console if something looks off
+        // eslint-disable-next-line no-console
+        console.debug('[Payments] HTTP status:', res.status)
+        // eslint-disable-next-line no-console
+        console.debug('[Payments] parsed response:', parsed)
+
         if (!res.ok) {
           console.warn('[Payments] fetch failed', res.status)
           return
         }
 
-        const parsed = await safeJsonParse(res)
-        const arr = normalizeTxArray(parsed)
+        // Normalize possible array shapes into BackendTransaction[]
+        let arr: BackendTransaction[] = []
+        if (Array.isArray(parsed)) {
+          arr = parsed as BackendTransaction[]
+        } else if (parsed && typeof parsed === 'object') {
+          const obj = parsed as Record<string, unknown>
+          if (Array.isArray(obj.data)) arr = obj.data as BackendTransaction[]
+          else if (Array.isArray(obj.transactions)) arr = obj.transactions as BackendTransaction[]
+          else if (Array.isArray(obj.items)) arr = obj.items as BackendTransaction[]
+          else {
+            // fallback: find first array property
+            for (const key of Object.keys(obj)) {
+              const value = obj[key]
+              if (Array.isArray(value)) {
+                arr = value as BackendTransaction[]
+                break
+              }
+            }
+          }
+        }
+
         if (mounted) setPaymentTransactions(arr)
       } catch (err) {
         console.error('[Payments] fetch error', err)
@@ -1175,17 +1189,50 @@ function CreditsPageComponent() {
     return () => { mounted = false }
   }, [apiBase])
 
-  // Filter payments only (LemonSqueezy payment heuristics)
+  // Filter/display only payment transactions (heuristics tuned for LemonSqueezy)
   const displayedTransactions = useMemo(() => {
     const all = Array.isArray(paymentTransactions) ? paymentTransactions : []
 
+    const lookForOrderLike = (t: BackendTransaction): boolean => {
+      if (!t) return false
+      if (t.lemonsqueezy_order_id) return true
+      if (t.lemonsqueezy_subscription_id) return true
+
+      const obj = t as Record<string, unknown>
+
+      // common order-like keys
+      const orderKeys = ['order_id', 'orderId', 'order', 'lemon_order_id', 'lemonsqeezy_order_id', 'orderNumber']
+      for (const k of orderKeys) {
+        if (obj[k]) return true
+      }
+
+      // subscription variants
+      if (obj['subscriptionId'] || obj['subscription_id'] || obj['subscription']) return true
+
+      // metadata checks
+      if (t.metadata && typeof t.metadata === 'object') {
+        const m = t.metadata as Record<string, unknown>
+        if (m.order_id || m.orderId || m.lemonsqueezy_order_id || m.subscriptionId) return true
+        if (typeof m.type === 'string' && (m.type.includes('order') || m.type.includes('payment'))) return true
+        // some backends keep webhook event inside metadata
+        if (typeof m.webhook_event === 'string' && (m.webhook_event.includes('order') || m.webhook_event.includes('payment') || m.webhook_event.includes('subscription'))) return true
+      }
+
+      return false
+    }
+
     const isPayment = (t: BackendTransaction): boolean => {
-      const webhook = typeof t.webhook_event === 'string' ? t.webhook_event : ''
-      // payment if there is an order id, subscription id, or webhook indicates order/payment
+      if (!t) return false
+      const webhookCandidate = typeof t.webhook_event === 'string' ? t.webhook_event : undefined
+      const webhookText = webhookCandidate ? webhookCandidate.toLowerCase() : ''
+      const amountIsPositive = typeof t.amount === 'number' && t.amount > 0
+
       return Boolean(
-        t.lemonsqueezy_order_id ||
-        t.lemonsqueezy_subscription_id ||
-        ['order_created', 'subscription_payment_success', 'subscription_created'].includes(webhook)
+        lookForOrderLike(t) ||
+        amountIsPositive ||
+        webhookText.includes('order') ||
+        webhookText.includes('subscription') ||
+        webhookText.includes('payment')
       )
     }
 
@@ -1193,7 +1240,8 @@ function CreditsPageComponent() {
       .filter(isPayment)
       .map((t) => ({
         ...t,
-        created_at: t.created_at ?? t.createdAt ?? undefined,
+        // prefer canonical field for display
+        created_at: t.created_at ?? t.createdAt ?? t.createdAtString ?? undefined,
       }))
       .sort((a, b) => {
         const da = a.created_at ? new Date(a.created_at).getTime() : 0
@@ -1205,7 +1253,7 @@ function CreditsPageComponent() {
   // Safe credit usage array for chart
   const safeCreditUsage = Array.isArray(creditUsage) ? (creditUsage as CreditUsageItem[]) : []
 
-  // Chart data (no 'any')
+  // Chart data
   const chartData = useMemo(() => ({
     labels: safeCreditUsage.map(item => {
       const d = new Date(item.date)
@@ -1256,12 +1304,11 @@ function CreditsPageComponent() {
   const [, startTransition] = useTransition()
   const useProxyForCheckout = process.env.NEXT_PUBLIC_CHECKOUT_USE_PROXY === '1'
 
-  // Helper to find checkout URL from an unknown response (robust)
+  // Helper: find checkout URL inside unknown response
   const findCheckoutUrl = (resp: unknown): string | undefined => {
     if (!resp || typeof resp !== 'object') return undefined
     const root = resp as Record<string, unknown>
 
-    // candidate helper to drill into objects
     const probe = (obj: unknown, keys: string[]): string | undefined => {
       let cur: unknown = obj
       for (const k of keys) {
@@ -1271,15 +1318,9 @@ function CreditsPageComponent() {
           return undefined
         }
       }
-      if (typeof cur === 'string') return cur
-      return undefined
+      return typeof cur === 'string' ? cur : undefined
     }
 
-    // direct places to check:
-    // resp.data.attributes.url
-    // resp.data.attributes.checkout_url
-    // resp.data.attributes?.url
-    // resp.data?.attributes?.checkout_url
     const candidates = [
       ['data', 'attributes', 'url'],
       ['data', 'attributes', 'checkout_url'],
@@ -1296,9 +1337,8 @@ function CreditsPageComponent() {
       if (v) return v
     }
 
-    // if data is array, check first item's attributes
-    if (Array.isArray((root as Record<string, unknown>).data)) {
-      const arr = (root as Record<string, unknown>).data as unknown[]
+    if (Array.isArray(root.data)) {
+      const arr = root.data as unknown[]
       if (arr.length > 0 && typeof arr[0] === 'object') {
         const v = probe(arr[0], ['attributes', 'url']) || probe(arr[0], ['attributes', 'checkout_url'])
         if (v) return v
@@ -1391,7 +1431,6 @@ function CreditsPageComponent() {
         return
       }
 
-      // Try multiple locations for portal URL
       const tryGet = (obj: unknown, ...keys: string[]): string | undefined => {
         if (!obj || typeof obj !== 'object') return undefined
         let cur: unknown = obj
@@ -1474,7 +1513,7 @@ function CreditsPageComponent() {
   }
 
   const getOperationLabel = (transaction: BackendTransaction | CreditTransaction) => {
-    const event = transaction.webhook_event
+    const event = typeof transaction.webhook_event === 'string' ? transaction.webhook_event : undefined
     switch (event) {
       case 'order_created':
       case 'subscription_payment_success':
@@ -1610,7 +1649,6 @@ function CreditsPageComponent() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-3xl font-bold text-blue-600">
-                {/* total_credits may be computed server side */}
                 {profile?.total_credits ?? (Number(profile?.credits_find ?? 0) + Number(profile?.credits_verify ?? 0))}
               </p>
               <p className="text-gray-600">Total Available Credits</p>
@@ -1859,7 +1897,7 @@ function CreditsPageComponent() {
                 </thead>
                 <tbody>
                   {displayedTransactions.slice(0, 10).map((t) => {
-                    const created = t.created_at ?? t.createdAt
+                    const created = t.created_at ?? t.createdAt ?? t.createdAtString
                     const amount = typeof t.amount === 'number' ? t.amount : 0
                     return (
                       <tr key={t.id ?? `${created ?? ''}-${amount}`} className="border-b">
