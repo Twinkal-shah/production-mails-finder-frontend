@@ -392,17 +392,35 @@ export default function ApiCallsPage() {
     router.push('/credits')
   }
 
-  type ApiKeyRecord = {
-    id: string
-    key_name?: string
-    api_key?: string
-    key_prefix?: string
-    is_active?: boolean
-    rate_limit_per_minute?: number
-    usage_count?: number
-    created_at?: string
-    last_used_at?: string | null
+// --- keep the ApiKeyRecord type but ensure we use this shape in UI ---
+type ApiKeyRecord = {
+  id: string
+  key_name?: string
+  api_key?: string | undefined
+  key_prefix?: string | undefined
+  is_active?: boolean
+  rate_limit_per_minute?: number
+  usage_count?: number
+  created_at?: string
+  last_used_at?: string | null
+}
+
+// helper: normalize backend item -> ApiKeyRecord
+const normalizeKey = (raw: any): ApiKeyRecord => {
+  if (!raw || typeof raw !== 'object') return { id: '' }
+  return {
+    id: raw._id ?? raw.id ?? '',
+    key_name: raw.keyName ?? raw.key_name ?? '',
+    api_key: typeof raw.apiKey === 'string' ? raw.apiKey : (raw.api_key ?? undefined),
+    key_prefix: raw.keyPrefix ?? raw.key_prefix ?? undefined,
+    is_active: typeof raw.isActive === 'boolean' ? raw.isActive : !!raw.is_active,
+    rate_limit_per_minute: typeof raw.rateLimitPerMinute === 'number' ? raw.rateLimitPerMinute : raw.rate_limit_per_minute,
+    usage_count: typeof raw.usageCount === 'number' ? raw.usageCount : raw.usage_count ?? 0,
+    created_at: raw.createdAt ?? raw.created_at ?? '',
+    last_used_at: raw.lastUsedAt ?? raw.last_used_at ?? null
   }
+}
+
   const [apiKeys, setApiKeys] = useState<ApiKeyRecord[]>([])
   const [keysLoading, setKeysLoading] = useState(false)
   const [creatingKey, setCreatingKey] = useState(false)
@@ -431,26 +449,31 @@ export default function ApiCallsPage() {
     return '••••••••'
   }
 
-  const fetchApiKeys = useCallback(async () => {
-    setKeysLoading(true)
-    try {
-      const res = await apiGet<unknown>('https://server.mailsfinder.com/api/api-key/getApiKeys', { includeAuth: true })
-      if (!res.ok) {
-        const msg = typeof res.error === 'string' ? res.error : (res.error && typeof res.error === 'object' && 'message' in res.error ? String((res.error as Record<string, unknown>).message) : 'Failed to fetch API keys')
-        toast.error(msg)
-        setApiKeys([])
-        return
-      }
-      const list = unwrapData<ApiKeyRecord[]>(res.data)
-      setApiKeys(Array.isArray(list) ? list : [])
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Failed to fetch API keys'
+const fetchApiKeys = useCallback(async () => {
+  setKeysLoading(true)
+  try {
+    const res = await apiGet<unknown>('https://server.mailsfinder.com/api/api-key/getApiKeys', { includeAuth: true })
+    if (!res.ok) {
+      const msg = typeof res.error === 'string' ? res.error : (res.error && typeof res.error === 'object' && 'message' in res.error ? String((res.error as Record<string, unknown>).message) : 'Failed to fetch API keys')
       toast.error(msg)
       setApiKeys([])
-    } finally {
-      setKeysLoading(false)
+      return
     }
-  }, [])
+
+    const listRaw = unwrapData<unknown>(res.data)
+    const arr = Array.isArray(listRaw) ? listRaw : []
+    const mappedList = arr.map(item => normalizeKey(item))
+
+    setApiKeys(mappedList)
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Failed to fetch API keys'
+    toast.error(msg)
+    setApiKeys([])
+  } finally {
+    setKeysLoading(false)
+  }
+}, [])
+
 
   const generateAccessToken = async () => {
     setTokenLoading(true)
@@ -482,31 +505,49 @@ export default function ApiCallsPage() {
   }
 
   const handleCreateKey = async () => {
-    const name = newKeyName.trim()
-    if (!name) {
-      toast.error('Key name is required')
+  const name = newKeyName.trim()
+  if (!name) {
+    toast.error('Key name is required')
+    return
+  }
+  setCreatingKey(true)
+  try {
+    const res = await apiPost<unknown>('https://server.mailsfinder.com/api/api-key/createApiKey', { keyName: name }, { includeAuth: true })
+    if (!res.ok) {
+      const msg = typeof res.error === 'string' ? res.error : (res.error && typeof res.error === 'object' && 'message' in res.error ? String((res.error as Record<string, unknown>).message) : 'Failed to create API key')
+      toast.error(msg)
       return
     }
-    setCreatingKey(true)
-    try {
-      const res = await apiPost<unknown>('https://server.mailsfinder.com/api/api-key/createApiKey', { keyName: name }, { includeAuth: true })
-      if (!res.ok) {
-        const msg = typeof res.error === 'string' ? res.error : (res.error && typeof res.error === 'object' && 'message' in res.error ? String((res.error as Record<string, unknown>).message) : 'Failed to create API key')
-        toast.error(msg)
-        return
-      }
-      const root = res.data as Record<string, unknown>
-      const message = typeof root?.message === 'string' ? root.message : 'API key created'
-      toast.success(message)
-      setNewKeyName('')
-      await fetchApiKeys()
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Failed to create API key'
-      toast.error(msg)
-    } finally {
-      setCreatingKey(false)
+
+    const root = res.data as Record<string, unknown>
+    const message = typeof root?.message === 'string' ? root.message : 'API key created'
+    toast.success(message)
+
+    let createdRaw: any = null
+    if (root && typeof root === 'object' && 'data' in root) {
+      createdRaw = (root as any).data
+    } else {
+      createdRaw = res.data
     }
+
+    if (createdRaw && typeof createdRaw === 'object') {
+      const created = normalizeKey(createdRaw)
+      if (created.id) {
+        setApiKeys(prev => [created, ...prev])
+        setRevealed(prev => ({ ...prev, [created.id]: true })) // auto-reveal new key
+      }
+    }
+
+    setNewKeyName('')
+    await fetchApiKeys()
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Failed to create API key'
+    toast.error(msg)
+  } finally {
+    setCreatingKey(false)
   }
+}
+
 
   const handleDeactivate = async (id: string) => {
     setDeactivatingId(id)
