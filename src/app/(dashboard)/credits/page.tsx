@@ -104,6 +104,10 @@ function CreditsPageComponent() {
   
   // Use React Query for data fetching with caching
   const { profile, transactions, creditUsage, isLoading, isError, error } = useCreditsData()
+  // Normalize plan name (API returns "Agency", keys in PLANS are lowercase)
+const planKey = (profile?.plan || 'free').toString().trim().toLowerCase() as keyof typeof PLANS;
+const currentPlan = PLANS[planKey] || PLANS.free;
+
   
   
   // Memoize chart data to prevent unnecessary recalculations
@@ -670,7 +674,7 @@ const handleManageBilling = async () => {
               Your Current Plan
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          {/* <CardContent className="space-y-4">
             {profile && (
               <>
                 <div className="flex items-center justify-between">
@@ -722,7 +726,61 @@ const handleManageBilling = async () => {
                 </div>
               </>
             )}
-          </CardContent>
+          </CardContent> */}
+
+          <CardContent className="space-y-4">
+  {profile && (
+    <>
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-xl font-semibold">{currentPlan.name}</h3>
+          <p className="text-gray-600">
+            {currentPlan.price} {currentPlan.duration}
+          </p>
+        </div>
+        <Badge className={currentPlan.color || 'bg-gray-100 text-gray-800'}>
+          {(profile?.plan ?? 'free').toString().toUpperCase()}
+        </Badge>
+      </div>
+      
+      {profile.plan?.toLowerCase() === 'free' && (
+        <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <p className="text-sm text-yellow-800">
+            {isExpired 
+              ? "⚠️ Your free trial has expired. Please upgrade to continue using the service."
+              : `⏰ ${daysRemaining} days remaining in your free trial.`}
+          </p>
+        </div>
+      )}
+      
+      <div className="space-y-2">
+        <h4 className="font-medium">Plan Features:</h4>
+        <ul className="space-y-1">
+          {(currentPlan.features || []).map((feature, index) => (
+            <li key={index} className="flex items-center gap-2 text-sm text-gray-600">
+              <CheckCircle className="h-4 w-4 text-green-500" />
+              {feature}
+            </li>
+          ))}
+        </ul>
+      </div>
+      
+      <div className="pt-4 border-t">
+        <div className="grid grid-cols-2 gap-4 text-center">
+          <div>
+            <p className="text-2xl font-bold text-blue-600">{profile.credits_find}</p>
+            <p className="text-sm text-gray-600">Find Credits</p>
+          </div>
+          <div>
+            <p className="text-2xl font-bold text-green-600">{profile.credits_verify}</p>
+            <p className="text-sm text-gray-600">Verify Credits</p>
+          </div>
+        </div>
+      </div>
+    </>
+  )}
+</CardContent>
+
         </Card>
 
         {/* Daily Credit Usage */}
