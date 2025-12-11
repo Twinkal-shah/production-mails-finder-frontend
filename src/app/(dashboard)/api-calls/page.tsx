@@ -387,7 +387,7 @@ export default function ApiCallsPage() {
     selectedHistoryId: null
   })
 
-  const [activeTab, setActiveTab] = useState('request')
+  const [activeTab, setActiveTab] = useState('docs')
   const restricted = !profileLoading && (profile?.plan === 'free' || profile?.plan === 'pro')
   const handleUpgrade = () => {
     router.push('/credits')
@@ -448,8 +448,7 @@ export default function ApiCallsPage() {
   const [deactivatingId, setDeactivatingId] = useState<string | null>(null)
   const [newKeyName, setNewKeyName] = useState('')
   const [revealed, setRevealed] = useState<Record<string, boolean>>({})
-  const [accessTokenDisplay, setAccessTokenDisplay] = useState<string>('')
-  const [tokenLoading, setTokenLoading] = useState(false)
+  
 
   const unwrapData = <T,>(root: unknown): T | null => {
     if (root && typeof root === 'object') {
@@ -494,34 +493,7 @@ export default function ApiCallsPage() {
     }
   }, [normalizeKey])
 
-  const generateAccessToken = async () => {
-    setTokenLoading(true)
-    try {
-      const refresh = typeof window !== 'undefined' ? localStorage.getItem('refresh_token') : null
-      const headers: Record<string, string> = {}
-      if (refresh) headers['refreshtoken'] = `Bearer ${refresh}`
-      const res = await apiGet<Record<string, unknown>>('/api/user/auth/refresh', { useProxy: true, includeAuth: false, headers })
-      if (!res.ok) {
-        const msg = typeof res.error === 'string' ? res.error : (res.error && typeof res.error === 'object' && 'message' in res.error ? String((res.error as Record<string, unknown>).message) : 'Failed to generate access token')
-        toast.error(msg)
-        return
-      }
-      const d = (res.data as Record<string, unknown>)?.['data'] as Record<string, unknown> | undefined
-      const newAccess = typeof d?.['access_token'] === 'string' ? (d['access_token'] as string) : undefined
-      const newRefresh = typeof d?.['refresh_token'] === 'string' ? (d['refresh_token'] as string) : undefined
-      if (newAccess) {
-        setAccessTokenDisplay(newAccess)
-        if (typeof window !== 'undefined') localStorage.setItem('access_token', newAccess)
-      }
-      if (newRefresh && typeof window !== 'undefined') localStorage.setItem('refresh_token', newRefresh)
-      toast.success('Access token generated')
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Failed to generate access token'
-      toast.error(msg)
-    } finally {
-      setTokenLoading(false)
-    }
-  }
+  
 
   const handleCreateKey = async () => {
     const name = newKeyName.trim()
@@ -888,48 +860,7 @@ export default function ApiCallsPage() {
         </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Access Token</CardTitle>
-          <CardDescription>Generate and copy your JWT for Postman and API examples</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center gap-2">
-            <Button onClick={generateAccessToken} disabled={tokenLoading}>
-              {tokenLoading ? (
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  Generating
-                </div>
-              ) : (
-                'Generate Access Token'
-              )}
-            </Button>
-            <Button
-              variant="outline"
-              disabled={!accessTokenDisplay}
-              onClick={() => {
-                if (!accessTokenDisplay) return
-                navigator.clipboard.writeText(accessTokenDisplay).then(() => toast.success('Copied'))
-              }}
-            >
-              <Copy className="h-4 w-4 mr-2" />
-              Copy Token
-            </Button>
-          </div>
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">Your Access Token</Label>
-            <div className="rounded-md border bg-muted p-3 overflow-auto">
-              <pre className="text-sm font-mono whitespace-pre-wrap break-all">{accessTokenDisplay || 'Generate a token to display it here'}</pre>
-            </div>
-          </div>
-          <div className="text-xs text-muted-foreground space-y-1">
-            <div>✔ Use this token in Postman or API examples</div>
-            <div>✔ Do NOT share it with anyone</div>
-            <div>✔ You can regenerate anytime</div>
-          </div>
-        </CardContent>
-      </Card>
+      
 
       <Card>
         <CardHeader>
@@ -1028,170 +959,13 @@ export default function ApiCallsPage() {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main Request/Response Area */}
-        <div className="lg:col-span-2 space-y-6">
+      <div className="grid grid-cols-1 gap-6">
+        {/* Main Area: API Docs only */}
+        <div className="lg:col-span-3 space-y-6">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="request">Request Builder</TabsTrigger>
-              <TabsTrigger value="response">Response</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-1">
               <TabsTrigger value="docs">API Docs</TabsTrigger>
             </TabsList>
-
-            <TabsContent value="request" className="space-y-4">
-              {/* Predefined Endpoints */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Quick Start</CardTitle>
-                  <CardDescription>
-                    Select a predefined endpoint to get started quickly
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    {PREDEFINED_ENDPOINTS.map((endpoint) => (
-                      <Button
-                        key={endpoint.name}
-                        variant="outline"
-                        className="justify-start h-auto p-3"
-                        onClick={() => loadPredefinedEndpoint(endpoint)}
-                      >
-                        <div className="text-left">
-                          <div className="flex items-center gap-2">
-                            <Badge variant="secondary" className="text-xs">
-                              {endpoint.method}
-                            </Badge>
-                            <span className="font-medium">{endpoint.name}</span>
-                          </div>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {endpoint.description}
-                          </p>
-                        </div>
-                      </Button>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Request Configuration */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Request Configuration</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {/* Method and URL */}
-                  <div className="flex gap-2">
-                    <Select
-                      value={state.currentRequest.method}
-                      onValueChange={(method: HttpMethod) => updateCurrentRequest({ method })}
-                    >
-                      <SelectTrigger className="w-32">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {HTTP_METHODS.map((method) => (
-                          <SelectItem key={method} value={method}>
-                            {method}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Input
-                      placeholder="Enter URL (e.g., /api/health or https://api.example.com/users)"
-                      value={state.currentRequest.url}
-                      onChange={(e) => updateCurrentRequest({ url: e.target.value })}
-                      className="flex-1"
-                    />
-                    <Button
-                      onClick={sendRequest}
-                      disabled={state.isLoading || !state.currentRequest.url.trim()}
-                      className="px-6"
-                    >
-                      {state.isLoading ? (
-                        <div className="flex items-center gap-2">
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          Sending
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          <Send className="h-4 w-4" />
-                          Send
-                        </div>
-                      )}
-                    </Button>
-                  </div>
-
-                  {/* Headers */}
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-sm font-medium">Headers</Label>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={addHeader}
-                      >
-                        <Plus className="h-3 w-3 mr-1" />
-                        Add Header
-                      </Button>
-                    </div>
-                    <div className="space-y-2">
-                      {state.currentRequest.headers.map((header) => (
-                        <div key={header.id} className="flex items-center gap-2">
-                          <input
-                            type="checkbox"
-                            checked={header.enabled}
-                            onChange={(e) => updateHeader(header.id, { enabled: e.target.checked })}
-                            className="rounded"
-                          />
-                          <Input
-                            placeholder="Header name"
-                            value={header.key}
-                            onChange={(e) => updateHeader(header.id, { key: e.target.value })}
-                            className="flex-1"
-                          />
-                          <Input
-                            placeholder="Header value"
-                            value={header.value}
-                            onChange={(e) => updateHeader(header.id, { value: e.target.value })}
-                            className="flex-1"
-                          />
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => removeHeader(header.id)}
-                          >
-                            <Minus className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Request Body */}
-                  {['POST', 'PUT', 'PATCH'].includes(state.currentRequest.method) && (
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium">Request Body</Label>
-                      <JsonEditor
-                        value={state.currentRequest.body}
-                        onChange={(body) => updateCurrentRequest({ body })}
-                        placeholder="Enter JSON request body..."
-                        minHeight="150px"
-                      />
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="response">
-              {state.error && (
-                <Alert variant="destructive" className="mb-4">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>{state.error}</AlertDescription>
-                </Alert>
-              )}
-              <ResponseViewer response={state.response} />
-            </TabsContent>
 
             <TabsContent value="docs" className="space-y-6">
               {API_DOCS.map((doc) => {
@@ -1312,90 +1086,7 @@ export default function ApiCallsPage() {
             </TabsContent>
           </Tabs>
         </div>
-
-        {/* History Sidebar */}
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <History className="h-5 w-5" />
-                  Request History
-                </CardTitle>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={clearHistory}
-                  disabled={state.history.length === 0}
-                >
-                  <Trash2 className="h-3 w-3" />
-                </Button>
-              </div>
-              <CardDescription>
-                {state.history.length} saved requests
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2 max-h-96 overflow-y-auto">
-                {state.history.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-4">
-                    No requests in history yet
-                  </p>
-                ) : (
-                  state.history.map((item) => (
-                    <div
-                      key={`${item.request.id}-${item.timestamp}`}
-                      className={cn(
-                        "p-3 rounded-lg border cursor-pointer hover:bg-muted/50 transition-colors",
-                        state.selectedHistoryId === item.request.id && "bg-muted"
-                      )}
-                      onClick={() => loadFromHistory(item)}
-                    >
-                      <div className="flex items-center justify-between mb-1">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="text-xs">
-                            {item.request.method}
-                          </Badge>
-                          {item.response ? (
-                            <Badge
-                              variant="outline"
-                              className={cn(
-                                "text-xs",
-                                item.response.status >= 200 && item.response.status < 300
-                                  ? "text-green-600 border-green-600"
-                                  : "text-red-600 border-red-600"
-                              )}
-                            >
-                              {item.response.status}
-                            </Badge>
-                          ) : (
-                            <Badge variant="destructive" className="text-xs">
-                              Error
-                            </Badge>
-                          )}
-                        </div>
-                        {item.response && (
-                          <span className="text-xs text-muted-foreground">
-                            {item.response.duration}ms
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-sm font-medium truncate">
-                        {item.request.name}
-                      </p>
-                      <p className="text-xs text-muted-foreground truncate">
-                        {item.request.url}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {new Date(item.timestamp).toLocaleString()}
-                      </p>
-                    </div>
-                  ))
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        
       </div>
       </div>
     </div>
