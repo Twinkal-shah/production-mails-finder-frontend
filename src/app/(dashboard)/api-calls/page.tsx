@@ -452,6 +452,7 @@ export default function ApiCallsPage() {
   const [deactivatingId, setDeactivatingId] = useState<string | null>(null)
   const [newKeyName, setNewKeyName] = useState('')
   const [revealed, setRevealed] = useState<Record<string, boolean>>({})
+  const [deletingId, setDeletingId] = useState<string | null>(null)
   
 
   const unwrapData = <T,>(root: unknown): T | null => {
@@ -562,6 +563,31 @@ export default function ApiCallsPage() {
       toast.error(msg)
     } finally {
       setDeactivatingId(null)
+    }
+  }
+
+  const handleDeleteKey = async (id: string) => {
+    if (typeof window !== 'undefined') {
+      const confirmDelete = window.confirm('Delete this API key permanently?')
+      if (!confirmDelete) return
+    }
+    setDeletingId(id)
+    try {
+      const res = await apiDelete<unknown>(`https://server.mailsfinder.com/api/api-key/deleteAPIKey/${id}`, { includeAuth: true })
+      if (!res.ok) {
+        const msg = typeof res.error === 'string' ? res.error : (res.error && typeof res.error === 'object' && 'message' in res.error ? String((res.error as Record<string, unknown>).message) : 'Failed to delete API key')
+        toast.error(msg)
+        return
+      }
+      const root = res.data as Record<string, unknown>
+      const message = typeof root?.message === 'string' ? root.message : 'API key deleted'
+      toast.success(message)
+      await fetchApiKeys()
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to delete API key'
+      toast.error(msg)
+    } finally {
+      setDeletingId(null)
     }
   }
 
@@ -951,6 +977,21 @@ export default function ApiCallsPage() {
                             </div>
                           ) : (
                             'Deactivate'
+                          )}
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          disabled={deletingId === k.id}
+                          onClick={() => handleDeleteKey(k.id)}
+                        >
+                          {deletingId === k.id ? (
+                            <div className="flex items-center gap-2">
+                              <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                              Deleting
+                            </div>
+                          ) : (
+                            'Delete'
                           )}
                         </Button>
                       </div>
