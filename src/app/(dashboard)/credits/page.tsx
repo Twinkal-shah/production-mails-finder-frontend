@@ -1058,46 +1058,8 @@ type CreditUsageItem = {
   credits_used: number
 }
 
-/** Small helpers to safely read nested unknown responses */
-const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null
-const getNested = (obj: Record<string, unknown> | null | undefined, ...keys: string[]) => {
-  let cur: unknown = obj
-  for (const k of keys) {
-    if (!isRecord(cur)) return undefined
-    cur = cur[k]
-  }
-  return cur
-}
-const getString = (obj: Record<string, unknown> | null | undefined, ...keys: string[]) => {
-  const v = getNested(obj, ...keys)
-  return typeof v === 'string' ? v : undefined
-}
-const getArray = (obj: Record<string, unknown> | null | undefined, key: string) => {
-  const v = obj ? obj[key] : undefined
-  return Array.isArray(v) ? (v as unknown[]) : undefined
-}
-const extractCheckoutUrl = (resp: unknown): string | undefined => {
-  if (!isRecord(resp)) return undefined
-  // common shapes:
-  // { data: { attributes: { url: '...' } } }
-  // { data: { attributes: { checkout_url: '...' } } }
-  // { data: [{ data: { attributes: { url: '...' } } }] } - handle first item
-  const data = resp['data']
-  if (Array.isArray(data) && data.length > 0 && isRecord(data[0])) {
-    const a = getString(data[0] as Record<string, unknown>, 'data', 'attributes', 'url')
-      || getString(data[0] as Record<string, unknown>, 'data', 'attributes', 'checkout_url')
-    if (a) return a
-  }
-  const direct = getString(resp as Record<string, unknown>, 'data', 'attributes', 'url')
-    || getString(resp as Record<string, unknown>, 'data', 'attributes', 'checkout_url')
-    || getString(resp as Record<string, unknown>, 'data', 'attributes', 'url')
-  if (direct) return direct
-  // fallback to root url fields
-  return getString(resp as Record<string, unknown>, 'url') || getString(resp as Record<string, unknown>, 'checkout_url')
-}
-
 /**
- * Plans (same as before)
+ * Plans
  */
 const PLANS = {
   free: {
@@ -1139,7 +1101,7 @@ function CreditsPageComponent() {
   const [isCreatingPortal, setIsCreatingPortal] = useState(false)
   const router = useRouter()
 
-  // auth guard
+  // Check authentication on component mount
   useEffect(() => {
     if (!isAuthenticated()) {
       saveRedirectUrl(window.location.pathname + window.location.search)
@@ -1147,12 +1109,40 @@ function CreditsPageComponent() {
     }
   }, [router])
 
-  // main data from hook
+  // Use React Query (or your custom hook) for profile, creditUsage
   const { profile, creditUsage, isLoading, isError, error } = useCreditsData()
 
-  // fetch payment transactions from backend endpoint
+  // ---------- fetch payment transactions (from teammate endpoint) ----------
   const [paymentTransactions, setPaymentTransactions] = useState<BackendTransaction[]>([])
   const apiBase = process.env.NEXT_PUBLIC_SERVER_URL ?? ''
+
+  // Helper: safely parse JSON
+  const safeJsonParse = async (res: Response): Promise<unknown> => {
+    const text = await res.text()
+    try {
+      return text ? JSON.parse(text) : null
+    } catch {
+      // not JSON
+      return text
+    }
+  }
+
+  // Helper: normalize response to array of transactions
+  const normalizeTxArray = (payload: unknown): BackendTransaction[] => {
+    if (Array.isArray(payload)) {
+      return payload as BackendTransaction[]
+    }
+    if (payload && typeof payload === 'object') {
+      const obj = payload as Record<string, unknown>
+      // Common keys where backend might put transactions
+      if (Array.isArray(obj.data)) return obj.data as BackendTransaction[]
+      if (Array.isArray(obj.transactions)) return obj.transactions as BackendTransaction[]
+      if (Array.isArray(obj.items)) return obj.items as BackendTransaction[]
+      // maybe single object
+      return []
+    }
+    return []
+  }
 
   useEffect(() => {
     let mounted = true
@@ -1168,44 +1158,30 @@ function CreditsPageComponent() {
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
         })
+
         if (!res.ok) {
           console.warn('[Payments] fetch failed', res.status)
           return
         }
-        const json: unknown = await res.json().catch(() => null)
-        let arr: BackendTransaction[] = []
 
-        if (Array.isArray(json)) {
-          arr = json as BackendTransaction[]
-        } else if (isRecord(json)) {
-          const candidate = json as Record<string, unknown>
-          const tryKeys = ['data', 'transactions', 'items']
-          for (const k of tryKeys) {
-            const a = getArray(candidate, k)
-            if (a) {
-              // try to map objects only
-              arr = a.filter(isRecord).map(x => (x as BackendTransaction))
-              break
-            }
-          }
-        }
-
+        const parsed = await safeJsonParse(res)
+        const arr = normalizeTxArray(parsed)
         if (mounted) setPaymentTransactions(arr)
       } catch (err) {
         console.error('[Payments] fetch error', err)
       }
     }
-
     fetchPayments()
     return () => { mounted = false }
   }, [apiBase])
 
-  // identify payment transactions only (LemonSqueezy heuristics)
+  // Filter payments only (LemonSqueezy payment heuristics)
   const displayedTransactions = useMemo(() => {
     const all = Array.isArray(paymentTransactions) ? paymentTransactions : []
 
     const isPayment = (t: BackendTransaction): boolean => {
       const webhook = typeof t.webhook_event === 'string' ? t.webhook_event : ''
+      // payment if there is an order id, subscription id, or webhook indicates order/payment
       return Boolean(
         t.lemonsqueezy_order_id ||
         t.lemonsqueezy_subscription_id ||
@@ -1215,7 +1191,7 @@ function CreditsPageComponent() {
 
     return all
       .filter(isPayment)
-      .map(t => ({
+      .map((t) => ({
         ...t,
         created_at: t.created_at ?? t.createdAt ?? undefined,
       }))
@@ -1226,9 +1202,10 @@ function CreditsPageComponent() {
       })
   }, [paymentTransactions])
 
-  // chart helpers
-  const safeCreditUsage = Array.isArray(creditUsage) ? creditUsage as CreditUsageItem[] : []
+  // Safe credit usage array for chart
+  const safeCreditUsage = Array.isArray(creditUsage) ? (creditUsage as CreditUsageItem[]) : []
 
+  // Chart data (no 'any')
   const chartData = useMemo(() => ({
     labels: safeCreditUsage.map(item => {
       const d = new Date(item.date)
@@ -1249,15 +1226,25 @@ function CreditsPageComponent() {
   const chartOptions = useMemo(() => ({
     responsive: true,
     plugins: {
-      legend: { display: false },
-      title: { display: false }
+      legend: {
+        display: false
+      },
+      title: {
+        display: false
+      }
     },
     scales: {
       y: {
         beginAtZero: true,
-        grid: { color: 'rgba(0, 0, 0, 0.1)' }
+        grid: {
+          color: 'rgba(0, 0, 0, 0.1)'
+        }
       },
-      x: { grid: { color: 'rgba(0, 0, 0, 0.1)' } }
+      x: {
+        grid: {
+          color: 'rgba(0, 0, 0, 0.1)'
+        }
+      }
     }
   }), [])
 
@@ -1269,18 +1256,57 @@ function CreditsPageComponent() {
   const [, startTransition] = useTransition()
   const useProxyForCheckout = process.env.NEXT_PUBLIC_CHECKOUT_USE_PROXY === '1'
 
-  const pricingPlans = [
-    { name: 'Pro', price: 49, period: 'month', findCredits: 5000, verifyCredits: 5000, popular: false, features: ['5,000 email finding credits/month', '5,000 email verification credits/month', 'Monthly billing', 'Bulk verification', 'Bulk finder', 'Email support', 'No API Access'] },
-    { name: 'Agency', price: 99, period: 'month', findCredits: 50000, verifyCredits: 50000, popular: true, features: ['Everything in pro plus', '50,000 email finding credits/month', '50,000 email verification credits/month', 'Full API Access', 'Email enrichment automation workflow', 'Lifetime Community support', 'Whatsapp support', 'Priority email support'] },
-    { name: 'Lifetime', price: 249, period: 'lifetime', findCredits: 150000, verifyCredits: 150000, popular: false, features: ['150,000 email finding credits', '150,000 email verification credits', 'Full API support upto 300k credits', 'Cold outbound automation support and implementation', 'First 2 campaigns are on us with guaranteed deliverability', '1 year founder exclusive community access (for limited founders)', 'Lifetime access', 'Priority support', 'All future features'] }
-  ] as const
+  // Helper to find checkout URL from an unknown response (robust)
+  const findCheckoutUrl = (resp: unknown): string | undefined => {
+    if (!resp || typeof resp !== 'object') return undefined
+    const root = resp as Record<string, unknown>
 
-  const customCreditPackages = [
-    { credits: 100000, price: 35, description: '100K credits for email finding and verification' },
-    { credits: 50000, price: 20, description: '50K credits for email finding and verification' },
-    { credits: 25000, price: 12, description: '25K credits for email finding and verification' },
-    { credits: 10000, price: 9, description: '10K credits for email finding and verification' }
-  ] as const
+    // candidate helper to drill into objects
+    const probe = (obj: unknown, keys: string[]): string | undefined => {
+      let cur: unknown = obj
+      for (const k of keys) {
+        if (cur && typeof cur === 'object') {
+          cur = (cur as Record<string, unknown>)[k]
+        } else {
+          return undefined
+        }
+      }
+      if (typeof cur === 'string') return cur
+      return undefined
+    }
+
+    // direct places to check:
+    // resp.data.attributes.url
+    // resp.data.attributes.checkout_url
+    // resp.data.attributes?.url
+    // resp.data?.attributes?.checkout_url
+    const candidates = [
+      ['data', 'attributes', 'url'],
+      ['data', 'attributes', 'checkout_url'],
+      ['data', 'attributes', 'redirect_url'],
+      ['data', 'attributes', 'portal_url'],
+      ['data', 'url'],
+      ['data', 'checkout_url'],
+      ['url'],
+      ['checkout_url'],
+    ]
+
+    for (const keys of candidates) {
+      const v = probe(root, keys)
+      if (v) return v
+    }
+
+    // if data is array, check first item's attributes
+    if (Array.isArray((root as Record<string, unknown>).data)) {
+      const arr = (root as Record<string, unknown>).data as unknown[]
+      if (arr.length > 0 && typeof arr[0] === 'object') {
+        const v = probe(arr[0], ['attributes', 'url']) || probe(arr[0], ['attributes', 'checkout_url'])
+        if (v) return v
+      }
+    }
+
+    return undefined
+  }
 
   const handleSubscribe = (planName: 'pro' | 'agency' | 'lifetime') => {
     const loadingKey = `plan-${planName}`
@@ -1293,10 +1319,10 @@ function CreditsPageComponent() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ plan: planName }),
           })
-          const json: unknown = await res.json().catch(() => null)
-          const checkoutUrl = extractCheckoutUrl(json)
-          if (!checkoutUrl) throw new Error('Checkout URL missing')
-          window.location.href = checkoutUrl
+          const parsed = await safeJsonParse(res)
+          const url = findCheckoutUrl(parsed)
+          if (!url) throw new Error('Checkout URL missing')
+          window.location.href = url
         } else {
           const planObj = pricingPlans.find(p => p.name.toLowerCase() === planName)
           if (!planObj) throw new Error('Invalid plan selected')
@@ -1313,7 +1339,7 @@ function CreditsPageComponent() {
     })
   }
 
-  const handleBuyCredits = (creditPackage: { credits: number }) => {
+  const handleBuyCredits = (creditPackage: { credits: number; price: number }) => {
     const pkgLabel = creditPackage.credits >= 100000 ? '100k' : creditPackage.credits >= 50000 ? '50k' : creditPackage.credits >= 25000 ? '25k' : '10k'
     const loadingKey = `credits-${creditPackage.credits}`
     setLoadingStates(prev => ({ ...prev, [loadingKey]: true }))
@@ -1325,14 +1351,12 @@ function CreditsPageComponent() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ plan: 'credits', package: pkgLabel }),
           })
-          const json: unknown = await res.json().catch(() => null)
-          const checkoutUrl = extractCheckoutUrl(json)
-          if (!checkoutUrl) throw new Error('Checkout URL missing')
-          window.location.href = checkoutUrl
+          const parsed = await safeJsonParse(res)
+          const url = findCheckoutUrl(parsed)
+          if (!url) throw new Error('Checkout URL missing')
+          window.location.href = url
         } else {
-          const pkg = customCreditPackages.find(p => p.credits === creditPackage.credits)
-          if (!pkg) throw new Error('Invalid credit package')
-          const { url } = await createCustomCreditCheckout({ credits: pkg.credits, price: pkg.price })
+          const { url } = await createCustomCreditCheckout({ credits: creditPackage.credits, price: creditPackage.price })
           if (!url) throw new Error('Checkout URL missing')
           window.location.href = url
         }
@@ -1353,14 +1377,12 @@ function CreditsPageComponent() {
         method: 'GET',
         credentials: 'include',
         headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
           Accept: 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
         },
       })
 
-      const text = await res.text()
-      let data: unknown = null
-      try { data = text ? JSON.parse(text) : null } catch { data = null }
+      const parsed = await safeJsonParse(res)
 
       if (res.status === 401 || res.status === 403) {
         toast.error('Not authenticated. Please login first.')
@@ -1369,24 +1391,40 @@ function CreditsPageComponent() {
         return
       }
 
-      const obj = isRecord(data) ? data as Record<string, unknown> : null
+      // Try multiple locations for portal URL
+      const tryGet = (obj: unknown, ...keys: string[]): string | undefined => {
+        if (!obj || typeof obj !== 'object') return undefined
+        let cur: unknown = obj
+        for (const k of keys) {
+          if (cur && typeof cur === 'object') {
+            cur = (cur as Record<string, unknown>)[k]
+          } else {
+            return undefined
+          }
+        }
+        return typeof cur === 'string' ? cur : undefined
+      }
+
       const portalUrl =
-        getString(obj, 'data', 'lemonsqueezy_portal_url') ||
-        getString(obj, 'lemonsqueezy_portal_url') ||
-        getString(obj, 'data', 'attributes', 'lemonsqueezy_portal_url') ||
-        getString(obj, 'data', 'attributes', 'url') ||
-        getString(obj, 'data', 'attributes', 'checkout_url') ||
-        getString(obj, 'profile', 'lemonsqueezy_portal_url') ||
-        getString(obj, 'user', 'lemonsqueezy_portal_url')
+        tryGet(parsed, 'data', 'lemonsqueezy_portal_url') ||
+        tryGet(parsed, 'lemonsqueezy_portal_url') ||
+        tryGet(parsed, 'data', 'attributes', 'lemonsqueezy_portal_url') ||
+        tryGet(parsed, 'data', 'attributes', 'url') ||
+        tryGet(parsed, 'data', 'attributes', 'checkout_url') ||
+        tryGet(parsed, 'profile', 'lemonsqueezy_portal_url') ||
+        tryGet(parsed, 'user', 'lemonsqueezy_portal_url')
 
       if (!portalUrl) {
-        console.error('[ManageBilling] portal url not found. Full response:', data ?? text)
+        console.error('[ManageBilling] portal url not found. Full response:', parsed)
         toast.error('No billing record found. Complete a purchase or subscription first. (See console for details.)')
         return
       }
 
-      if (portalUrl.startsWith('/')) router.push(portalUrl)
-      else window.open(portalUrl, '_blank', 'noopener,noreferrer')
+      if (portalUrl.startsWith('/')) {
+        router.push(portalUrl)
+      } else {
+        window.open(portalUrl, '_blank', 'noopener,noreferrer')
+      }
       toast.success('Redirecting to billing portal...')
     } catch (err) {
       console.error('[ManageBilling] request failed:', err)
@@ -1400,11 +1438,18 @@ function CreditsPageComponent() {
     setIsCreatingPortal(true)
     try {
       const { url, error } = await createLemonSqueezyPortal()
-      if (error) { toast.error(error); return }
+      if (error) {
+        toast.error(error)
+        return
+      }
       if (url) {
-        if (url.startsWith('/')) router.push(url)
-        else window.open(url, '_blank')
-        toast.success('Redirecting to billing portal...')
+        if (url.startsWith('/')) {
+          router.push(url)
+          toast.success('Redirecting to pricing plans...')
+        } else {
+          window.open(url, '_blank')
+          toast.success('Redirecting to billing portal to manage your subscription...')
+        }
       } else {
         toast.error('Billing portal URL unavailable')
       }
@@ -1417,7 +1462,11 @@ function CreditsPageComponent() {
     if (!dateString) return '-'
     try {
       return new Date(dateString).toLocaleDateString('en-US', {
-        year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
       })
     } catch {
       return dateString
@@ -1428,15 +1477,101 @@ function CreditsPageComponent() {
     const event = transaction.webhook_event
     switch (event) {
       case 'order_created':
-      case 'subscription_payment_success': return 'Credit Purchase'
-      case 'subscription_created': return 'Subscription Started'
-      case 'subscription_cancelled': return 'Subscription Cancelled'
-      case 'subscription_expired': return 'Subscription Expired'
+      case 'subscription_payment_success':
+        return 'Credit Purchase'
+      case 'subscription_created':
+        return 'Subscription Started'
+      case 'subscription_cancelled':
+        return 'Subscription Cancelled'
+      case 'subscription_expired':
+        return 'Subscription Expired'
       default:
-        if (transaction.product_type) return transaction.product_type.replace('_', ' ').replace(/\b\w/g, l => String(l).toUpperCase())
+        if (transaction.product_type) {
+          return transaction.product_type.replace('_', ' ').replace(/\b\w/g, l => String(l).toUpperCase())
+        }
         return transaction.product_name || 'Transaction'
     }
   }
+
+  const pricingPlans = [
+    {
+      name: 'Pro',
+      price: 49,
+      period: 'month',
+      findCredits: 5000,
+      verifyCredits: 5000,
+      popular: false,
+      features: [
+        '5,000 email finding credits/month',
+        '5,000 email verification credits/month',
+        'Monthly billing',
+        'Bulk verification',
+        'Bulk finder',
+        'Email support',
+        'No API Access'
+      ]
+    },
+    {
+      name: 'Agency',
+      price: 99,
+      period: 'month',
+      findCredits: 50000,
+      verifyCredits: 50000,
+      popular: true,
+      features: [
+        'Everything in pro plus',
+        '50,000 email finding credits/month',
+        '50,000 email verification credits/month',
+        'Full API Access',
+        'Email enrichment automation workflow',
+        'Lifetime Community support',
+        'Whatsapp support',
+        'Priority email support'
+      ]
+    },
+    {
+      name: 'Lifetime',
+      price: 249,
+      period: 'lifetime',
+      findCredits: 150000,
+      verifyCredits: 150000,
+      popular: false,
+      features: [
+        '150,000 email finding credits',
+        '150,000 email verification credits',
+        'Full API support upto 300k credits',
+        'Cold outbound automation support and implementation',
+        'First 2 campaigns are on us with guaranteed deliverability',
+        '1 year founder exclusive community access (for limited founders)',
+        'Lifetime access',
+        'Priority support',
+        'All future features'
+      ]
+    }
+  ] as const
+
+  const customCreditPackages = [
+    {
+      credits: 100000,
+      price: 35,
+      description: '100K credits for email finding and verification'
+    },
+    {
+      credits: 50000,
+      price: 20,
+      description: '50K credits for email finding and verification'
+    },
+    {
+      credits: 25000,
+      price: 12,
+      description: '25K credits for email finding and verification'
+    },
+    {
+      credits: 10000,
+      price: 9,
+      description: '10K credits for email finding and verification'
+    }
+  ] as const
 
   const daysRemaining = profile?.plan === 'free' ? 3 : 0
   const isExpired = false
@@ -1444,11 +1579,12 @@ function CreditsPageComponent() {
   if (isLoading) {
     return (
       <div className="max-w-4xl mx-auto space-y-8">
+        {/* Header skeleton */}
         <div className="animate-pulse">
           <div className="h-8 bg-gray-200 rounded w-1/3 mb-4"></div>
           <div className="h-4 bg-gray-200 rounded w-2/3"></div>
         </div>
-        {/* keep skeleton short for brevity */}
+        {/* rest of skeleton omitted for brevity */}
       </div>
     )
   }
@@ -1457,51 +1593,234 @@ function CreditsPageComponent() {
     <div className="max-w-4xl mx-auto space-y-8">
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Credits & Billing</h1>
-        <p className="text-gray-600 mt-2">Manage your credits and billing information.</p>
+        <p className="text-gray-600 mt-2">
+          Manage your credits and billing information.
+        </p>
       </div>
 
+      {/* Current Credits */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Coins className="h-5 w-5" /> Current Balance</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <Coins className="h-5 w-5" />
+            Current Balance
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-3xl font-bold text-blue-600">{profile?.total_credits || 0}</p>
+              <p className="text-3xl font-bold text-blue-600">
+                {/* total_credits may be computed server side */}
+                {profile?.total_credits ?? (Number(profile?.credits_find ?? 0) + Number(profile?.credits_verify ?? 0))}
+              </p>
               <p className="text-gray-600">Total Available Credits</p>
               <div className="mt-2 text-sm text-gray-500">
-                <div>Find: {profile?.credits_find || 0} credits</div>
-                <div>Verify: {profile?.credits_verify || 0} credits</div>
+                <div>Find: {profile?.credits_find ?? 0} credits</div>
+                <div>Verify: {profile?.credits_verify ?? 0} credits</div>
               </div>
             </div>
             <div className="text-right">
-              <p className="text-lg font-medium">Plan: {profile?.plan || 'Free'}</p>
-              <p className="text-sm text-gray-600">Account: {profile?.full_name || 'User'}</p>
+              <p className="text-lg font-medium">
+                Plan: {profile?.plan || 'Free'}
+              </p>
+              <p className="text-sm text-gray-600">
+                Account: {profile?.full_name || 'User'}
+              </p>
             </div>
           </div>
         </CardContent>
       </Card>
 
+      {/* Current Plan + Chart */}
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CreditCard className="h-5 w-5" />
+              Your Current Plan
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {profile && (
+              <>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-xl font-semibold">{PLANS[profile.plan as keyof typeof PLANS]?.name || profile.plan}</h3>
+                    <p className="text-gray-600">
+                      {PLANS[profile.plan as keyof typeof PLANS]?.price} {PLANS[profile.plan as keyof typeof PLANS]?.duration}
+                    </p>
+                  </div>
+                  <Badge className={PLANS[profile.plan as keyof typeof PLANS]?.color || 'bg-gray-100 text-gray-800'}>
+                    {String(profile.plan || 'FREE').toUpperCase()}
+                  </Badge>
+                </div>
+
+                {profile.plan === 'free' && (
+                  <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <p className="text-sm text-yellow-800">
+                      {isExpired
+                        ? "⚠️ Your free trial has expired. Please upgrade to continue using the service."
+                        : `⏰ ${daysRemaining} days remaining in your free trial.`
+                      }
+                    </p>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <h4 className="font-medium">Plan Features:</h4>
+                  <ul className="space-y-1">
+                    {(PLANS[profile.plan as keyof typeof PLANS]?.features || []).map((feature, index) => (
+                      <li key={index} className="flex items-center gap-2 text-sm text-gray-600">
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        {feature}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="pt-4 border-t">
+                  <div className="grid grid-cols-2 gap-4 text-center">
+                    <div>
+                      <p className="text-2xl font-bold text-blue-600">{profile.credits_find ?? 0}</p>
+                      <p className="text-sm text-gray-600">Find Credits</p>
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-green-600">{profile.credits_verify ?? 0}</p>
+                      <p className="text-sm text-gray-600">Verify Credits</p>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5" />
+              Daily Credit Usage
+            </CardTitle>
+            <CardDescription>
+              Track your daily credit consumption over time
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {safeCreditUsage.length > 0 ? (
+              <div className="h-64">
+                <Line data={chartData} options={chartOptions} />
+              </div>
+            ) : (
+              <div className="h-64 flex items-center justify-center text-gray-500">
+                <div className="text-center">
+                  <TrendingUp className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                  <p>No usage data available yet</p>
+                  <p className="text-sm">Start using the service to see your credit usage</p>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Subscription Plans */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><TrendingUp className="h-5 w-5" /> Daily Credit Usage</CardTitle>
-          <CardDescription>Track your daily credit consumption over time</CardDescription>
+          <CardTitle className="flex items-center gap-2">
+            <Plus className="h-5 w-5" />
+            Subscription Plans
+          </CardTitle>
+          <CardDescription>
+            Choose a subscription plan that fits your needs.
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          {safeCreditUsage.length > 0 ? (
-            <div className="h-64"><Line data={chartData} options={chartOptions} /></div>
-          ) : (
-            <div className="h-64 flex items-center justify-center text-gray-500">
-              <div className="text-center">
-                <TrendingUp className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                <p>No usage data available yet</p>
-                <p className="text-sm">Start using the service to see your credit usage</p>
-              </div>
-            </div>
-          )}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {pricingPlans.map((plan) => {
+              const isCurrentPlan = String(profile?.plan || '').toLowerCase() === plan.name.toLowerCase()
+              return (
+                <Card
+                  key={plan.name}
+                  className={`relative ${isCurrentPlan ? 'border-green-500 border-2 shadow-lg bg-green-50' : plan.popular ? 'border-blue-500 border-2 shadow-lg' : ''}`}
+                >
+                  {isCurrentPlan && (
+                    <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                      <span className="bg-green-500 text-white text-sm px-3 py-1 rounded-full font-medium">Current Plan</span>
+                    </div>
+                  )}
+                  {plan.popular && !isCurrentPlan && (
+                    <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                      <span className="bg-blue-500 text-white text-sm px-3 py-1 rounded-full font-medium">Most Popular</span>
+                    </div>
+                  )}
+                  <CardContent className="pt-6">
+                    <div className="text-center mb-6">
+                      <h3 className="text-xl font-bold text-gray-900 mb-2">{plan.name}</h3>
+                      <div className="text-3xl font-bold text-blue-600 mb-1">${plan.price}</div>
+                      <div className="text-sm text-gray-600">{plan.period === 'lifetime' ? 'One-time payment' : `per ${plan.period}`}</div>
+                    </div>
+
+                    <div className="space-y-3 mb-6">
+                      {plan.features.map((feature, index) => (
+                        <div key={index} className="flex items-start gap-2">
+                          <div className="w-1.5 h-1.5 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
+                          <span className="text-sm text-gray-600">{feature}</span>
+                        </div>
+                      ))}
+                    </div>
+
+                    {isCurrentPlan ? (
+                      <Button className="w-full" onClick={handleCancelSubscription} disabled={isCreatingPortal} variant="destructive" size="lg">
+                        <CreditCard className="mr-2 h-4 w-4" />
+                        {isCreatingPortal ? 'Processing...' : 'Cancel Subscription'}
+                      </Button>
+                    ) : (
+                      <Button className="w-full" onClick={() => handleSubscribe(plan.name.toLowerCase() as 'pro' | 'agency' | 'lifetime')} disabled={loadingStates[`plan-${plan.name}`]} variant={plan.popular ? 'default' : 'outline'} size="lg">
+                        <CreditCard className="mr-2 h-4 w-4" />
+                        {loadingStates[`plan-${plan.name}`] ? 'Processing...' : (plan.period === 'lifetime' ? 'Get Lifetime Access' : 'Start Subscription')}
+                      </Button>
+                    )}
+
+                    {plan.period !== 'lifetime' && !isCurrentPlan && (
+                      <div className="text-xs text-gray-500 mt-3 text-center">Cancel anytime • No setup fees</div>
+                    )}
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
         </CardContent>
       </Card>
 
+      {/* Custom Credit Packages */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Coins className="h-5 w-5" />
+            Custom Credit Packages
+          </CardTitle>
+          <CardDescription>One-time credit purchases for immediate use</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {customCreditPackages.map((creditPackage, index) => (
+              <div key={index} className="bg-gray-50 rounded-lg border p-4 hover:shadow-md transition-shadow">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-gray-900 mb-1">{creditPackage.credits.toLocaleString()}</div>
+                  <div className="text-xs text-gray-500 mb-3">Credits</div>
+                  <div className="text-xl font-bold text-blue-600 mb-3">${creditPackage.price}</div>
+                  <p className="text-xs text-gray-600 mb-4">{creditPackage.description}</p>
+                  <Button onClick={() => handleBuyCredits(creditPackage)} disabled={loadingStates[`credits-${creditPackage.credits}`]} className="w-full" size="sm">
+                    {loadingStates[`credits-${creditPackage.credits}`] ? 'Processing...' : 'Buy Credits'}
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Billing Management */}
       <Card>
         <CardHeader>
           <CardTitle>Billing Management</CardTitle>
@@ -1509,14 +1828,19 @@ function CreditsPageComponent() {
         </CardHeader>
         <CardContent>
           <Button variant="outline" onClick={handleManageBilling} disabled={isCreatingPortal}>
-            <ExternalLink className="mr-2 h-4 w-4" /> Manage Billing
+            <ExternalLink className="mr-2 h-4 w-4" />
+            Manage Billing
           </Button>
         </CardContent>
       </Card>
 
+      {/* Transaction History (payments only) */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><History className="h-5 w-5" /> Recent Transactions</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <History className="h-5 w-5" />
+            Recent Transactions
+          </CardTitle>
           <CardDescription>Your last 10 payment transactions.</CardDescription>
         </CardHeader>
         <CardContent>
@@ -1534,7 +1858,7 @@ function CreditsPageComponent() {
                   </tr>
                 </thead>
                 <tbody>
-                  {displayedTransactions.map(t => {
+                  {displayedTransactions.slice(0, 10).map((t) => {
                     const created = t.created_at ?? t.createdAt
                     const amount = typeof t.amount === 'number' ? t.amount : 0
                     return (
@@ -1567,5 +1891,7 @@ function CreditsPageComponent() {
   )
 }
 
+// Memoize the component to prevent unnecessary re-renders
 const CreditsPage = memo(CreditsPageComponent)
+
 export default CreditsPage
