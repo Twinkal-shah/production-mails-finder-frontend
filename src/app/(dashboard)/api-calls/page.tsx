@@ -253,9 +253,9 @@ const API_DOCS: ApiDoc[] = [
     url: 'https://server.mailsfinder.com/api/access-key/email/findEmail',
     displayUrl: 'https://server.mailsfinder.com/api/access-key/email/findEmail',
     description: 'Find email by name and domain',
-    headers: { 'Authorization': 'Bearer API_••••••••398e', 'Content-Type': 'application/json' },
-    requestBody: { full_name: 'John Doe', domain: 'example.com' },
-    requestBodyAlt: { first_name: 'John', last_name: 'Doe', domain: 'example.com' },
+    headers: { 'Authorization': 'Bearer API_KEY_***************************', 'Content-Type': 'application/json' },
+    requestBody: { first_name: 'John', last_name: 'Doe', domain: 'example.com' },
+    requestBodyAlt: { full_name: 'John Doe', domain: 'example.com' },
     success: { success: true, data: { email: 'john.doe@example.com', confidence: 95, status: 'found', catch_all: false, domain: 'example.com', mx: 'mx.example.com', time_exec: 350, user_name: 'john', connections: 3, ver_ops: 1 }, message: 'Email found' },
     error: { error: { message: 'Invalid JSON in request body', code: 400 } },
     responseFields: {
