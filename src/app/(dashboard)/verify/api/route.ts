@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getBackendBaseUrl } from '@/lib/api'
 import { verifyEmail, type EmailVerifierRequest } from '@/lib/services/email-verifier'
 
 interface VerifyEmailRequest {
@@ -32,7 +33,7 @@ export async function POST(request: NextRequest) {
     }
     
     // Check if plan has expired and get credits from profile data
-    const backend = process.env.NEXT_PUBLIC_SERVER_URL || 'https://server.mailsfinder.com'
+    const backend = getBackendBaseUrl()
     const cookie = request.headers.get('cookie') || ''
     const accessToken = await getAccessTokenFromCookies()
     
