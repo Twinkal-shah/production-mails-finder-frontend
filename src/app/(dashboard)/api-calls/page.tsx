@@ -207,10 +207,14 @@ type ApiDoc = {
 const stringifyJson = (obj: unknown) => (typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2))
 
 const buildCurl = (method: string, url: string, headers: Record<string, string>, body?: unknown) => {
-  const parts: string[] = [`curl -X ${method} "${url}"`]
-  for (const [k, v] of Object.entries(headers)) parts.push(`  -H "${k}: ${v}"`)
-  if (body !== undefined) parts.push(`  -d '${JSON.stringify(body)}'`)
-  return parts.join(' \\\n')
+  const parts: string[] = [`curl.exe -i -X ${method} "${url}"`]
+  for (const [k, v] of Object.entries(headers)) parts.push(`-H "${k}: ${v}"`)
+  if (body !== undefined) {
+    const json = typeof body === 'string' ? body : JSON.stringify(body)
+    const escaped = json.replace(/"/g, '\\"')
+    parts.push(`-d "${escaped}"`)
+  }
+  return parts.join(' ')
 }
 
 const buildJs = (method: string, url: string, headers: Record<string, string>, body?: unknown) => {
