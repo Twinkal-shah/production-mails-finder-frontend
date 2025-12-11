@@ -1036,18 +1036,32 @@ interface CreditTransaction {
   user_id: string
   lemonsqueezy_order_id?: string
   lemonsqueezy_subscription_id?: string
-  product_name: string
-  product_type: string
-  amount: number
-  credits_find_added: number
-  credits_verify_added: number
-  status: string
-  webhook_event: string
+  product_name?: string
+  product_type?: string
+  amount?: number
+  credits_find_added?: number
+  credits_verify_added?: number
+  status?: string
+  webhook_event?: string
   metadata?: Record<string, unknown>
-  created_at: string
+  created_at?: string
+  createdAt?: string
 }
 
-// Removed unused interfaces - UserProfile and CreditUsage are now imported from hooks
+// Normalized shape for transactions coming from the backend (may be partial)
+type BackendTransaction = Partial<CreditTransaction> & {
+  id?: string
+  createdAt?: string
+  created_at?: string
+  credits_find_added?: number
+  credits_verify_added?: number
+  lemonsqueezy_order_id?: string
+  lemonsqueezy_subscription_id?: string
+  webhook_event?: string
+  amount?: number
+  product_name?: string
+  status?: string
+}
 
 const PLANS = {
   free: {
@@ -1103,9 +1117,8 @@ function CreditsPageComponent() {
   const { profile, transactions, creditUsage, isLoading, isError, error } = useCreditsData()
 
   // ---------- NEW: fetch payment transactions from backend ----------
-  const [paymentTransactions, setPaymentTransactions] = useState<CreditTransaction[]>([])
- const apiBase = process.env.NEXT_PUBLIC_SERVER_URL || process.env.NEXT_PUBLIC_API_BASE_URL || ''
-
+  const [paymentTransactions, setPaymentTransactions] = useState<BackendTransaction[]>([])
+  const apiBase = process.env.NEXT_PUBLIC_SERVER_URL || process.env.NEXT_PUBLIC_API_BASE_URL || ''
 
   useEffect(() => {
     let mounted = true
@@ -1126,14 +1139,19 @@ function CreditsPageComponent() {
         }
         const json = await res.json().catch(() => null)
         // adapt to your backend shape: try json.data, json.transactions or json
-        const items = (json?.data || json?.transactions || json) as any
-        const arr = Array.isArray(items) ? items : (items?.data && Array.isArray(items.data) ? items.data : [])
+        const rawItems = (json?.data || json?.transactions || json) as unknown
+        let arr: BackendTransaction[] = []
+        if (Array.isArray(rawItems)) {
+          arr = rawItems as BackendTransaction[]
+        } else if (rawItems && typeof rawItems === 'object' && Array.isArray((rawItems as any).data)) {
+          arr = (rawItems as any).data as BackendTransaction[]
+        }
         if (mounted) setPaymentTransactions(arr)
       } catch (err) {
         console.error('[Payments] fetch error', err)
       }
     }
-    fetchPayments()
+    if (apiBase) fetchPayments()
     return () => { mounted = false }
   }, [apiBase])
   // -----------------------------------------------------------------
@@ -1144,24 +1162,24 @@ function CreditsPageComponent() {
     const all = Array.isArray(paymentTransactions) ? paymentTransactions : [];
 
     // rules to detect real payments
-    const isPayment = (t: any) => {
+    const isPayment = (t: BackendTransaction): boolean => {
       return Boolean(
         t.lemonsqueezy_order_id ||
         t.lemonsqueezy_subscription_id ||
         (typeof t.amount === "number" && t.amount > 0) ||
         ["order_created", "subscription_payment_success", "subscription_created"].includes(
-          String(t.webhook_event)
+          String(t.webhook_event ?? '')
         )
       );
     };
 
     return all
       .filter(isPayment)
-      .map((t: any) => ({
+      .map((t: BackendTransaction) => ({
         ...t,
-        created_at: t.created_at || t.createdAt || t.createdAtString || null,
+        created_at: t.created_at || t.createdAt || undefined,
       }))
-      .sort((a: any, b: any) => {
+      .sort((a, b) => {
         const da = a.created_at ? new Date(a.created_at).getTime() : 0;
         const db = b.created_at ? new Date(b.created_at).getTime() : 0;
         return db - da;
@@ -1170,14 +1188,14 @@ function CreditsPageComponent() {
 
   // Memoize chart data to prevent unnecessary recalculations
   const chartData = useMemo(() => ({
-    labels: creditUsage.map(item => {
-      const date = new Date(item.date)
+    labels: (creditUsage || []).map(item => {
+      const date = new Date((item as any).date)
       return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
     }),
     datasets: [
       {
         label: 'Credits Used',
-        data: creditUsage.map(item => item.credits_used),
+        data: (creditUsage || []).map((item: any) => item.credits_used),
         borderColor: 'rgb(59, 130, 246)',
         backgroundColor: 'rgba(59, 130, 246, 0.1)',
         tension: 0.1,
@@ -1295,7 +1313,7 @@ const handleManageBilling = async () => {
   try {
     const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
 
-    const res = await fetch("https://server.mailsfinder.com/api/user/profile/getProfile", {
+    const res = await fetch(`${apiBase}/api/user/profile/getProfile`, {
       method: "GET",
       credentials: "include",
       headers: {
@@ -1311,7 +1329,8 @@ const handleManageBilling = async () => {
     let data: unknown = null;
     try {
       data = text ? JSON.parse(text) : null;
-    } catch (parseErr) {
+    } catch {
+      // response is not JSON — this is expected sometimes
       console.warn('[ManageBilling] response is not JSON:', text);
       data = null;
     }
@@ -1391,19 +1410,25 @@ const handleManageBilling = async () => {
     }
   }
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    })
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return '-'
+    try {
+      return new Date(dateString).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+    } catch {
+      return dateString
+    }
   }
 
-  const getOperationLabel = (transaction: CreditTransaction) => {
+  const getOperationLabel = (transaction: BackendTransaction | CreditTransaction) => {
     // Map webhook events to user-friendly labels
-    switch (transaction.webhook_event) {
+    const event = transaction.webhook_event
+    switch (event) {
       case 'order_created':
       case 'subscription_payment_success':
         return 'Credit Purchase'
@@ -1416,7 +1441,7 @@ const handleManageBilling = async () => {
       default:
         // Fallback to product type or product name
         if (transaction.product_type) {
-          return transaction.product_type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())
+          return transaction.product_type.replace('_', ' ').replace(/\b\w/g, l => String(l).toUpperCase())
         }
         return transaction.product_name || 'Transaction'
     }
@@ -1771,7 +1796,7 @@ const handleManageBilling = async () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {creditUsage.length > 0 ? (
+            {creditUsage && creditUsage.length > 0 ? (
               <div className="h-64">
                 <Line data={chartData} options={chartOptions} />
               </div>
@@ -1974,45 +1999,50 @@ const handleManageBilling = async () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {displayedTransactions.map((transaction) => (
-                    <tr key={transaction.id} className="border-b">
-                      <td className="p-2 text-sm">
-                        {formatDate(transaction.created_at)}
-                      </td>
-                      <td className="p-2">
-                        <span className="text-sm font-medium">
-                          {getOperationLabel(transaction as CreditTransaction)}
-                        </span>
-                      </td>
-                      <td className="p-2">
-                        <span className={`text-sm font-medium ${
-                          (transaction as any).amount > 0 
-                            ? 'text-green-600' 
-                            : 'text-red-600'
-                        }`}>
-                          {(transaction as any).amount > 0 ? '+' : ''}${(transaction as any).amount ?? 0}
-                        </span>
-                      </td>
-                      <td className="p-2 text-sm text-gray-600">
-                        <div className="space-y-1">
-                          <div>{(transaction as any).product_name}</div>
-                          {(transaction as any).credits_find_added > 0 && (
-                            <div className="text-xs text-green-600">
-                              +{(transaction as any).credits_find_added} Find Credits
+                  {displayedTransactions.map((tx) => {
+                    const t = tx as BackendTransaction
+                    const created = t.created_at ?? t.createdAt
+                    const amount = typeof t.amount === 'number' ? t.amount : 0
+                    return (
+                      <tr key={t.id ?? `${created}-${amount}`} className="border-b">
+                        <td className="p-2 text-sm">
+                          {formatDate(created)}
+                        </td>
+                        <td className="p-2">
+                          <span className="text-sm font-medium">
+                            {getOperationLabel(t)}
+                          </span>
+                        </td>
+                        <td className="p-2">
+                          <span className={`text-sm font-medium ${
+                            amount > 0 
+                              ? 'text-green-600' 
+                              : 'text-red-600'
+                          }`}>
+                            {amount > 0 ? '+' : ''}${amount}
+                          </span>
+                        </td>
+                        <td className="p-2 text-sm text-gray-600">
+                          <div className="space-y-1">
+                            <div>{t.product_name}</div>
+                            {t.credits_find_added && t.credits_find_added > 0 && (
+                              <div className="text-xs text-green-600">
+                                +{t.credits_find_added} Find Credits
+                              </div>
+                            )}
+                            {t.credits_verify_added && t.credits_verify_added > 0 && (
+                              <div className="text-xs text-green-600">
+                                +{t.credits_verify_added} Verify Credits
+                              </div>
+                            )}
+                            <div className="text-xs text-gray-500">
+                              Status: {t.status ?? '-'}
                             </div>
-                          )}
-                          {(transaction as any).credits_verify_added > 0 && (
-                            <div className="text-xs text-green-600">
-                              +{(transaction as any).credits_verify_added} Verify Credits
-                            </div>
-                          )}
-                          <div className="text-xs text-gray-500">
-                            Status: {(transaction as any).status}
                           </div>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
@@ -2027,4 +2057,3 @@ const handleManageBilling = async () => {
 const CreditsPage = memo(CreditsPageComponent)
 
 export default CreditsPage
-
