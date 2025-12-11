@@ -144,33 +144,39 @@ useEffect(() => {
       })
 
      const text = await res.text()
-let json: unknown = {}
+let parsed: unknown = {}
 try {
-  json = text ? JSON.parse(text) : {}
+  parsed = text ? JSON.parse(text) : {}
 } catch (err) {
-  json = {}
+  parsed = {}
 }
 
-// Narrow `json` safely and set purchaseHistory
-if (Array.isArray(json)) {
+type ApiShape = { success?: boolean; data?: unknown }
+
+// helper type-guards
+const isPurchaseArray = (v: unknown): v is PurchaseItem[] => Array.isArray(v) && v.every(item => typeof item === 'object' && item !== null)
+
+const isApiObject = (v: unknown): v is ApiShape => typeof v === 'object' && v !== null
+
+if (isPurchaseArray(parsed)) {
   // API returned array directly
-  setPurchaseHistory(json as PurchaseItem[])
-} else if (typeof json === 'object' && json !== null) {
-  // possible shape: { success: true, data: [...] }
-  const obj = json as Record<string, unknown>
-  if ('success' in obj && (obj as any).success && Array.isArray((obj as any).data)) {
-    setPurchaseHistory((obj as any).data as PurchaseItem[])
-  } else if (Array.isArray((obj as any).data)) {
-    // defensive fallback
-    setPurchaseHistory((obj as any).data as PurchaseItem[])
+  setPurchaseHistory(parsed)
+} else if (isApiObject(parsed)) {
+  const obj = parsed as ApiShape
+  if (obj.success === true && isPurchaseArray(obj.data)) {
+    setPurchaseHistory(obj.data)
+  } else if (isPurchaseArray(obj.data)) {
+    // fallback when success flag missing but data is an array
+    setPurchaseHistory(obj.data)
   } else {
     setPurchaseHistory([])
-    console.warn('Unexpected purchase history response', json)
+    console.warn('Unexpected purchase history response (object without data array)', parsed)
   }
 } else {
   setPurchaseHistory([])
-  console.warn('Unexpected purchase history response', json)
+  console.warn('Unexpected purchase history response (not array or object)', parsed)
 }
+
 
     } catch (err) {
       console.error('Failed to fetch purchase history', err)
