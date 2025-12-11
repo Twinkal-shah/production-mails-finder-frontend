@@ -109,7 +109,7 @@ const planKey = (profile?.plan || 'free').toString().trim().toLowerCase() as key
 const currentPlan = PLANS[planKey] || PLANS.free;
 
 // ------------------ Purchase history (fetch from dedicated API) ------------------
-const [purchaseHistory, setPurchaseHistory] = useState<any[]>([])
+const [purchaseHistory, setPurchaseHistory] = useState<any[]>([]) // TEMP FIX
 const [isPurchaseLoading, setIsPurchaseLoading] = useState(true)
 
 useEffect(() => {
@@ -128,7 +128,9 @@ useEffect(() => {
       })
 
       const text = await res.text()
-      let json: any = {}
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+let json: any = {}
+
       try { json = text ? JSON.parse(text) : {} } catch (err) { json = {} }
 
       if (json?.success && Array.isArray(json.data)) {
