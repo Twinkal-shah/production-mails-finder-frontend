@@ -77,37 +77,65 @@ export async function getUserProfileWithCredits() {
 
 export async function getCreditUsageHistory(): Promise<CreditUsage[]> {
   try {
-    // Use server-side function instead of client-side getCurrentUser
     const { getCurrentUserFromCookies } = await import('@/lib/auth-server')
     const user = await getCurrentUserFromCookies()
     if (!user) {
       return []
     }
-    // Get credit usage from the last 30 days via backend transactions
-    const thirtyDaysAgo = new Date()
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
-
-    const res = await apiGet<CreditTransaction[]>('/api/user/credits/transactions', { useProxy: true })
-    if (res.ok && Array.isArray(res.data)) {
-      const usageByDate: { [key: string]: number } = {}
-      ;(res.data as CreditTransaction[]).forEach((tx) => {
-        const date = new Date(tx.created_at).toISOString().split('T')[0]
-        const creditsUsed = Math.abs(Number(tx.amount))
-        usageByDate[date] = (usageByDate[date] || 0) + (isNaN(creditsUsed) ? 0 : creditsUsed)
-      })
-
-      const result: CreditUsage[] = []
-      const currentDate = new Date(thirtyDaysAgo)
-      const today = new Date()
-      while (currentDate <= today) {
-        const dateStr = currentDate.toISOString().split('T')[0]
-        result.push({ date: dateStr, credits_used: usageByDate[dateStr] || 0 })
-        currentDate.setDate(currentDate.getDate() + 1)
+    const transactions = await getTransactionHistory()
+    const todayStr = new Date().toISOString().split('T')[0]
+    const usageToday = transactions.filter((t) => {
+      const dateStr = new Date(t.created_at).toISOString().split('T')[0]
+      const isToday = dateStr === todayStr
+      const isPurchase = (t.product_type || '').toLowerCase() === 'purchase' || (t.webhook_event || '').toLowerCase().includes('order')
+      const addedCredits = (t.credits_find_added || 0) > 0 || (t.credits_verify_added || 0) > 0
+      const meta = (t.metadata ?? {}) as Record<string, unknown>
+      const op = String(meta['operation'] ?? '').toLowerCase()
+      const pt = (t.product_type || '').toLowerCase()
+      const isUsageType = pt.includes('usage') || pt.includes('deduct') || pt.includes('consum')
+      const isUsageOp = op.includes('email') || op.includes('verify') || op.includes('find')
+      const isUsageCandidate = !isPurchase && !addedCredits && (isUsageOp || isUsageType || typeof t.amount === 'number')
+      return isToday && isUsageCandidate
+    })
+    if (usageToday.length === 0) return []
+    const totalUsed = usageToday.reduce((sum, t) => {
+      const meta = (t.metadata ?? {}) as Record<string, unknown>
+      const summary = (meta['summary'] && typeof meta['summary'] === 'object') ? (meta['summary'] as Record<string, unknown>) : undefined
+      const dataObj = (meta['data'] && typeof meta['data'] === 'object') ? (meta['data'] as Record<string, unknown>) : undefined
+      const dataSummary = (dataObj && typeof dataObj['summary'] === 'object') ? (dataObj['summary'] as Record<string, unknown>) : undefined
+      const metaUsed =
+        Number(meta['credits_used'] ?? 0) ||
+        Number(meta['used'] ?? 0) ||
+        Number(meta['totalCredits'] ?? 0) ||
+        Number(meta['total_credits'] ?? 0) ||
+        Number(meta['credits'] ?? 0) ||
+        Number(meta['processed_emails'] ?? 0) ||
+        Number(meta['total_emails'] ?? 0) ||
+        Number(meta['count'] ?? 0) ||
+        Number(summary?.['valid_emails'] ?? 0) ||
+        Number(dataSummary?.['valid_emails'] ?? 0)
+      const byMeta = Number.isFinite(metaUsed) && metaUsed > 0 ? metaUsed : 0
+      const byAmount = typeof t.amount === 'number' && Number.isFinite(t.amount) ? Math.abs(Number(t.amount)) : 0
+      const used = byMeta || byAmount || 1
+      return sum + used
+    }, 0)
+    let todayUsed = totalUsed
+    try {
+      const res = await apiGet<CreditTransaction[]>('/api/user/credits/transactions', { useProxy: true })
+      if (res.ok && Array.isArray(res.data)) {
+        const backendToday = (res.data as CreditTransaction[]).filter((tx) => {
+          const ds = new Date(tx.created_at).toISOString().split('T')[0]
+          return ds === todayStr && Number(tx.amount) <= 0
+        })
+        const backendTotal = backendToday.reduce((sum, tx) => {
+          const n = Math.abs(Number(tx.amount))
+          return sum + (Number.isFinite(n) ? n : 0)
+        }, 0)
+        if (backendTotal > todayUsed) todayUsed = backendTotal
       }
-      return result
-    }
-
-    return []
+    } catch {}
+    if (todayUsed <= 0) return []
+    return [{ date: todayStr, credits_used: todayUsed }]
   } catch (error) {
     console.error('Error in getCreditUsageHistory:', error)
     return []

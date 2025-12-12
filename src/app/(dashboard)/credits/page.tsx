@@ -134,7 +134,7 @@ useEffect(() => {
     try {
       const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
 
-      const res = await fetch('https://server.mailsfinder.com/api/purchase/getMyPurchaseHistory', {
+      const res = await fetch('/api/purchase/getMyPurchaseHistory', {
         method: 'GET',
         credentials: 'include',
         headers: {
