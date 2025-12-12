@@ -21,7 +21,9 @@ import {
   Send,
   Eye,
   EyeOff,
-  Copy
+  Copy,
+  ChevronDown,
+  PlugZap
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -462,6 +464,10 @@ export default function ApiCallsPage() {
   const [deactivatingId, setDeactivatingId] = useState<string | null>(null)
   const [newKeyName, setNewKeyName] = useState('')
   const [revealed, setRevealed] = useState<Record<string, boolean>>({})
+  const [expandedDocs, setExpandedDocs] = useState<Record<string, boolean>>({})
+  const toggleDoc = useCallback((id: string) => {
+    setExpandedDocs(prev => ({ ...prev, [id]: !prev[id] }))
+  }, [])
   
 
   const unwrapData = <T,>(root: unknown): T | null => {
@@ -824,7 +830,8 @@ export default function ApiCallsPage() {
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6 relative">
+    <div className="w-full bg-[#f9fafb]">
+    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 space-y-10 relative">
       {restricted && (
         <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/70 backdrop-blur-sm">
           <Card className="w-full max-w-md">
@@ -840,48 +847,45 @@ export default function ApiCallsPage() {
       )}
       <div className={restricted ? 'pointer-events-none blur-sm' : ''}>
         <div className="flex items-center justify-between">
-          <div>
-          <h1 className="text-3xl font-bold">API</h1>
-          <p className="text-muted-foreground">
-            Test and debug your API endpoints with a comprehensive testing interface
-          </p>
+          {/* <div className="space-y-1">
+            <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-center">API</h1>
+          </div> */}
+          <div className="hidden">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={exportHistory}
+              disabled={state.history.length === 0}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Export
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => document.getElementById('import-file')?.click()}
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              Import
+            </Button>
+            <input
+              id="import-file"
+              type="file"
+              accept=".json"
+              onChange={importHistory}
+              className="hidden"
+            />
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={exportHistory}
-            disabled={state.history.length === 0}
-          >
-            <Download className="h-4 w-4 mr-2" />
-            Export
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => document.getElementById('import-file')?.click()}
-          >
-            <Upload className="h-4 w-4 mr-2" />
-            Import
-          </Button>
-          <input
-            id="import-file"
-            type="file"
-            accept=".json"
-            onChange={importHistory}
-            className="hidden"
-          />
-        </div>
-      </div>
 
       
 
-      <Card>
+      <Card className="rounded-xl border shadow-sm">
         <CardHeader>
-          <CardTitle className="text-lg">API Keys</CardTitle>
+          <CardTitle className="text-xl font-semibold">API Keys</CardTitle>
           <CardDescription>Manage your API keys for authenticated requests</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-6">
           <div className="flex items-end gap-2">
             <div className="flex-1">
               <Label className="text-sm font-medium">Key name</Label>
@@ -889,9 +893,10 @@ export default function ApiCallsPage() {
                 placeholder="e.g., Production Client"
                 value={newKeyName}
                 onChange={(e) => setNewKeyName(e.target.value)}
+                className="rounded-lg"
               />
             </div>
-            <Button onClick={handleCreateKey} disabled={creatingKey || !newKeyName.trim()}>
+            <Button onClick={handleCreateKey} disabled={creatingKey || !newKeyName.trim()} className="rounded-lg px-6">
               {creatingKey ? (
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -1006,13 +1011,15 @@ export default function ApiCallsPage() {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 gap-6">
+      <div className="grid grid-cols-1 gap-10">
         {/* Main Area: API Docs only */}
         <div className="lg:col-span-3 space-y-6">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-1">
-              <TabsTrigger value="docs">API Docs</TabsTrigger>
-            </TabsList>
+            <div className="w-full my-10 flex items-center justify-center">
+              <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900">
+                API Docs
+              </h2>
+            </div>
 
             <TabsContent value="docs" className="space-y-6">
               {API_DOCS.map((doc) => {
@@ -1022,18 +1029,40 @@ export default function ApiCallsPage() {
                 const py = buildPy(doc.method, url, doc.headers, doc.requestBody)
                 const wrapperTypes = [] as { key: string; type: string }[]
                 const dataTypes = [] as { key: string; type: string }[]
+                const isExpanded = !!expandedDocs[doc.id]
                 return (
-                  <Card key={doc.id}>
-                    <CardHeader>
+                  <Card key={doc.id} className="rounded-xl border bg-white hover:shadow-md transition-shadow">
+                    <CardHeader className="p-4 sm:p-6 cursor-pointer" onClick={() => toggleDoc(doc.id)} role="button" aria-expanded={isExpanded}>
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <Badge variant="secondary" className="text-xs">{doc.method}</Badge>
+                          <PlugZap className="h-5 w-5 text-muted-foreground" />
+                          {isExpanded && (
+                            <Badge variant="secondary" className="text-xs">{doc.method}</Badge>
+                          )}
                           <CardTitle className="text-lg">{doc.name}</CardTitle>
                         </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          aria-expanded={isExpanded}
+                          aria-controls={`${doc.id}-content`}
+                          onClick={() => toggleDoc(doc.id)}
+                          className="flex items-center gap-2 hover:bg-transparent"
+                        >
+                          <ChevronDown className={`h-4 w-4 transition-transform ${isExpanded ? 'rotate-0' : '-rotate-90'}`} />
+                        </Button>
                       </div>
-                      <CardDescription>{doc.description}</CardDescription>
+                      {isExpanded && <CardDescription>{doc.description}</CardDescription>}
                     </CardHeader>
-                    <CardContent className="space-y-4">
+                    <CardContent className="p-4 sm:p-6">
+                      <div
+                        id={`${doc.id}-content`}
+                        className={cn(
+                          'transition-all duration-300 ease-out overflow-hidden',
+                          isExpanded ? 'max-h-[3000px] opacity-100 translate-y-0' : 'max-h-0 opacity-0 -translate-y-1'
+                        )}
+                        aria-hidden={!isExpanded}
+                      >
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-mono">{url}</span>
                       </div>
@@ -1044,47 +1073,47 @@ export default function ApiCallsPage() {
                           <TabsTrigger value="python">Python</TabsTrigger>
                         </TabsList>
                         <TabsContent value="curl">
-                          <div className="bg-muted rounded-md p-4 overflow-auto">
-                            <pre className="text-sm font-mono whitespace-pre-wrap">{curl}</pre>
+                          <div className="bg-muted rounded-lg border p-4 overflow-x-auto">
+                            <pre className="text-xs sm:text-sm font-mono whitespace-pre leading-6">{curl}</pre>
                           </div>
                         </TabsContent>
                         <TabsContent value="javascript">
-                          <div className="bg-muted rounded-md p-4 overflow-auto">
-                            <pre className="text-sm font-mono whitespace-pre-wrap">{js}</pre>
+                          <div className="bg-muted rounded-lg border p-4 overflow-x-auto">
+                            <pre className="text-xs sm:text-sm font-mono whitespace-pre leading-6">{js}</pre>
                           </div>
                         </TabsContent>
                         <TabsContent value="python">
-                          <div className="bg-muted rounded-md p-4 overflow-auto">
-                            <pre className="text-sm font-mono whitespace-pre-wrap">{py}</pre>
+                          <div className="bg-muted rounded-lg border p-4 overflow-x-auto">
+                            <pre className="text-xs sm:text-sm font-mono whitespace-pre leading-6">{py}</pre>
                           </div>
                         </TabsContent>
                       </Tabs>
                       {doc.requestBody !== undefined && (
                         <div className="space-y-2">
                           <div className="text-sm font-medium">Request Body</div>
-                          <div className="bg-muted rounded-md p-4 overflow-auto">
-                            <pre className="text-sm font-mono whitespace-pre-wrap">{stringifyJson(doc.requestBody)}</pre>
+                          <div className="bg-muted rounded-lg border p-4 overflow-x-auto">
+                            <pre className="text-xs sm:text-sm font-mono whitespace-pre leading-6">{stringifyJson(doc.requestBody)}</pre>
                           </div>
                         </div>
                       )}
                       {doc.requestBodyAlt !== undefined && (
                         <div className="space-y-2">
                           <div className="text-sm font-medium">Alternative Body</div>
-                          <div className="bg-muted rounded-md p-4 overflow-auto">
-                            <pre className="text-sm font-mono whitespace-pre-wrap">{stringifyJson(doc.requestBodyAlt)}</pre>
+                          <div className="bg-muted rounded-lg border p-4 overflow-x-auto">
+                            <pre className="text-xs sm:text-sm font-mono whitespace-pre leading-6">{stringifyJson(doc.requestBodyAlt)}</pre>
                           </div>
                         </div>
                       )}
                       <div className="space-y-2">
                         <div className="text-sm font-medium">Response Example</div>
-                        <div className="bg-muted rounded-md p-4 overflow-auto">
-                          <pre className="text-sm font-mono whitespace-pre-wrap">{stringifyJson(doc.success)}</pre>
+                        <div className="bg-muted rounded-lg border p-4 overflow-x-auto">
+                          <pre className="text-xs sm:text-sm font-mono whitespace-pre leading-6">{stringifyJson(doc.success)}</pre>
                         </div>
                       </div>
                       <div className="space-y-2">
                         <div className="text-sm font-medium">Error Example</div>
-                        <div className="bg-muted rounded-md p-4 overflow-auto">
-                          <pre className="text-sm font-mono whitespace-pre-wrap">{stringifyJson(doc.error)}</pre>
+                        <div className="bg-muted rounded-lg border p-4 overflow-x-auto">
+                          <pre className="text-xs sm:text-sm font-mono whitespace-pre leading-6">{stringifyJson(doc.error)}</pre>
                         </div>
                       </div>
                       <div className="space-y-2">
@@ -1126,6 +1155,7 @@ export default function ApiCallsPage() {
                           <div className="text-xs text-muted-foreground">No status codes documented yet</div>
                         )}
                       </div>
+                      </div>
                     </CardContent>
                   </Card>
                 )
@@ -1136,6 +1166,7 @@ export default function ApiCallsPage() {
         
       </div>
       </div>
+    </div>
     </div>
   )
 }
