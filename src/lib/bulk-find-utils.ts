@@ -51,7 +51,7 @@ export async function bulkFind(
 ): Promise<{ items: Array<Record<string, unknown>>; totalCredits: number }> {
   const payload = buildBulkFindPayload(rows)
   if (payload.length === 0) return { items: [], totalCredits: 0 }
-  const MAX_PER_REQUEST = 1000
+  const MAX_PER_REQUEST = 100
   const batches = chunk(payload, MAX_PER_REQUEST)
   const total = batches.length
   let completed = 0
