@@ -23,6 +23,13 @@ export function toHostname(input: string): string {
   return ok ? s : ''
 }
 
+function sanitizeName(input: string): string {
+  let s = (input || '').trim()
+  s = s.normalize('NFKD').replace(/[^\x00-\x7F]/g, '')
+  s = s.replace(/[^a-zA-Z0-9-]/g, '')
+  return s
+}
+
 export function buildBulkFindPayload(
   rows: Array<{ fullName?: string; domain: string; firstName?: string; lastName?: string }>
 ): BulkFindItem[] {
@@ -37,6 +44,8 @@ export function buildBulkFindPayload(
       first = first || (parts[0] || '')
       last = last || (parts.slice(1).join(' ') || '')
     }
+    first = sanitizeName(first)
+    last = sanitizeName(last)
     if (!first || !last) continue
     out.push({ domain: host, first_name: first, last_name: last })
   }
