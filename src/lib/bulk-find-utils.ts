@@ -23,14 +23,20 @@ export function toHostname(input: string): string {
   return ok ? s : ''
 }
 
-export function buildBulkFindPayload(rows: Array<{ fullName: string; domain: string }>): BulkFindItem[] {
+export function buildBulkFindPayload(
+  rows: Array<{ fullName?: string; domain: string; firstName?: string; lastName?: string }>
+): BulkFindItem[] {
   const out: BulkFindItem[] = []
   for (const r of rows) {
     const host = toHostname(r.domain)
     if (!host) continue
-    const parts = (r.fullName || '').trim().split(/\s+/)
-    const first = parts[0] || ''
-    const last = parts.slice(1).join(' ') || ''
+    let first = (r.firstName || '').trim()
+    let last = (r.lastName || '').trim()
+    if (!first || !last) {
+      const parts = (r.fullName || '').trim().split(/\s+/)
+      first = first || (parts[0] || '')
+      last = last || (parts.slice(1).join(' ') || '')
+    }
     if (!first || !last) continue
     out.push({ domain: host, first_name: first, last_name: last })
   }
@@ -44,16 +50,14 @@ export function chunk<T>(list: T[], size: number): T[][] {
 }
 
 export async function bulkFind(
-  rows: Array<{ fullName: string; domain: string }>,
+  rows: Array<{ fullName?: string; domain: string; firstName?: string; lastName?: string }>,
   startBatchSize = 5,
   maxConcurrency = 2,
   onProgress?: (completed: number, total: number) => void
 ): Promise<{ items: Array<Record<string, unknown>>; totalCredits: number }> {
   const payload = buildBulkFindPayload(rows)
   if (payload.length === 0) return { items: [], totalCredits: 0 }
-  const MAX_PER_REQUEST = 100
-  const batches = chunk(payload, MAX_PER_REQUEST)
-  const total = batches.length
+  const total = 1
   let completed = 0
   let totalCredits = 0
   const out: Array<Record<string, unknown>> = []
@@ -92,61 +96,59 @@ export async function bulkFind(
       return false
     }
   }
-  for (const batch of batches) {
+  try {
+    let resp = await fetch((sameOrigin ? `${sameOrigin}/api/email/findBulkEmail` : `${apiBase}/email/findBulkEmail`), {
+      method: 'POST',
+      headers: buildHeaders(),
+      body: JSON.stringify(payload),
+      credentials: 'include',
+      mode: 'cors'
+    })
+    let body: unknown
     try {
-      let resp = await fetch((sameOrigin ? `${sameOrigin}/api/email/findBulkEmail` : `${apiBase}/email/findBulkEmail`), {
-        method: 'POST',
-        headers: buildHeaders(),
-        body: JSON.stringify(batch),
-        credentials: 'include',
-        mode: 'cors'
-      })
-      let body: unknown
-      try {
-        body = await resp.json()
-      } catch {
-        body = {}
-      }
-      const bodyObj: Record<string, unknown> = typeof body === 'object' && body !== null ? (body as Record<string, unknown>) : {}
-      const bodySuccess = typeof bodyObj['success'] === 'boolean' ? (bodyObj['success'] as boolean) : undefined
-      const bodyStatus = typeof bodyObj['status'] === 'number' ? (bodyObj['status'] as number) : undefined
-      const bodyJwtError = typeof bodyObj['jwtError'] === 'boolean' ? (bodyObj['jwtError'] as boolean) : undefined
-      const bodyMessage = typeof bodyObj['message'] === 'string' ? (bodyObj['message'] as string) : undefined
-      if (!resp.ok || bodySuccess === false) {
-        const status = resp.status || bodyStatus
-        if (status === 401 || bodyJwtError === true || bodyMessage === 'unauthorized') {
-          const refreshed = await tryRefresh()
-          if (refreshed) {
-            resp = await fetch((sameOrigin ? `${sameOrigin}/api/email/findBulkEmail` : `${apiBase}/email/findBulkEmail`), {
-              method: 'POST',
-              headers: buildHeaders(),
-              body: JSON.stringify(batch),
-              credentials: 'include',
-              mode: 'cors'
-            })
-            try { body = await resp.json() } catch { body = {} }
-            const retryObj: Record<string, unknown> = typeof body === 'object' && body !== null ? (body as Record<string, unknown>) : {}
-            const retrySuccess = typeof retryObj['success'] === 'boolean' ? (retryObj['success'] as boolean) : undefined
-            const retryData = typeof retryObj['data'] === 'object' && retryObj['data'] !== null ? (retryObj['data'] as Record<string, unknown>) : undefined
-            const retryResults = Array.isArray(retryData?.['results']) ? (retryData?.['results'] as Array<Record<string, unknown>>) : []
-            const retryCredits = Number(retryData?.['totalCredits'] ?? 0)
-            if (resp.ok && retrySuccess !== false) {
-              totalCredits += retryCredits
-              for (const it of retryResults) out.push(it)
-            }
+      body = await resp.json()
+    } catch {
+      body = {}
+    }
+    const bodyObj: Record<string, unknown> = typeof body === 'object' && body !== null ? (body as Record<string, unknown>) : {}
+    const bodySuccess = typeof bodyObj['success'] === 'boolean' ? (bodyObj['success'] as boolean) : undefined
+    const bodyStatus = typeof bodyObj['status'] === 'number' ? (bodyObj['status'] as number) : undefined
+    const bodyJwtError = typeof bodyObj['jwtError'] === 'boolean' ? (bodyObj['jwtError'] as boolean) : undefined
+    const bodyMessage = typeof bodyObj['message'] === 'string' ? (bodyObj['message'] as string) : undefined
+    if (!resp.ok || bodySuccess === false) {
+      const status = resp.status || bodyStatus
+      if (status === 401 || bodyJwtError === true || bodyMessage === 'unauthorized') {
+        const refreshed = await tryRefresh()
+        if (refreshed) {
+          resp = await fetch((sameOrigin ? `${sameOrigin}/api/email/findBulkEmail` : `${apiBase}/email/findBulkEmail`), {
+            method: 'POST',
+            headers: buildHeaders(),
+            body: JSON.stringify(payload),
+            credentials: 'include',
+            mode: 'cors'
+          })
+          try { body = await resp.json() } catch { body = {} }
+          const retryObj: Record<string, unknown> = typeof body === 'object' && body !== null ? (body as Record<string, unknown>) : {}
+          const retrySuccess = typeof retryObj['success'] === 'boolean' ? (retryObj['success'] as boolean) : undefined
+          const retryData = typeof retryObj['data'] === 'object' && retryObj['data'] !== null ? (retryObj['data'] as Record<string, unknown>) : undefined
+          const retryResults = Array.isArray(retryData?.['results']) ? (retryData?.['results'] as Array<Record<string, unknown>>) : []
+          const retryCredits = Number(retryData?.['totalCredits'] ?? 0)
+          if (resp.ok && retrySuccess !== false) {
+            totalCredits += retryCredits
+            for (const it of retryResults) out.push(it)
           }
         }
-      } else {
-        const dataObj: Record<string, unknown> | undefined = typeof bodyObj['data'] === 'object' && bodyObj['data'] !== null ? (bodyObj['data'] as Record<string, unknown>) : undefined
-        const results = Array.isArray(dataObj?.['results']) ? (dataObj?.['results'] as Array<Record<string, unknown>>) : []
-        const credits = Number(dataObj?.['totalCredits'] ?? 0)
-        totalCredits += credits
-        for (const it of results) out.push(it)
       }
-    } finally {
-      completed++
-      if (onProgress) onProgress(completed, total)
+    } else {
+      const dataObj: Record<string, unknown> | undefined = typeof bodyObj['data'] === 'object' && bodyObj['data'] !== null ? (bodyObj['data'] as Record<string, unknown>) : undefined
+      const results = Array.isArray(dataObj?.['results']) ? (dataObj?.['results'] as Array<Record<string, unknown>>) : []
+      const credits = Number(dataObj?.['totalCredits'] ?? 0)
+      totalCredits += credits
+      for (const it of results) out.push(it)
     }
+  } finally {
+    completed++
+    if (onProgress) onProgress(completed, total)
   }
   return { items: out, totalCredits }
 }

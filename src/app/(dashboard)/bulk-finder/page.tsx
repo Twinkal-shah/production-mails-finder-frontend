@@ -27,7 +27,7 @@ const normalizeColumnName = (name: string) => {
 }
 
 const findColumnMapping = (columns: string[]) => {
-  const mapping: { fullName?: string; domain?: string; role?: string } = {}
+  const mapping: { fullName?: string; domain?: string; role?: string; firstName?: string; lastName?: string } = {}
   const fullNameTargets = ['full name', 'person name', 'name', 'contact name', 'employee name', 'customer name', 'client name', 'lead name', 'prospect name', 'individual name']
   const domainTargets = ['domain', 'website domain', 'company domain', 'email domain', 'website', 'company website', 'url', 'site', 'web address', 'company url', 'organization domain', 'business domain']
   const roleTargets = ['role', 'position', 'title', 'job title', 'designation', 'person title', 'work title', 'occupation', 'function']
@@ -40,12 +40,18 @@ const findColumnMapping = (columns: string[]) => {
     if (!mapping.fullName && fullNameTargets.includes(col.norm)) mapping.fullName = col.orig
     if (!mapping.domain && domainTargets.includes(col.norm)) mapping.domain = col.orig
     if (!mapping.role && roleTargets.includes(col.norm)) mapping.role = col.orig
+    if (!mapping.firstName && firstNameTargets.includes(col.norm)) mapping.firstName = col.orig
+    if (!mapping.lastName && lastNameTargets.includes(col.norm)) mapping.lastName = col.orig
   }
 
   if (!mapping.fullName) {
     const first = normalized.find(c => firstNameTargets.includes(c.norm))
     const last = normalized.find(c => lastNameTargets.includes(c.norm))
-    if (first && last) mapping.fullName = `${first.orig}+${last.orig}`
+    if (first && last) {
+      mapping.firstName = first.orig
+      mapping.lastName = last.orig
+      mapping.fullName = `${first.orig}+${last.orig}`
+    }
   }
 
   return mapping
@@ -60,6 +66,21 @@ const extractFullName = (row: CsvRow, mapping: { fullName?: string }) => {
     return `${first} ${last}`.trim()
   }
   return ((row[mapping.fullName] as string) || '').trim()
+}
+
+const extractFirstLast = (row: CsvRow, mapping: { firstName?: string; lastName?: string; fullName?: string }) => {
+  let first = ((mapping.firstName ? (row[mapping.firstName] as string) : '') || '').trim()
+  let last = ((mapping.lastName ? (row[mapping.lastName] as string) : '') || '').trim()
+  if ((!first || !last) && mapping.fullName && !mapping.fullName.includes('+')) {
+    const parts = (((row[mapping.fullName] as string) || '').trim()).split(/\s+/)
+    first = first || (parts[0] || '')
+    last = last || (parts.slice(1).join(' ') || '')
+  } else if ((!first || !last) && mapping.fullName && mapping.fullName.includes('+')) {
+    const [fnCol, lnCol] = mapping.fullName.split('+')
+    first = first || (((row[fnCol] as string) || '').trim())
+    last = last || (((row[lnCol] as string) || '').trim())
+  }
+  return { first, last }
 }
 
  
@@ -99,6 +120,8 @@ const getRowValueCI = (row: CsvRow, key?: string) => {
 interface BulkRow extends CsvRow {
   id: string
   fullName: string
+  firstName?: string
+  lastName?: string
   domain: string
   role?: string
   email?: string
@@ -147,26 +170,30 @@ export default function BulkFinderPage() {
           // Find column mapping
           const columnMapping = findColumnMapping(originalColumns)
           
-          if (!columnMapping.fullName || !columnMapping.domain) {
-            toast.error('Could not find required columns. Please include Full Name or First/Last Name, and Domain.')
+          if ((!columnMapping.fullName && !(columnMapping.firstName && columnMapping.lastName)) || !columnMapping.domain) {
+            toast.error('Could not find required columns. Please include First Name, Last Name, and Website/Domain (or Full Name + Domain).')
             return
           }
           
           const newRows: BulkRow[] = (results.data as CsvRow[])
             .filter((row: CsvRow) => {
               const fullName = extractFullName(row, columnMapping)
+              const { first, last } = extractFirstLast(row, columnMapping)
               const rawDomain = getRowValueCI(row, columnMapping.domain)
               const domain = normalizeDomain(rawDomain)
-              return fullName && domain
+              return (fullName || (first && last)) && domain
             })
             .map((row: CsvRow, index: number) => {
               const fullName = extractFullName(row, columnMapping)
+              const { first, last } = extractFirstLast(row, columnMapping)
               const rawDomain = getRowValueCI(row, columnMapping.domain)
               const domain = normalizeDomain(rawDomain)
               const role = getRowValueCI(row, columnMapping.role)
               return {
                 id: `row-${Date.now()}-${index}`,
                 fullName,
+                firstName: first,
+                lastName: last,
                 domain,
                 role,
                 status: 'pending' as const,
@@ -199,26 +226,30 @@ export default function BulkFinderPage() {
           // Find column mapping
           const columnMapping = findColumnMapping(originalColumns)
           
-          if (!columnMapping.fullName || !columnMapping.domain) {
-            toast.error('Could not find required columns. Please include Full Name or First/Last Name, and Domain.')
+          if ((!columnMapping.fullName && !(columnMapping.firstName && columnMapping.lastName)) || !columnMapping.domain) {
+            toast.error('Could not find required columns. Please include First Name, Last Name, and Website/Domain (or Full Name + Domain).')
             return
           }
           
           const newRows: BulkRow[] = jsonData
             .filter((row: CsvRow) => {
               const fullName = extractFullName(row, columnMapping)
+              const { first, last } = extractFirstLast(row, columnMapping)
               const rawDomain = getRowValueCI(row, columnMapping.domain)
               const domain = normalizeDomain(rawDomain)
-              return fullName && domain
+              return (fullName || (first && last)) && domain
             })
             .map((row: CsvRow, index: number) => {
               const fullName = extractFullName(row, columnMapping)
+              const { first, last } = extractFirstLast(row, columnMapping)
               const rawDomain = getRowValueCI(row, columnMapping.domain)
               const domain = normalizeDomain(rawDomain)
               const role = getRowValueCI(row, columnMapping.role)
               return {
                 id: `row-${Date.now()}-${index}`,
                 fullName,
+                firstName: first,
+                lastName: last,
                 domain,
                 role,
                 status: 'pending' as const,
@@ -249,9 +280,9 @@ export default function BulkFinderPage() {
   // Removed job-based actions
 
   const runDirectFind = async () => {
-    const validRows = rows.filter(r => r.fullName && normalizeDomain(r.domain))
+    const validRows = rows.filter(r => (r.fullName || (r.firstName && r.lastName)) && normalizeDomain(r.domain))
     if (validRows.length === 0) {
-      toast.error('Please add at least one valid row with Full Name and Domain')
+      toast.error('Please add at least one valid row with First/Last Name (or Full Name) and Domain/Website')
       return
     }
     setIsProcessingDirect(true)
@@ -295,7 +326,7 @@ export default function BulkFinderPage() {
       setStatusDirectText('Processing 0/...')
       setProgressDirect(0)
       const { items, totalCredits } = await bulkFind(
-        validRows.map(r => ({ fullName: r.fullName, domain: r.domain })),
+        validRows.map(r => ({ fullName: r.fullName, firstName: r.firstName, lastName: r.lastName, domain: r.domain })),
         5,
         2,
         (completed, total) => {
