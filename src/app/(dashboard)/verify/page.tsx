@@ -250,8 +250,16 @@ export default function VerifyPage() {
       filename: originalFileName
     })
     try {
-      const normalizeEmail = (e: string) => (e || '').trim().toLowerCase()
-      const isValidEmail = (e: string) => /.+@.+\..+/.test(e)
+      const normalizeEmail = (e: string) => {
+        let s = (e || '').trim()
+        s = s.replace(/^`+|`+$/g, '')
+        s = s.replace(/^"+|"+$/g, '')
+        s = s.replace(/^'+|'+$/g, '')
+        s = s.replace(/\s+/g, '')
+        s = s.toLowerCase()
+        return s
+      }
+      const isValidEmail = (e: string) => /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i.test(e)
       const emailsAll = rows
         .filter(r => r.email)
         .map(r => normalizeEmail(r.email))
