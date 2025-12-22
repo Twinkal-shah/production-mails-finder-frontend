@@ -23,29 +23,14 @@ export function toHostname(input: string): string {
   return ok ? s : ''
 }
 
-function sanitizeName(input: string): string {
-  let s = (input || '').trim()
-  s = s.normalize('NFKD').replace(/[^\x00-\x7F]/g, '')
-  s = s.replace(/[^a-zA-Z0-9-]/g, '')
-  return s
-}
-
-export function buildBulkFindPayload(
-  rows: Array<{ fullName?: string; domain: string; firstName?: string; lastName?: string }>
-): BulkFindItem[] {
+export function buildBulkFindPayload(rows: Array<{ fullName: string; domain: string }>): BulkFindItem[] {
   const out: BulkFindItem[] = []
   for (const r of rows) {
     const host = toHostname(r.domain)
     if (!host) continue
-    let first = (r.firstName || '').trim()
-    let last = (r.lastName || '').trim()
-    if (!first || !last) {
-      const parts = (r.fullName || '').trim().split(/\s+/)
-      first = first || (parts[0] || '')
-      last = last || (parts.slice(1).join(' ') || '')
-    }
-    first = sanitizeName(first)
-    last = sanitizeName(last)
+    const parts = (r.fullName || '').trim().split(/\s+/)
+    const first = parts[0] || ''
+    const last = parts.slice(1).join(' ') || ''
     if (!first || !last) continue
     out.push({ domain: host, first_name: first, last_name: last })
   }
@@ -59,7 +44,7 @@ export function chunk<T>(list: T[], size: number): T[][] {
 }
 
 export async function bulkFind(
-  rows: Array<{ fullName?: string; domain: string; firstName?: string; lastName?: string }>,
+  rows: Array<{ fullName: string; domain: string }>,
   startBatchSize = 5,
   maxConcurrency = 2,
   onProgress?: (completed: number, total: number) => void

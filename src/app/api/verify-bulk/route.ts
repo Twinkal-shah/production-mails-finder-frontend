@@ -17,22 +17,11 @@ export async function POST(req: NextRequest) {
       const text = await req.text()
       try { return JSON.parse(text) } catch { return text }
     })
-    const emailsRaw = Array.isArray(incoming)
-      ? (incoming as unknown[]).map(v => String(v))
+    const emails = Array.isArray(incoming)
+      ? incoming as string[]
       : (typeof incoming === 'object' && Array.isArray((incoming as Record<string, unknown>)?.emails))
         ? ((incoming as Record<string, unknown>).emails as unknown[]).map(v => String(v))
         : []
-    const sanitize = (e: string) => {
-      let s = (e || '').trim()
-      s = s.replace(/^`+|`+$/g, '')
-      s = s.replace(/^"+|"+$/g, '')
-      s = s.replace(/^'+|'+$/g, '')
-      s = s.replace(/\s+/g, '')
-      s = s.toLowerCase()
-      return s
-    }
-    const isValid = (e: string) => /^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/i.test(e)
-    const emails = emailsRaw.map(sanitize).filter(isValid)
 
     const payload = JSON.stringify({ emails })
 
