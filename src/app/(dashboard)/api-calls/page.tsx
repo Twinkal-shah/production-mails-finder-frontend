@@ -1445,7 +1445,7 @@ export default function ApiCallsPage() {
                                             </div>
                                             <div className="flex items-center gap-2">
                                               <div className="text-sm">Confidence:</div>
-                                              <div className="text-sm font-medium">{confidence ? `${confidence}%` : '-'}</div>
+                                              <div className="text-sm font-medium">{payload && typeof payload === 'object' && 'confidence' in payload ? `${Math.round(getNum(payload, 'confidence') * 100)}%` : '-'}</div>
                                             </div>
                                             <div className="flex items-center gap-2">
                                               <div className="text-sm">Domain:</div>
@@ -1479,7 +1479,7 @@ export default function ApiCallsPage() {
                                             </div>
                                             <div className="flex items-center gap-2">
                                               <div className="text-sm">Confidence:</div>
-                                              <div className="text-sm font-medium">{confidence ? `${confidence}%` : '-'}</div>
+                                              <div className="text-sm font-medium">{payload && typeof payload === 'object' && 'confidence' in payload ? `${Math.round(getNum(payload, 'confidence') * 100)}%` : '-'}</div>
                                             </div>
                                             <div className="flex items-center gap-2">
                                               <div className="text-sm">Domain:</div>
@@ -1515,6 +1515,28 @@ export default function ApiCallsPage() {
                                                 </Badge>
                                               ))}
                                             </div>
+                                            <div className="space-y-2">
+                                              {results.slice(0, 5).map((r: Record<string, unknown>, i: number) => (
+                                                <div key={`details-${i}`} className="grid sm:grid-cols-2 gap-2 p-2 rounded border">
+                                                  <div className="flex items-center gap-2">
+                                                    <div className="text-sm">Email:</div>
+                                                    <div className="text-sm font-medium">{getStr(r, 'email') || '-'}</div>
+                                                  </div>
+                                                  <div className="flex items-center gap-2">
+                                                    <div className="text-sm">Status:</div>
+                                                    <Badge variant="outline" className={cn('text-xs border', statusBadgeClass(getStr(r, 'status')))}>{statusLabel(getStr(r, 'status'))}</Badge>
+                                                  </div>
+                                                  <div className="flex items-center gap-2">
+                                                    <div className="text-sm">Confidence:</div>
+                                                    <div className="text-sm font-medium">{r && typeof r === 'object' && 'confidence' in r ? `${Math.round(getNum(r, 'confidence') * 100)}%` : '-'}</div>
+                                                  </div>
+                                                  <div className="flex items-center gap-2">
+                                                    <div className="text-sm">Domain:</div>
+                                                    <div className="text-sm font-medium">{getStr(r, 'domain') || '-'}</div>
+                                                  </div>
+                                                </div>
+                                              ))}
+                                            </div>
                                             <div className="flex items-center gap-2">
                                               <div className="text-sm">Time:</div>
                                               <div className="text-sm font-medium">{tryFindBulkDuration != null ? `${tryFindBulkDuration}ms` : '-'}</div>
@@ -1543,6 +1565,28 @@ export default function ApiCallsPage() {
                                                 >
                                                   {getStr(r, 'email')}: {statusLabel(getStr(r, 'status'))}
                                                 </Badge>
+                                              ))}
+                                            </div>
+                                            <div className="space-y-2">
+                                              {results.slice(0, 5).map((r: Record<string, unknown>, i: number) => (
+                                                <div key={`v-details-${i}`} className="grid sm:grid-cols-2 gap-2 p-2 rounded border">
+                                                  <div className="flex items-center gap-2">
+                                                    <div className="text-sm">Email:</div>
+                                                    <div className="text-sm font-medium">{getStr(r, 'email') || '-'}</div>
+                                                  </div>
+                                                  <div className="flex items-center gap-2">
+                                                    <div className="text-sm">Status:</div>
+                                                    <Badge variant="outline" className={cn('text-xs border', statusBadgeClass(getStr(r, 'status')))}>{statusLabel(getStr(r, 'status'))}</Badge>
+                                                  </div>
+                                                  <div className="flex items-center gap-2">
+                                                    <div className="text-sm">Confidence:</div>
+                                                    <div className="text-sm font-medium">{r && typeof r === 'object' && 'confidence' in r ? `${Math.round(getNum(r, 'confidence') * 100)}%` : '-'}</div>
+                                                  </div>
+                                                  <div className="flex items-center gap-2">
+                                                    <div className="text-sm">Domain:</div>
+                                                    <div className="text-sm font-medium">{getStr(r, 'domain') || '-'}</div>
+                                                  </div>
+                                                </div>
                                               ))}
                                             </div>
                                             <div className="flex items-center gap-2">
@@ -1582,7 +1626,7 @@ export default function ApiCallsPage() {
                                           </div>
                                           <div className="space-y-1">
                                             <div className="text-sm font-medium">Confidence</div>
-                                            <div className="text-sm">{confidence ? `${confidence}%` : '-'}</div>
+                                            <div className="text-sm">{payload && typeof payload === 'object' && 'confidence' in payload ? `${Math.round(getNum(payload, 'confidence') * 100)}%` : '-'}</div>
                                           </div>
                                           <div className="space-y-1">
                                             <div className="text-sm font-medium">Domain</div>
@@ -1619,7 +1663,7 @@ export default function ApiCallsPage() {
                                           </div>
                                           <div className="space-y-1">
                                             <div className="text-sm font-medium">Confidence</div>
-                                            <div className="text-sm">{confidence ? `${confidence}%` : '-'}</div>
+                                            <div className="text-sm">{payload && typeof payload === 'object' && 'confidence' in payload ? `${Math.round(getNum(payload, 'confidence') * 100)}%` : '-'}</div>
                                           </div>
                                           <div className="space-y-1">
                                             <div className="text-sm font-medium">Domain</div>
@@ -1655,6 +1699,28 @@ export default function ApiCallsPage() {
                                               </Badge>
                                             ))}
                                           </div>
+                                          <div className="space-y-2">
+                                            {results.slice(0, 10).map((r: Record<string, unknown>, i: number) => (
+                                              <div key={`resp-details-${i}`} className="grid sm:grid-cols-2 gap-2 p-2 rounded border">
+                                                <div className="flex items-center gap-2">
+                                                  <div className="text-sm">Email:</div>
+                                                  <div className="text-sm font-medium">{getStr(r, 'email') || '-'}</div>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                  <div className="text-sm">Status:</div>
+                                                  <Badge variant="outline" className={cn('text-xs border', statusBadgeClass(getStr(r, 'status')))}>{statusLabel(getStr(r, 'status'))}</Badge>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                  <div className="text-sm">Confidence:</div>
+                                                  <div className="text-sm font-medium">{r && typeof r === 'object' && 'confidence' in r ? `${Math.round(getNum(r, 'confidence') * 100)}%` : '-'}</div>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                  <div className="text-sm">Domain:</div>
+                                                  <div className="text-sm font-medium">{getStr(r, 'domain') || '-'}</div>
+                                                </div>
+                                              </div>
+                                            ))}
+                                          </div>
                                           <div className="text-sm">Time {tryFindBulkDuration != null ? `${tryFindBulkDuration}ms` : '-'}</div>
                                         </div>
                                       </div>
@@ -1680,6 +1746,28 @@ export default function ApiCallsPage() {
                                               >
                                                 {getStr(r, 'email')}: {statusLabel(getStr(r, 'status'))}
                                               </Badge>
+                                            ))}
+                                          </div>
+                                          <div className="space-y-2">
+                                            {results.slice(0, 10).map((r: Record<string, unknown>, i: number) => (
+                                              <div key={`v-resp-details-${i}`} className="grid sm:grid-cols-2 gap-2 p-2 rounded border">
+                                                <div className="flex items-center gap-2">
+                                                  <div className="text-sm">Email:</div>
+                                                  <div className="text-sm font-medium">{getStr(r, 'email') || '-'}</div>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                  <div className="text-sm">Status:</div>
+                                                  <Badge variant="outline" className={cn('text-xs border', statusBadgeClass(getStr(r, 'status')))}>{statusLabel(getStr(r, 'status'))}</Badge>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                  <div className="text-sm">Confidence:</div>
+                                                  <div className="text-sm font-medium">{r && typeof r === 'object' && 'confidence' in r ? `${Math.round(getNum(r, 'confidence') * 100)}%` : '-'}</div>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                  <div className="text-sm">Domain:</div>
+                                                  <div className="text-sm font-medium">{getStr(r, 'domain') || '-'}</div>
+                                                </div>
+                                              </div>
                                             ))}
                                           </div>
                                           <div className="text-sm">Time {tryVerifyBulkDuration != null ? `${tryVerifyBulkDuration}ms` : '-'}</div>
