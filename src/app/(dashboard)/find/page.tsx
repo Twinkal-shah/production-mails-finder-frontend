@@ -17,6 +17,8 @@ interface EmailResult {
   email: string | null
   confidence: number
   status: 'found' | 'not_found' | 'error'
+  verificationStatus?: 'valid' | 'invalid' | 'risky' | 'unknown' | 'error'
+  verificationReason?: string
 }
 
 interface SearchHistoryItem {
@@ -169,7 +171,6 @@ export default function FindPage() {
 
         {/* Results */}
         <div className="space-y-6">
-          {/* Current Result */}
           {result && (
             <Card>
               <CardHeader>
@@ -179,7 +180,7 @@ export default function FindPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {result.status === 'found' && result.email ? (
+                {result.email ? (
                   <div className="space-y-3">
                     <div className="flex items-center gap-2 text-green-600">
                       <CheckCircle className="h-5 w-5" />
@@ -189,12 +190,36 @@ export default function FindPage() {
                       <p className="font-mono text-lg">{result.email}</p>
                     </div>
                     <div className="text-sm text-gray-600">
-                      Status: Valid
+                      {(() => {
+                        const c = Number(result.confidence || 0)
+                        const pct = c <= 1 ? Math.round(c * 100) : Math.round(c)
+                        return `Confidence: ${pct}%`
+                      })()}
                     </div>
+                    <div className="text-sm text-gray-600">
+                      {(() => {
+                        const s = result.verificationStatus || 'unknown'
+                        const statusLabel = s === 'valid' ? 'Valid' : s === 'risky' ? 'Risky' : s === 'invalid' ? 'Invalid' : 'Unknown'
+                        return `Status: ${statusLabel}`
+                      })()}
+                    </div>
+                    {(() => {
+                      const s = result.verificationStatus || 'unknown'
+                      const reason = result.verificationReason || ''
+                      const msg =
+                        s === 'risky'
+                          ? 'This inbox exists, but Gmail is temporarily limiting verification.'
+                          : s === 'invalid'
+                          ? 'Mailbox is not deliverable (server rejected).'
+                          : s === 'unknown'
+                          ? 'Verification could not be completed (SMTP blocked or not reachable).'
+                          : ''
+                      return msg ? <div className="text-sm text-gray-500">{msg}</div> : null
+                    })()}
                   </div>
                 ) : (
                   <div className="text-center py-4">
-                    <p className="text-gray-600">Status: Invalid</p>
+                    <p className="text-gray-600">No email found</p>
                   </div>
                 )}
               </CardContent>
@@ -219,10 +244,31 @@ export default function FindPage() {
                           <p className="font-medium text-sm">
                             {item.payload.full_name} @ {item.payload.company_domain}
                           </p>
-                          {item.result.status === 'found' && item.result.email ? (
-                            <p className="text-sm text-gray-600 font-mono">
-                              {item.result.email}
-                            </p>
+                          {item.result.email ? (
+                            <div className="space-y-1">
+                              <p className="text-sm text-gray-600 font-mono">{item.result.email}</p>
+                              <p className="text-xs text-gray-500">
+                                {(() => {
+                                  const c = Number(item.result.confidence || 0)
+                                  const pct = c <= 1 ? Math.round(c * 100) : Math.round(c)
+                                  const s = item.result.verificationStatus || 'unknown'
+                                  const statusLabel = s === 'valid' ? 'Valid' : s === 'risky' ? 'Risky' : s === 'invalid' ? 'Invalid' : 'Unknown'
+                                  return `Confidence: ${pct}% • Status: ${statusLabel}`
+                                })()}
+                              </p>
+                              {(() => {
+                                const s = item.result.verificationStatus || 'unknown'
+                                const msg =
+                                  s === 'risky'
+                                    ? 'Gmail is temporarily limiting verification.'
+                                    : s === 'invalid'
+                                    ? 'Mailbox is not deliverable.'
+                                    : s === 'unknown'
+                                    ? 'Verification blocked or unreachable.'
+                                    : ''
+                                return msg ? <p className="text-xs text-gray-400">{msg}</p> : null
+                              })()}
+                            </div>
                           ) : (
                             <p className="text-sm text-gray-500">No email found</p>
                           )}

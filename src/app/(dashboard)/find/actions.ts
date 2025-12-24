@@ -15,6 +15,8 @@ interface EmailResult {
   email: string | null
   confidence: number
   status: 'found' | 'not_found' | 'error'
+  verificationStatus?: 'valid' | 'invalid' | 'risky' | 'unknown' | 'error'
+  verificationReason?: string
 }
 
 interface FindEmailResponse {
@@ -64,8 +66,7 @@ export async function findEmail(request: FindEmailRequest): Promise<FindEmailRes
     const result: EmailResult = {
       email: serviceResult.email || null,
       confidence: serviceResult.confidence || 0,
-      status: serviceResult.status === 'valid' ? 'found' :
-              serviceResult.status === 'invalid' ? 'not_found' : 'error'
+      status: serviceResult.email ? 'found' : (serviceResult.status === 'error' ? 'error' : 'not_found')
     }
 
     if (!result.email) {
@@ -100,13 +101,9 @@ export async function findEmail(request: FindEmailRequest): Promise<FindEmailRes
       try {
         const { verifyEmail } = await import('@/lib/services/email-verifier')
         const verification = await verifyEmail({ email: result.email })
-        if (verification.status !== 'valid') {
-          result.email = null
-          result.confidence = 0
-          result.status = 'not_found'
-        } else {
-          result.status = 'found'
-        }
+        result.verificationStatus = verification.status
+        const r = typeof verification.reason === 'string' ? verification.reason : undefined
+        result.verificationReason = r
       } catch {}
     }
     
