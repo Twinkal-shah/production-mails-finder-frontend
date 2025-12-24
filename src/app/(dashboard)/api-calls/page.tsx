@@ -237,6 +237,23 @@ const buildJs = (method: string, url: string, headers: Record<string, string>, b
   return s
 }
 
+const getStr = (obj: Record<string, unknown> | null | undefined, key: string): string => {
+  if (!obj) return ''
+  const v = obj[key]
+  return typeof v === 'string' ? v : ''
+}
+
+const getNum = (obj: Record<string, unknown> | null | undefined, key: string): number => {
+  if (!obj) return 0
+  const v = obj[key]
+  if (typeof v === 'number') return v
+  if (typeof v === 'string') {
+    const n = Number(v)
+    return isNaN(n) ? 0 : n
+  }
+  return 0
+}
+
 const buildPy = (method: string, url: string, headers: Record<string, string>, body?: unknown) => {
   const m = method.toLowerCase()
   let s = `import requests\nr = requests.${m}("${url}", headers=${JSON.stringify(headers, null, 2)}`
@@ -382,6 +399,44 @@ const API_DOCS: ApiDoc[] = [
   }
 ]
 
+const REQUIRED_FIELDS: Record<string, Array<{ field: string; required: boolean; description: string }>> = {
+  'doc-email-find': [
+    { field: 'first_name', required: true, description: "Person’s first name" },
+    { field: 'last_name', required: true, description: "Person’s last name" },
+    { field: 'domain', required: true, description: "Company domain" }
+  ],
+  'doc-email-verify': [
+    { field: 'email', required: true, description: "Email address to verify" }
+  ],
+  'doc-email-find-bulk': [
+    { field: 'items[]', required: true, description: "List of objects with first_name, last_name, domain" }
+  ],
+  'doc-email-verify-bulk': [
+    { field: 'emails[]', required: true, description: "List of email addresses" }
+  ]
+}
+
+const statusBadgeClass = (status?: string) => {
+  const s = (status || '').toLowerCase()
+  const key = s === 'found' ? 'valid' : s === 'not_found' ? 'invalid' : s
+  switch (key) {
+    case 'valid': return 'bg-green-100 text-green-700 border-green-200'
+    case 'risky': return 'bg-orange-100 text-orange-700 border-orange-200'
+    case 'invalid': return 'bg-red-100 text-red-700 border-red-200'
+    default: return 'bg-gray-100 text-gray-700 border-gray-200'
+  }
+}
+
+const statusLabel = (status?: string) => {
+  const s = (status || '').toLowerCase()
+  if (s === 'found') return 'Valid'
+  if (s === 'not_found') return 'Invalid'
+  if (s === 'valid') return 'Valid'
+  if (s === 'invalid') return 'Invalid'
+  if (s === 'risky') return 'Risky'
+  return 'Unknown'
+}
+
 export default function ApiCallsPage() {
   const router = useRouter()
   const { data: profile, isLoading: profileLoading } = useUserProfile()
@@ -465,10 +520,35 @@ export default function ApiCallsPage() {
   const [deactivatingId, setDeactivatingId] = useState<string | null>(null)
   const [newKeyName, setNewKeyName] = useState('')
   const [revealed, setRevealed] = useState<Record<string, boolean>>({})
-  const [expandedDocs, setExpandedDocs] = useState<Record<string, boolean>>({})
-  const toggleDoc = useCallback((id: string) => {
-    setExpandedDocs(prev => ({ ...prev, [id]: !prev[id] }))
+  const [openDocId, setOpenDocId] = useState<string | null>(null)
+  type DocTabKey = 'overview' | 'request' | 'response'
+  const [docTabs, setDocTabs] = useState<Record<string, DocTabKey>>({})
+  const setDocTab = useCallback((id: string, tab: DocTabKey) => {
+    setDocTabs(prev => ({ ...prev, [id]: tab }))
   }, [])
+  const toggleDoc = useCallback((id: string) => {
+    setOpenDocId(prev => (prev === id ? null : id))
+    setDocTabs(prev => ({ ...prev, [id]: 'overview' }))
+  }, [])
+  const [tryFindFirst, setTryFindFirst] = useState('')
+  const [tryFindLast, setTryFindLast] = useState('')
+  const [tryFindDomain, setTryFindDomain] = useState('')
+  const [tryFindLoading, setTryFindLoading] = useState(false)
+  const [tryFindResult, setTryFindResult] = useState<unknown>(null)
+  const [tryFindDuration, setTryFindDuration] = useState<number | null>(null)
+  const [tryVerifyEmail, setTryVerifyEmail] = useState('')
+  const [tryVerifyLoading, setTryVerifyLoading] = useState(false)
+  const [tryVerifyResult, setTryVerifyResult] = useState<unknown>(null)
+  const [tryVerifyDuration, setTryVerifyDuration] = useState<number | null>(null)
+  const [tryFindBulkText, setTryFindBulkText] = useState('')
+  const [tryFindBulkLoading, setTryFindBulkLoading] = useState(false)
+  const [tryFindBulkResult, setTryFindBulkResult] = useState<unknown>(null)
+  const [tryFindBulkDuration, setTryFindBulkDuration] = useState<number | null>(null)
+  const [tryVerifyBulkText, setTryVerifyBulkText] = useState('')
+  const [tryVerifyBulkLoading, setTryVerifyBulkLoading] = useState(false)
+  const [tryVerifyBulkResult, setTryVerifyBulkResult] = useState<unknown>(null)
+  const [tryVerifyBulkDuration, setTryVerifyBulkDuration] = useState<number | null>(null)
+  const [showRawJson, setShowRawJson] = useState<Record<string, boolean>>({})
   
 
   const unwrapData = <T,>(root: unknown): T | null => {
@@ -781,6 +861,130 @@ export default function ApiCallsPage() {
     }
   }
 
+  const runTryFind = async () => {
+    if (!tryFindDomain.trim() || !tryFindFirst.trim() || !tryFindLast.trim()) {
+      toast.error('Enter first name, last name, and domain')
+      return
+    }
+    setTryFindLoading(true)
+    setTryFindDuration(null)
+    try {
+      const start = Date.now()
+      const res = await apiPost<unknown>('/api/email/findEmail', {
+        domain: tryFindDomain.trim(),
+        first_name: tryFindFirst.trim(),
+        last_name: tryFindLast.trim()
+      })
+      const end = Date.now()
+      setTryFindDuration(end - start)
+      setTryFindResult(res.ok ? res.data : (res.error ?? res.data))
+      if (!res.ok) {
+        const msg = typeof res.error === 'string' ? res.error : 'Request failed'
+        toast.error(msg)
+      } else {
+        toast.success('Request successful')
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Unknown error'
+      toast.error(msg)
+    } finally {
+      setTryFindLoading(false)
+    }
+  }
+
+  const runTryVerify = async () => {
+    if (!tryVerifyEmail.trim()) {
+      toast.error('Enter an email')
+      return
+    }
+    setTryVerifyLoading(true)
+    setTryVerifyDuration(null)
+    try {
+      const start = Date.now()
+      const res = await apiPost<unknown>('/api/email/verifyEmail', {
+        email: tryVerifyEmail.trim()
+      })
+      const end = Date.now()
+      setTryVerifyDuration(end - start)
+      setTryVerifyResult(res.ok ? res.data : (res.error ?? res.data))
+      if (!res.ok) {
+        const msg = typeof res.error === 'string' ? res.error : 'Request failed'
+        toast.error(msg)
+      } else {
+        toast.success('Request successful')
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Unknown error'
+      toast.error(msg)
+    } finally {
+      setTryVerifyLoading(false)
+    }
+  }
+
+  const runTryFindBulk = async () => {
+    const lines = tryFindBulkText.split('\n').map(l => l.trim()).filter(Boolean)
+    if (lines.length === 0) {
+      toast.error('Enter at least one line: first,last,domain')
+      return
+    }
+    const items = lines.map(l => {
+      const parts = l.split(',').map(p => p.trim())
+      return { first_name: parts[0] || '', last_name: parts[1] || '', domain: parts[2] || '' }
+    }).filter(i => i.first_name && i.last_name && i.domain)
+    if (items.length === 0) {
+      toast.error('No valid entries parsed')
+      return
+    }
+    setTryFindBulkLoading(true)
+    setTryFindBulkDuration(null)
+    try {
+      const start = Date.now()
+      const res = await apiPost<unknown>('/api/email/findBulkEmail', JSON.stringify(items))
+      const end = Date.now()
+      setTryFindBulkDuration(end - start)
+      setTryFindBulkResult(res.ok ? res.data : (res.error ?? res.data))
+      if (!res.ok) {
+        const msg = typeof res.error === 'string' ? res.error : 'Request failed'
+        toast.error(msg)
+      } else {
+        toast.success('Request successful')
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Unknown error'
+      toast.error(msg)
+    } finally {
+      setTryFindBulkLoading(false)
+    }
+  }
+
+  const runTryVerifyBulk = async () => {
+    const emails = tryVerifyBulkText.split('\n').map(l => l.trim()).filter(Boolean)
+    if (emails.length === 0) {
+      toast.error('Enter at least one email (one per line)')
+      return
+    }
+    setTryVerifyBulkLoading(true)
+    setTryVerifyBulkDuration(null)
+    try {
+      const start = Date.now()
+      const res = await apiPost<unknown>('/api/email/verifyBulkEmail', { emails })
+      const end = Date.now()
+      setTryVerifyBulkDuration(end - start)
+      setTryVerifyBulkResult(res.ok ? res.data : (res.error ?? res.data))
+      if (!res.ok) {
+        const msg = typeof res.error === 'string' ? res.error : 'Request failed'
+        toast.error(msg)
+      } else {
+        toast.success('Request successful')
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Unknown error'
+      toast.error(msg)
+    } finally {
+      setTryVerifyBulkLoading(false)
+    }
+  }
+
   const loadFromHistory = (historyItem: RequestHistory) => {
     updateCurrentRequest(historyItem.request)
     setState(prev => ({
@@ -1028,19 +1232,18 @@ export default function ApiCallsPage() {
                 const curl = buildCurl(doc.method, url, doc.headers, doc.requestBody)
                 const js = buildJs(doc.method, url, doc.headers, doc.requestBody)
                 const py = buildPy(doc.method, url, doc.headers, doc.requestBody)
-                const wrapperTypes = [] as { key: string; type: string }[]
-                const dataTypes = [] as { key: string; type: string }[]
-                const isExpanded = !!expandedDocs[doc.id]
+                const isExpanded = openDocId === doc.id
+                const tabValue = docTabs[doc.id] || 'overview'
                 return (
                   <Card key={doc.id} className="rounded-xl border bg-white hover:shadow-md transition-shadow">
                     <CardHeader className="p-4 sm:p-6 cursor-pointer" onClick={() => toggleDoc(doc.id)} role="button" aria-expanded={isExpanded}>
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <PlugZap className="h-5 w-5 text-muted-foreground" />
-                          {isExpanded && (
-                            <Badge variant="secondary" className="text-xs">{doc.method}</Badge>
-                          )}
-                          <CardTitle className="text-lg">{doc.name}</CardTitle>
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:gap-3">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="text-xs">{doc.method}</Badge>
+                            <CardTitle className="text-lg">{doc.name}</CardTitle>
+                          </div>
+                          <CardDescription>{doc.description}</CardDescription>
                         </div>
                         <Button
                           variant="ghost"
@@ -1053,9 +1256,8 @@ export default function ApiCallsPage() {
                           <ChevronDown className={`h-4 w-4 transition-transform ${isExpanded ? 'rotate-0' : '-rotate-90'}`} />
                         </Button>
                       </div>
-                      {isExpanded && <CardDescription>{doc.description}</CardDescription>}
                     </CardHeader>
-                    <CardContent className="p-4 sm:p-6">
+                    <CardContent className="p-0">
                       <div
                         id={`${doc.id}-content`}
                         className={cn(
@@ -1064,98 +1266,442 @@ export default function ApiCallsPage() {
                         )}
                         aria-hidden={!isExpanded}
                       >
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-mono">{url}</span>
-                      </div>
-                      <Tabs defaultValue="curl">
-                        <TabsList className="grid w-full grid-cols-3">
-                          <TabsTrigger value="curl">cURL</TabsTrigger>
-                          <TabsTrigger value="javascript">JavaScript</TabsTrigger>
-                          <TabsTrigger value="python">Python</TabsTrigger>
-                        </TabsList>
-                        <TabsContent value="curl">
-                          <div className="bg-muted rounded-lg border p-4 overflow-x-auto">
-                            <pre className="text-xs sm:text-sm font-mono whitespace-pre leading-6">{curl}</pre>
-                          </div>
-                        </TabsContent>
-                        <TabsContent value="javascript">
-                          <div className="bg-muted rounded-lg border p-4 overflow-x-auto">
-                            <pre className="text-xs sm:text-sm font-mono whitespace-pre leading-6">{js}</pre>
-                          </div>
-                        </TabsContent>
-                        <TabsContent value="python">
-                          <div className="bg-muted rounded-lg border p-4 overflow-x-auto">
-                            <pre className="text-xs sm:text-sm font-mono whitespace-pre leading-6">{py}</pre>
-                          </div>
-                        </TabsContent>
-                      </Tabs>
-                      {doc.requestBody !== undefined && (
-                        <div className="space-y-2">
-                          <div className="text-sm font-medium">Request Body</div>
-                          <div className="bg-muted rounded-lg border p-4 overflow-x-auto">
-                            <pre className="text-xs sm:text-sm font-mono whitespace-pre leading-6">{stringifyJson(doc.requestBody)}</pre>
-                          </div>
-                        </div>
-                      )}
-                      {doc.requestBodyAlt !== undefined && (
-                        <div className="space-y-2">
-                          <div className="text-sm font-medium">Alternative Body</div>
-                          <div className="bg-muted rounded-lg border p-4 overflow-x-auto">
-                            <pre className="text-xs sm:text-sm font-mono whitespace-pre leading-6">{stringifyJson(doc.requestBodyAlt)}</pre>
-                          </div>
-                        </div>
-                      )}
-                      <div className="space-y-2">
-                        <div className="text-sm font-medium">Response Example</div>
-                        <div className="bg-muted rounded-lg border p-4 overflow-x-auto">
-                          <pre className="text-xs sm:text-sm font-mono whitespace-pre leading-6">{stringifyJson(doc.success)}</pre>
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <div className="text-sm font-medium">Error Example</div>
-                        <div className="bg-muted rounded-lg border p-4 overflow-x-auto">
-                          <pre className="text-xs sm:text-sm font-mono whitespace-pre leading-6">{stringifyJson(doc.error)}</pre>
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <div className="text-sm font-medium">Response Fields</div>
-                        {doc.responseFields ? (
-                          <div className="space-y-2">
-                            {Object.entries(doc.responseFields).map(([key, desc]) => (
-                              <div key={key} className="flex items-center gap-3">
-                                <Badge variant="secondary" className="rounded-full font-mono text-[11px] px-2 py-1">
-                                  {key}
-                                </Badge>
-                                <div className="text-xs text-muted-foreground">
-                                  {desc}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="text-xs text-muted-foreground">No fields documented yet</div>
-                        )}
-                      </div>
+                        <div className="p-4 sm:p-6">
+                          <Tabs value={tabValue} onValueChange={(v) => setDocTab(doc.id, v as DocTabKey)}>
+                            <TabsList className="grid w-full grid-cols-3">
+                              <TabsTrigger value="overview">Overview</TabsTrigger>
+                              <TabsTrigger value="request">Request</TabsTrigger>
+                              <TabsTrigger value="response">Response</TabsTrigger>
+                            </TabsList>
 
-                      <div className="space-y-2">
-                        <div className="text-sm font-medium">Status Codes</div>
-                        {doc.statusCodes ? (
-                          <div className="space-y-2">
-                            {Object.entries(doc.statusCodes).map(([code, desc]) => (
-                              <div key={code} className="flex items-center gap-3">
-                                <Badge variant="outline" className="rounded-full font-mono text-[11px] px-2 py-1">
-                                  {code}
-                                </Badge>
-                                <div className="text-xs text-muted-foreground">
-                                  {desc}
+                            <TabsContent value="overview" className="space-y-6 pt-4">
+                              <div className="space-y-2">
+                                <div className="text-sm font-medium">What this API does</div>
+                                <p className="text-sm text-muted-foreground">{doc.description}</p>
+                              </div>
+                              <div className="space-y-2">
+                                <div className="text-sm font-medium">Required fields</div>
+                                <div className="rounded-lg border overflow-hidden">
+                                  <div className="grid grid-cols-3 gap-2 p-3 bg-muted text-sm font-medium">
+                                    <div>Field</div>
+                                    <div>Required</div>
+                                    <div>Description</div>
+                                  </div>
+                                  {(REQUIRED_FIELDS[doc.id] || []).map((f) => (
+                                    <div key={f.field} className="grid grid-cols-3 gap-2 p-3 border-t text-sm">
+                                      <div className="font-mono">{f.field}</div>
+                                      <div className={cn('font-medium', f.required ? 'text-green-700' : 'text-muted-foreground')}>{f.required ? 'Yes' : 'No'}</div>
+                                      <div className="text-muted-foreground">{f.description}</div>
+                                    </div>
+                                  ))}
                                 </div>
                               </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="text-xs text-muted-foreground">No status codes documented yet</div>
-                        )}
-                      </div>
+                              <div className="grid sm:grid-cols-2 gap-4">
+                                <div className="space-y-1">
+                                  <div className="text-sm font-medium">Endpoint</div>
+                                  <div className="text-sm font-mono">{url}</div>
+                                </div>
+                                <div className="space-y-1">
+                                  <div className="text-sm font-medium">Auth</div>
+                                  <div className="text-sm">API key</div>
+                                </div>
+                              </div>
+                              <div className="space-y-2">
+                                <div className="text-sm font-medium">Status Codes</div>
+                                {doc.statusCodes ? (
+                                  <div className="space-y-2">
+                                    {Object.entries(doc.statusCodes).map(([code, desc]) => (
+                                      <div key={code} className="flex items-center gap-3">
+                                        <Badge variant="outline" className="rounded-full font-mono text-[11px] px-2 py-1">
+                                          {code}
+                                        </Badge>
+                                        <div className="text-xs text-muted-foreground">
+                                          {desc}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <div className="text-xs text-muted-foreground">No status codes documented yet</div>
+                                )}
+                              </div>
+                            </TabsContent>
+
+                            <TabsContent value="request" className="space-y-6 pt-4">
+                              <Tabs defaultValue="curl">
+                                <TabsList className="grid w-full grid-cols-3">
+                                  <TabsTrigger value="curl">Curl</TabsTrigger>
+                                  <TabsTrigger value="javascript">JavaScript</TabsTrigger>
+                                  <TabsTrigger value="python">Python</TabsTrigger>
+                                </TabsList>
+                                <TabsContent value="curl">
+                                  <div className="bg-muted rounded-lg border p-4 overflow-x-auto">
+                                    <pre className="text-xs sm:text-sm font-mono whitespace-pre leading-6">{curl}</pre>
+                                  </div>
+                                </TabsContent>
+                                <TabsContent value="javascript">
+                                  <div className="bg-muted rounded-lg border p-4 overflow-x-auto">
+                                    <pre className="text-xs sm:text-sm font-mono whitespace-pre leading-6">{js}</pre>
+                                  </div>
+                                </TabsContent>
+                                <TabsContent value="python">
+                                  <div className="bg-muted rounded-lg border p-4 overflow-x-auto">
+                                    <pre className="text-xs sm:text-sm font-mono whitespace-pre leading-6">{py}</pre>
+                                  </div>
+                                </TabsContent>
+                              </Tabs>
+
+                              <div className="grid md:grid-cols-2 gap-4">
+                                <div className="space-y-3">
+                                  {doc.id === 'doc-email-find' && (
+                                    <>
+                                      <div className="grid grid-cols-2 gap-3">
+                                        <div>
+                                          <Label className="text-sm font-medium">First name</Label>
+                                          <Input value={tryFindFirst} onChange={(e) => setTryFindFirst(e.target.value)} placeholder="John" className="rounded-lg" />
+                                        </div>
+                                        <div>
+                                          <Label className="text-sm font-medium">Last name</Label>
+                                          <Input value={tryFindLast} onChange={(e) => setTryFindLast(e.target.value)} placeholder="Doe" className="rounded-lg" />
+                                        </div>
+                                      </div>
+                                      <div>
+                                        <Label className="text-sm font-medium">Domain</Label>
+                                        <Input value={tryFindDomain} onChange={(e) => setTryFindDomain(e.target.value)} placeholder="example.com" className="rounded-lg" />
+                                      </div>
+                                      <Button onClick={runTryFind} disabled={tryFindLoading} className="rounded-lg px-6">
+                                        {tryFindLoading ? 'Running...' : 'Run API'}
+                                      </Button>
+                                    </>
+                                  )}
+                                  {doc.id === 'doc-email-verify' && (
+                                    <>
+                                      <div>
+                                        <Label className="text-sm font-medium">Email</Label>
+                                        <Input value={tryVerifyEmail} onChange={(e) => setTryVerifyEmail(e.target.value)} placeholder="john@example.com" className="rounded-lg" />
+                                      </div>
+                                      <Button onClick={runTryVerify} disabled={tryVerifyLoading} className="rounded-lg px-6">
+                                        {tryVerifyLoading ? 'Running...' : 'Run API'}
+                                      </Button>
+                                    </>
+                                  )}
+                                  {doc.id === 'doc-email-find-bulk' && (
+                                    <>
+                                      <div>
+                                        <Label className="text-sm font-medium">Items (one per line: first,last,domain)</Label>
+                                        <textarea value={tryFindBulkText} onChange={(e) => setTryFindBulkText(e.target.value)} placeholder="John,Doe,example.com\nJane,Smith,example.com" className="w-full rounded-lg border p-2 text-sm h-28" />
+                                      </div>
+                                      <Button onClick={runTryFindBulk} disabled={tryFindBulkLoading} className="rounded-lg px-6">
+                                        {tryFindBulkLoading ? 'Running...' : 'Run API'}
+                                      </Button>
+                                    </>
+                                  )}
+                                  {doc.id === 'doc-email-verify-bulk' && (
+                                    <>
+                                      <div>
+                                        <Label className="text-sm font-medium">Emails (one per line)</Label>
+                                        <textarea value={tryVerifyBulkText} onChange={(e) => setTryVerifyBulkText(e.target.value)} placeholder="john@example.com\njane@example.com" className="w-full rounded-lg border p-2 text-sm h-28" />
+                                      </div>
+                                      <Button onClick={runTryVerifyBulk} disabled={tryVerifyBulkLoading} className="rounded-lg px-6">
+                                        {tryVerifyBulkLoading ? 'Running...' : 'Run API'}
+                                      </Button>
+                                    </>
+                                  )}
+                                </div>
+                                <div className="space-y-3">
+                                  <div className="text-sm font-medium">Results</div>
+                                  <div className="bg-muted rounded-lg border p-4 space-y-3">
+                                    {doc.id === 'doc-email-find' && (
+                                      (() => {
+                                        const payload = unwrapData<Record<string, unknown>>(tryFindResult)
+                                        const email = getStr(payload, 'email') || null
+                                        const status = getStr(payload, 'status')
+                                        const confidence = getNum(payload, 'confidence')
+                                        const domain = getStr(payload, 'domain')
+                                        const cls = statusBadgeClass(status)
+                                        return (
+                                          <div className="space-y-2">
+                                            <div className="flex items-center gap-2">
+                                              <div className="text-sm">Email:</div>
+                                              <div className="text-sm font-medium">{email || '-'}</div>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                              <div className="text-sm">Status:</div>
+                                              <Badge variant="outline" className={cn('text-xs border', cls)}>{statusLabel(status)}</Badge>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                              <div className="text-sm">Confidence:</div>
+                                              <div className="text-sm font-medium">{confidence ? `${confidence}%` : '-'}</div>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                              <div className="text-sm">Domain:</div>
+                                              <div className="text-sm font-medium">{domain || '-'}</div>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                              <div className="text-sm">Time:</div>
+                                              <div className="text-sm font-medium">{tryFindDuration != null ? `${tryFindDuration}ms` : '-'}</div>
+                                            </div>
+                                          </div>
+                                        )
+                                      })()
+                                    )}
+                                    {doc.id === 'doc-email-verify' && (
+                                      (() => {
+                                        const payload = unwrapData<Record<string, unknown>>(tryVerifyResult)
+                                        const email = getStr(payload, 'email') || tryVerifyEmail || null
+                                        const status = getStr(payload, 'status')
+                                        const confidence = getNum(payload, 'confidence')
+                                        const domain = getStr(payload, 'domain')
+                                        const cls = statusBadgeClass(status)
+                                        return (
+                                          <div className="space-y-2">
+                                            <div className="flex items-center gap-2">
+                                              <div className="text-sm">Email:</div>
+                                              <div className="text-sm font-medium">{email || '-'}</div>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                              <div className="text-sm">Status:</div>
+                                              <Badge variant="outline" className={cn('text-xs border', cls)}>{statusLabel(status)}</Badge>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                              <div className="text-sm">Confidence:</div>
+                                              <div className="text-sm font-medium">{confidence ? `${confidence}%` : '-'}</div>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                              <div className="text-sm">Domain:</div>
+                                              <div className="text-sm font-medium">{domain || '-'}</div>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                              <div className="text-sm">Time:</div>
+                                              <div className="text-sm font-medium">{tryVerifyDuration != null ? `${tryVerifyDuration}ms` : '-'}</div>
+                                            </div>
+                                          </div>
+                                        )
+                                      })()
+                                    )}
+                                    {doc.id === 'doc-email-find-bulk' && (
+                                      (() => {
+                                        const payloadObj = unwrapData<Record<string, unknown>>(tryFindBulkResult)
+                                        const resultsRaw = payloadObj ? (payloadObj['results'] as unknown) : undefined
+                                        const results = Array.isArray(resultsRaw) ? (resultsRaw as Array<Record<string, unknown>>) : []
+                                        return (
+                                          <div className="space-y-2">
+                                            <div className="flex items-center gap-2">
+                                              <div className="text-sm">Processed:</div>
+                                              <div className="text-sm font-medium">{results.length}</div>
+                                            </div>
+                                            <div className="flex flex-wrap gap-2">
+                                              {results.slice(0, 5).map((r: Record<string, unknown>, i: number) => (
+                                                <Badge
+                                                  key={i}
+                                                  variant="outline"
+                                                  className={cn('text-xs border', statusBadgeClass(getStr(r, 'status')))}
+                                                >
+                                                  {getStr(r, 'email') || getStr(r, 'first_name')}: {statusLabel(getStr(r, 'status'))}
+                                                </Badge>
+                                              ))}
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                              <div className="text-sm">Time:</div>
+                                              <div className="text-sm font-medium">{tryFindBulkDuration != null ? `${tryFindBulkDuration}ms` : '-'}</div>
+                                            </div>
+                                          </div>
+                                        )
+                                      })()
+                                    )}
+                                    {doc.id === 'doc-email-verify-bulk' && (
+                                      (() => {
+                                        const payloadObj = unwrapData<Record<string, unknown>>(tryVerifyBulkResult)
+                                        const resultsRaw = payloadObj ? (payloadObj['results'] as unknown) : undefined
+                                        const results = Array.isArray(resultsRaw) ? (resultsRaw as Array<Record<string, unknown>>) : []
+                                        return (
+                                          <div className="space-y-2">
+                                            <div className="flex items-center gap-2">
+                                              <div className="text-sm">Processed:</div>
+                                              <div className="text-sm font-medium">{results.length}</div>
+                                            </div>
+                                            <div className="flex flex-wrap gap-2">
+                                              {results.slice(0, 5).map((r: Record<string, unknown>, i: number) => (
+                                                <Badge
+                                                  key={i}
+                                                  variant="outline"
+                                                  className={cn('text-xs border', statusBadgeClass(getStr(r, 'status')))}
+                                                >
+                                                  {getStr(r, 'email')}: {statusLabel(getStr(r, 'status'))}
+                                                </Badge>
+                                              ))}
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                              <div className="text-sm">Time:</div>
+                                              <div className="text-sm font-medium">{tryVerifyBulkDuration != null ? `${tryVerifyBulkDuration}ms` : '-'}</div>
+                                            </div>
+                                          </div>
+                                        )
+                                      })()
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </TabsContent>
+
+                            <TabsContent value="response" className="space-y-6 pt-4">
+                              <div className="rounded-xl border p-4 sm:p-6 shadow-sm">
+                                {doc.id === 'doc-email-find' && (
+                                  (() => {
+                                    const payload = unwrapData<Record<string, unknown>>(tryFindResult)
+                                    const email = getStr(payload, 'email') || null
+                                    const status = getStr(payload, 'status')
+                                    const confidence = getNum(payload, 'confidence')
+                                    const domain = getStr(payload, 'domain')
+                                    const cls = statusBadgeClass(status)
+                                    return (
+                                      <div className="space-y-3">
+                                        <div className="text-lg font-semibold">Result</div>
+                                        <div className="grid sm:grid-cols-2 gap-3">
+                                          <div className="space-y-1">
+                                            <div className="text-sm font-medium">Email</div>
+                                            <div className="text-sm">{email || '-'}</div>
+                                          </div>
+                                          <div className="space-y-1">
+                                            <div className="text-sm font-medium">Status</div>
+                                            <Badge variant="outline" className={cn('text-xs border', cls)}>{statusLabel(status)}</Badge>
+                                          </div>
+                                          <div className="space-y-1">
+                                            <div className="text-sm font-medium">Confidence</div>
+                                            <div className="text-sm">{confidence ? `${confidence}%` : '-'}</div>
+                                          </div>
+                                          <div className="space-y-1">
+                                            <div className="text-sm font-medium">Domain</div>
+                                            <div className="text-sm">{domain || '-'}</div>
+                                          </div>
+                                          <div className="space-y-1">
+                                            <div className="text-sm font-medium">Time</div>
+                                            <div className="text-sm">{tryFindDuration != null ? `${tryFindDuration}ms` : '-'}</div>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )
+                                  })()
+                                )}
+                                {doc.id === 'doc-email-verify' && (
+                                  (() => {
+                                    const payload = unwrapData<Record<string, unknown>>(tryVerifyResult)
+                                    const email = getStr(payload, 'email') || tryVerifyEmail || null
+                                    const status = getStr(payload, 'status')
+                                    const confidence = getNum(payload, 'confidence')
+                                    const domain = getStr(payload, 'domain')
+                                    const cls = statusBadgeClass(status)
+                                    return (
+                                      <div className="space-y-3">
+                                        <div className="text-lg font-semibold">Result</div>
+                                        <div className="grid sm:grid-cols-2 gap-3">
+                                          <div className="space-y-1">
+                                            <div className="text-sm font-medium">Email</div>
+                                            <div className="text-sm">{email || '-'}</div>
+                                          </div>
+                                          <div className="space-y-1">
+                                            <div className="text-sm font-medium">Status</div>
+                                            <Badge variant="outline" className={cn('text-xs border', cls)}>{statusLabel(status)}</Badge>
+                                          </div>
+                                          <div className="space-y-1">
+                                            <div className="text-sm font-medium">Confidence</div>
+                                            <div className="text-sm">{confidence ? `${confidence}%` : '-'}</div>
+                                          </div>
+                                          <div className="space-y-1">
+                                            <div className="text-sm font-medium">Domain</div>
+                                            <div className="text-sm">{domain || '-'}</div>
+                                          </div>
+                                          <div className="space-y-1">
+                                            <div className="text-sm font-medium">Time</div>
+                                            <div className="text-sm">{tryVerifyDuration != null ? `${tryVerifyDuration}ms` : '-'}</div>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )
+                                  })()
+                                )}
+                                {doc.id === 'doc-email-find-bulk' && (
+                                  (() => {
+                                    const payloadObj = unwrapData<Record<string, unknown>>(tryFindBulkResult)
+                                    const resultsRaw = payloadObj ? (payloadObj['results'] as unknown) : undefined
+                                    const results = Array.isArray(resultsRaw) ? (resultsRaw as Array<Record<string, unknown>>) : []
+                                    return (
+                                      <div className="space-y-3">
+                                        <div className="text-lg font-semibold">Results</div>
+                                        <div className="space-y-2">
+                                          <div className="text-sm">Processed {results.length}</div>
+                                          <div className="flex flex-wrap gap-2">
+                                            {results.slice(0, 10).map((r: Record<string, unknown>, i: number) => (
+                                              <Badge
+                                                key={i}
+                                                variant="outline"
+                                                className={cn('text-xs border', statusBadgeClass(getStr(r, 'status')))}
+                                              >
+                                                {getStr(r, 'email') || getStr(r, 'first_name')}: {statusLabel(getStr(r, 'status'))}
+                                              </Badge>
+                                            ))}
+                                          </div>
+                                          <div className="text-sm">Time {tryFindBulkDuration != null ? `${tryFindBulkDuration}ms` : '-'}</div>
+                                        </div>
+                                      </div>
+                                    )
+                                  })()
+                                )}
+                                {doc.id === 'doc-email-verify-bulk' && (
+                                  (() => {
+                                    const payloadObj = unwrapData<Record<string, unknown>>(tryVerifyBulkResult)
+                                    const resultsRaw = payloadObj ? (payloadObj['results'] as unknown) : undefined
+                                    const results = Array.isArray(resultsRaw) ? (resultsRaw as Array<Record<string, unknown>>) : []
+                                    return (
+                                      <div className="space-y-3">
+                                        <div className="text-lg font-semibold">Results</div>
+                                        <div className="space-y-2">
+                                          <div className="text-sm">Processed {results.length}</div>
+                                          <div className="flex flex-wrap gap-2">
+                                            {results.slice(0, 10).map((r: Record<string, unknown>, i: number) => (
+                                              <Badge
+                                                key={i}
+                                                variant="outline"
+                                                className={cn('text-xs border', statusBadgeClass(getStr(r, 'status')))}
+                                              >
+                                                {getStr(r, 'email')}: {statusLabel(getStr(r, 'status'))}
+                                              </Badge>
+                                            ))}
+                                          </div>
+                                          <div className="text-sm">Time {tryVerifyBulkDuration != null ? `${tryVerifyBulkDuration}ms` : '-'}</div>
+                                        </div>
+                                      </div>
+                                    )
+                                  })()
+                                )}
+                              </div>
+                              <div className="space-y-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => setShowRawJson(prev => ({ ...prev, [doc.id]: !prev[doc.id] }))}
+                                  className="rounded-lg"
+                                >
+                                  {showRawJson[doc.id] ? 'Hide Raw JSON' : 'View Raw JSON'}
+                                </Button>
+                                {showRawJson[doc.id] && (
+                                  <div className="bg-muted rounded-lg border p-4 overflow-x-auto">
+                                    <pre className="text-xs sm:text-sm font-mono whitespace-pre leading-6">
+                                      {(() => {
+                                        const value =
+                                          doc.id === 'doc-email-find' ? tryFindResult :
+                                          doc.id === 'doc-email-verify' ? tryVerifyResult :
+                                          doc.id === 'doc-email-find-bulk' ? tryFindBulkResult :
+                                          tryVerifyBulkResult
+                                        return stringifyJson(value as unknown)
+                                      })()}
+                                    </pre>
+                                  </div>
+                                )}
+                              </div>
+                            </TabsContent>
+                          </Tabs>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
