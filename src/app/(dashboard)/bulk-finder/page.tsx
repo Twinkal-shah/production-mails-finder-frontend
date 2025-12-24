@@ -12,7 +12,7 @@ import Papa from 'papaparse'
 import * as XLSX from 'xlsx'
 // Job endpoints are not available; direct bulk find only
 import { useQueryInvalidation } from '@/lib/query-invalidation'
-import { bulkFind } from '@/lib/bulk-find-utils'
+import { bulkFind, buildBulkFindPayload } from '@/lib/bulk-find-utils'
 
 interface CsvRow {
   'Full Name'?: string
@@ -75,8 +75,7 @@ const normalizeDomain = (value: string) => {
       const u = new URL(s)
       s = u.hostname
     } else {
-      if (s.includes('@')) s = s.split('@').pop() as string
-      s = s.split('/')[0]
+      s = s.replace(/[@,/|\\]+/g, '.')
       s = s.split('?')[0]
       s = s.split('#')[0]
     }
@@ -84,7 +83,10 @@ const normalizeDomain = (value: string) => {
   s = s.replace(/^www\./i, '')
   s = s.replace(/^[\s\.,;]+|[\s\.,;]+$/g, '')
   s = s.toLowerCase()
-  const isHostname = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*$/.test(s)
+  s = s.replace(/[^a-z0-9\.\-]/g, '')
+  s = s.replace(/\.+/g, '.')
+  s = s.replace(/^\.+|\.+$/g, '')
+  const isHostname = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/.test(s)
   return isHostname ? s : ''
 }
 
@@ -281,7 +283,8 @@ export default function BulkFinderPage() {
           creditsVerify = Number(ud?.credits_verify ?? 0)
         } catch {}
       }
-      const totalRequests = validRows.length
+      const payloadPreview = buildBulkFindPayload(validRows.map(r => ({ fullName: r.fullName, domain: r.domain })))
+      const totalRequests = payloadPreview.length
       if (creditsFind > 0 && totalRequests > creditsFind) {
         toast.error('You don\'t have sufficient credits to find emails.')
         setIsProcessingDirect(false)

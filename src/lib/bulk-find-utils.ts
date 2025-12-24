@@ -11,15 +11,17 @@ export function toHostname(input: string): string {
       const u = new URL(s)
       s = u.hostname
     } else {
-      if (s.includes('@')) s = s.split('@').pop() as string
-      s = s.split('/')[0]
+      s = s.replace(/[@,/|\\]+/g, '.')
       s = s.split('?')[0]
       s = s.split('#')[0]
     }
   } catch {}
   s = s.replace(/^www\./i, '')
   s = s.toLowerCase()
-  const ok = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*$/.test(s)
+  s = s.replace(/[^a-z0-9\.\-]/g, '')
+  s = s.replace(/\.+/g, '.')
+  s = s.replace(/^\.+|\.+$/g, '')
+  const ok = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/.test(s)
   return ok ? s : ''
 }
 
@@ -28,10 +30,15 @@ export function buildBulkFindPayload(rows: Array<{ fullName: string; domain: str
   for (const r of rows) {
     const host = toHostname(r.domain)
     if (!host) continue
-    const parts = (r.fullName || '').trim().split(/\s+/)
-    const first = parts[0] || ''
-    const last = parts.slice(1).join(' ') || ''
-    if (!first || !last) continue
+    const normalizedName = (r.fullName || '')
+      .trim()
+      .replace(/[\/,._\-@#$%]+/g, ' ')
+    const parts = normalizedName.split(/\s+/)
+    const firstRaw = parts[0] || ''
+    const lastRaw = parts.slice(1).join(' ') || ''
+    const first = firstRaw.toLowerCase().replace(/[^a-z]/g, '')
+    const last = lastRaw.toLowerCase().replace(/[^a-z]/g, '')
+    if (!first && !last) continue
     out.push({ domain: host, first_name: first, last_name: last })
   }
   return out
