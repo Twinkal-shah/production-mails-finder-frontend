@@ -71,15 +71,25 @@ export async function findEmailMock(request: EmailFinderRequest): Promise<EmailF
  */
 export async function findEmailReal(request: EmailFinderRequest): Promise<EmailFinderResult> {
   const maxRetries = 3
+  const normalizeName = (name: string) => {
+    const cleaned = (name || '').trim().replace(/[\/,._\-@#$%]+/g, ' ')
+    const parts = cleaned.split(/\s+/)
+    const firstRaw = parts[0] || ''
+    const lastRaw = parts.slice(1).join(' ') || ''
+    const first = firstRaw.toLowerCase().replace(/[^a-z]/g, '')
+    const last = lastRaw.toLowerCase().replace(/[^a-z]/g, '')
+    return { first_name: first, last_name: last }
+  }
+  const { first_name, last_name } = normalizeName(request.full_name)
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       const { apiPost } = await import('@/lib/api')
       const { getAccessTokenFromCookies } = await import('@/lib/auth-server')
       const token = await getAccessTokenFromCookies()
       const res = await apiPost<unknown>('/api/email/findEmail', {
-        full_name: request.full_name,
         domain: request.domain,
-        role: request.role
+        first_name,
+        last_name
       }, { useProxy: true, includeAuth: true, token })
       if (!res.ok) {
         throw new Error(`API request failed: ${res.status}`)

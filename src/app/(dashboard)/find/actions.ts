@@ -75,10 +75,20 @@ export async function findEmail(request: FindEmailRequest): Promise<FindEmailRes
         const { getAccessTokenFromCookies } = await import('@/lib/auth-server')
         const cookieHeader = cookies().toString()
         const token = await getAccessTokenFromCookies()
+        const normalizeName = (name: string) => {
+          const cleaned = (name || '').trim().replace(/[\/,._\-@#$%]+/g, ' ')
+          const parts = cleaned.split(/\s+/)
+          const firstRaw = parts[0] || ''
+          const lastRaw = parts.slice(1).join(' ') || ''
+          const first = firstRaw.toLowerCase().replace(/[^a-z]/g, '')
+          const last = lastRaw.toLowerCase().replace(/[^a-z]/g, '')
+          return { first_name: first, last_name: last }
+        }
+        const { first_name, last_name } = normalizeName(request.full_name)
         const payload = {
-          full_name: request.full_name,
           domain: request.company_domain,
-          role: request.role
+          first_name,
+          last_name
         }
         const { apiPost } = await import('@/lib/api')
         const apiRes = await apiPost<Record<string, unknown>>('/api/email/findEmail', payload, { useProxy: true, includeAuth: true, token })
