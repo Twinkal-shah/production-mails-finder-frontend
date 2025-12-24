@@ -220,14 +220,24 @@ type ApiDoc = {
 const stringifyJson = (obj: unknown) => (typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2))
 
 const buildCurl = (method: string, url: string, headers: Record<string, string>, body?: unknown) => {
-  const parts: string[] = [`curl.exe -i -X ${method} "${url}"`]
-  for (const [k, v] of Object.entries(headers)) parts.push(`-H "${k}: ${v}"`)
-  if (body !== undefined) {
-    const json = typeof body === 'string' ? body : JSON.stringify(body)
-    const escaped = json.replace(/"/g, '\\"')
-    parts.push(`-d "${escaped}"`)
+  const lines: string[] = [`curl -X ${method} "${url}" \\`]
+  const headerLines: string[] = []
+  for (const [k, v] of Object.entries(headers)) {
+    headerLines.push(`  -H "${k}: ${v}" \\`)
   }
-  return parts.join(' ')
+  if (body !== undefined) {
+    const jsonPretty = typeof body === 'string' ? body : JSON.stringify(body, null, 2)
+    const singleQuotedJson = jsonPretty.replace(/'/g, `'\\''`)
+    lines.push(...headerLines)
+    lines.push(`  -d '${singleQuotedJson}'`)
+  } else {
+    if (headerLines.length > 0) {
+      const last = headerLines[headerLines.length - 1]
+      headerLines[headerLines.length - 1] = last.replace(/ \\\\$/, '')
+    }
+    lines.push(...headerLines)
+  }
+  return lines.join('\n')
 }
 
 const buildJs = (method: string, url: string, headers: Record<string, string>, body?: unknown) => {
@@ -283,7 +293,7 @@ const API_DOCS: ApiDoc[] = [
     url: 'https://server.mailsfinder.com/api/access-key/email/findEmail',
     displayUrl: 'https://server.mailsfinder.com/api/access-key/email/findEmail',
     description: 'Find email by name and domain',
-    headers: { 'Authorization': 'Bearer API_KEY_***************************', 'Content-Type': 'application/json' },
+    headers: { 'Authorization': 'Bearer YOUR_API_KEY', 'Content-Type': 'application/json' },
     requestBody: { first_name: 'John', last_name: 'Doe', domain: 'example.com' },
     requestBodyAlt: { full_name: 'John Doe', domain: 'example.com' },
     success: { success: true, data: { email: 'john.doe@example.com', confidence: 95, status: 'found', catch_all: false, domain: 'example.com', mx: 'mx.example.com', time_exec: 350, user_name: 'john', connections: 3, ver_ops: 1 }, message: 'Email found' },
@@ -314,8 +324,12 @@ const API_DOCS: ApiDoc[] = [
     url: 'https://server.mailsfinder.com/api/access-key/email/findBulkEmail',
     displayUrl: 'https://server.mailsfinder.com/api/access-key/email/findBulkEmail',
     description: 'Find emails in bulk',
-    headers: { 'Authorization': 'Bearer API_••••••••398e', 'Content-Type': 'application/json' },
-    requestBody: [ { domain: 'example.com', first_name: 'John', last_name: 'Doe' }, { domain: 'example.com', first_name: 'Jane', last_name: 'Smith' } ],
+    headers: { 'Authorization': 'Bearer YOUR_API_KEY', 'Content-Type': 'application/json' },
+    requestBody: [
+      { domain: 'example.com', first_name: 'John', last_name: 'Doe' },
+      { domain: 'example.com', first_name: 'Jane', last_name: 'Smith' },
+      { domain: 'example.com', first_name: 'Alex', last_name: 'Johnson' }
+    ],
     success: { success: true, data: { results: [ { email: 'john.doe@example.com', confidence: 95, status: 'found', domain: 'example.com', first_name: 'John', last_name: 'Doe' }, { email: null, confidence: 0, status: 'not_found', domain: 'example.com', first_name: 'Jane', last_name: 'Smith' } ], totalCredits: 2 } },
     error: { error: { message: 'Unauthorized', code: 401 } },
     responseFields: {
@@ -343,7 +357,7 @@ const API_DOCS: ApiDoc[] = [
     url: 'https://server.mailsfinder.com/api/access-key/email/verifyBulkEmail',
     displayUrl: 'https://server.mailsfinder.com/api/access-key/email/verifyBulkEmail',
     description: 'Verify a list of emails',
-    headers: { 'Authorization': 'Bearer API_••••••••398e', 'Content-Type': 'application/json' },
+    headers: { 'Authorization': 'Bearer YOUR_API_KEY', 'Content-Type': 'application/json' },
     requestBody: { emails: ['john.doe@example.com', 'jane.smith@example.com'] },
     success: { success: true, data: { results: [ { email: 'john.doe@example.com', status: 'valid', confidence: 90, deliverable: true, reason: 'Accepted', catch_all: false, domain: 'example.com', mx: 'mx.example.com' }, { email: 'jane.smith@example.com', status: 'invalid', confidence: 0, deliverable: false, reason: 'Undeliverable' } ], totalCredits: 2 } },
     error: { error: { message: 'email list is required', code: 400 } },
@@ -374,7 +388,7 @@ const API_DOCS: ApiDoc[] = [
     url: 'https://server.mailsfinder.com/api/access-key/email/verifyEmail',
     displayUrl: 'https://server.mailsfinder.com/api/access-key/email/verifyEmail',
     description: 'Verify a single email',
-    headers: { 'Authorization': 'Bearer API_••••••••398e', 'Content-Type': 'application/json' },
+    headers: { 'Authorization': 'Bearer YOUR_API_KEY', 'Content-Type': 'application/json' },
     requestBody: { email: 'john.doe@example.com' },
     success: { success: true, data: { email: 'john.doe@example.com', status: 'valid', confidence: 80, deliverable: true, reason: 'OK', catch_all: false, domain: 'example.com', mx: 'mx.example.com', user_name: 'john' }, message: 'Verified' },
     error: { error: { message: 'email is required', code: 400 } },
