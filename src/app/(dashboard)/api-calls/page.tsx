@@ -120,8 +120,9 @@ const PREDEFINED_ENDPOINTS: PredefinedEndpoint[] = [
       { id: '2', key: 'Authorization', value: 'Bearer ACCESS_TOKEN', enabled: true }
     ],
     body: JSON.stringify({
-      full_name: 'John Doe',
-      domain: 'example.com'
+      domain: 'example.com',
+      first_name: 'John',
+      last_name: 'Doe'
     }, null, 2)
   },
   {

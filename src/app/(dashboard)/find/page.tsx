@@ -61,10 +61,16 @@ export default function FindPage() {
     setResult(null)
 
     try {
+      const cleaned = (fullName || '').trim().replace(/[\/,._\-@#$%]+/g, ' ')
+      const parts = cleaned.split(/\s+/)
+      const firstRaw = parts[0] || ''
+      const lastRaw = parts.slice(1).join(' ') || ''
+      const first_name = firstRaw.toLowerCase().replace(/[^a-z]/g, '')
+      const last_name = lastRaw.toLowerCase().replace(/[^a-z]/g, '')
       const response = await findEmailAction({
-        full_name: fullName,
-        company_domain: companyDomain,
-        role: role || undefined,
+        domain: companyDomain,
+        first_name,
+        last_name,
       })
 
       if (response.success) {

@@ -6,9 +6,9 @@ import { revalidatePath } from 'next/cache'
 import { findEmail as findEmailService, type EmailFinderRequest } from '@/lib/services/email-finder'
 
 interface FindEmailRequest {
-  full_name: string
-  company_domain: string
-  role?: string
+  domain: string
+  first_name: string
+  last_name: string
 }
 
 interface EmailResult {
@@ -53,11 +53,10 @@ export async function findEmail(request: FindEmailRequest): Promise<FindEmailRes
       }
     }
 
-    // Call email finder service
+    const fullNameForService = [request.first_name, request.last_name].filter(Boolean).join(' ')
     const emailRequest: EmailFinderRequest = {
-      full_name: request.full_name,
-      domain: request.company_domain,
-      role: request.role
+      full_name: fullNameForService,
+      domain: request.domain
     }
     const serviceResult = await findEmailService(emailRequest)
     
@@ -73,22 +72,11 @@ export async function findEmail(request: FindEmailRequest): Promise<FindEmailRes
       try {
         const { cookies } = await import('next/headers')
         const { getAccessTokenFromCookies } = await import('@/lib/auth-server')
-        const cookieHeader = cookies().toString()
         const token = await getAccessTokenFromCookies()
-        const normalizeName = (name: string) => {
-          const cleaned = (name || '').trim().replace(/[\/,._\-@#$%]+/g, ' ')
-          const parts = cleaned.split(/\s+/)
-          const firstRaw = parts[0] || ''
-          const lastRaw = parts.slice(1).join(' ') || ''
-          const first = firstRaw.toLowerCase().replace(/[^a-z]/g, '')
-          const last = lastRaw.toLowerCase().replace(/[^a-z]/g, '')
-          return { first_name: first, last_name: last }
-        }
-        const { first_name, last_name } = normalizeName(request.full_name)
         const payload = {
-          domain: request.company_domain,
-          first_name,
-          last_name
+          domain: request.domain,
+          first_name: request.first_name,
+          last_name: request.last_name
         }
         const { apiPost } = await import('@/lib/api')
         const apiRes = await apiPost<Record<string, unknown>>('/api/email/findEmail', payload, { useProxy: true, includeAuth: true, token })
