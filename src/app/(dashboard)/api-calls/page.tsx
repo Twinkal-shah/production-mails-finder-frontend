@@ -1431,7 +1431,7 @@ export default function ApiCallsPage() {
                                         const email = getStr(payload, 'email') || null
                                         const status = getStr(payload, 'status')
                                         const confidence = getNum(payload, 'confidence')
-                                        const domain = getStr(payload, 'domain')
+                                        const domain = getStr(payload, 'domain') || tryFindDomain || ''
                                         const cls = statusBadgeClass(status)
                                         return (
                                           <div className="space-y-2">
@@ -1465,7 +1465,7 @@ export default function ApiCallsPage() {
                                         const email = getStr(payload, 'email') || tryVerifyEmail || null
                                         const status = getStr(payload, 'status')
                                         const confidence = getNum(payload, 'confidence')
-                                        const domain = getStr(payload, 'domain')
+                                        const domain = getStr(payload, 'domain') || (((email || tryVerifyEmail || '').split('@')[1]) || '')
                                         const cls = statusBadgeClass(status)
                                         return (
                                           <div className="space-y-2">
@@ -1532,7 +1532,7 @@ export default function ApiCallsPage() {
                                                   </div>
                                                   <div className="flex items-center gap-2">
                                                     <div className="text-sm">Domain:</div>
-                                                    <div className="text-sm font-medium">{getStr(r, 'domain') || '-'}</div>
+                                                    <div className="text-sm font-medium">{getStr(r, 'domain') || (((getStr(r, 'email') || '').split('@')[1]) || '-')}</div>
                                                   </div>
                                                 </div>
                                               ))}
@@ -1584,7 +1584,7 @@ export default function ApiCallsPage() {
                                                   </div>
                                                   <div className="flex items-center gap-2">
                                                     <div className="text-sm">Domain:</div>
-                                                    <div className="text-sm font-medium">{getStr(r, 'domain') || '-'}</div>
+                                                    <div className="text-sm font-medium">{getStr(r, 'domain') || (((getStr(r, 'email') || '').split('@')[1]) || '-')}</div>
                                                   </div>
                                                 </div>
                                               ))}
@@ -1610,7 +1610,7 @@ export default function ApiCallsPage() {
                                     const email = getStr(payload, 'email') || null
                                     const status = getStr(payload, 'status')
                                     const confidence = getNum(payload, 'confidence')
-                                    const domain = getStr(payload, 'domain')
+                                    const domain = getStr(payload, 'domain') || tryFindDomain || ''
                                     const cls = statusBadgeClass(status)
                                     return (
                                       <div className="space-y-3">
@@ -1647,7 +1647,7 @@ export default function ApiCallsPage() {
                                     const email = getStr(payload, 'email') || tryVerifyEmail || null
                                     const status = getStr(payload, 'status')
                                     const confidence = getNum(payload, 'confidence')
-                                    const domain = getStr(payload, 'domain')
+                                    const domain = getStr(payload, 'domain') || (((email || tryVerifyEmail || '').split('@')[1]) || '')
                                     const cls = statusBadgeClass(status)
                                     return (
                                       <div className="space-y-3">
@@ -1716,7 +1716,7 @@ export default function ApiCallsPage() {
                                                 </div>
                                                 <div className="flex items-center gap-2">
                                                   <div className="text-sm">Domain:</div>
-                                                  <div className="text-sm font-medium">{getStr(r, 'domain') || '-'}</div>
+                                                  <div className="text-sm font-medium">{getStr(r, 'domain') || (((getStr(r, 'email') || '').split('@')[1]) || '-')}</div>
                                                 </div>
                                               </div>
                                             ))}
@@ -1765,7 +1765,7 @@ export default function ApiCallsPage() {
                                                 </div>
                                                 <div className="flex items-center gap-2">
                                                   <div className="text-sm">Domain:</div>
-                                                  <div className="text-sm font-medium">{getStr(r, 'domain') || '-'}</div>
+                                                  <div className="text-sm font-medium">{getStr(r, 'domain') || (((getStr(r, 'email') || '').split('@')[1]) || '-')}</div>
                                                 </div>
                                               </div>
                                             ))}
