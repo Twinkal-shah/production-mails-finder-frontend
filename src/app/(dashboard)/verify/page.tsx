@@ -89,6 +89,18 @@ export default function VerifyPage() {
       .replace(/_/g, ' ')
       .replace(/\b\w/g, (c) => c.toUpperCase())
   }
+  const isSmtpBlocked = (text?: string) => {
+    const s = (text || '').toLowerCase()
+    const hasAllPorts = s.includes('25') && s.includes('465') && s.includes('587')
+    const hasAnyPortWithLabel = s.includes('port 25') || s.includes('port 465') || s.includes('port 587') || (s.includes('ports') && (s.includes('25') || s.includes('465') || s.includes('587')))
+    return s.includes('smtp failed for all mx records') || hasAllPorts || hasAnyPortWithLabel
+  }
+  const isGmailRateLimit = (text?: string) => {
+    const s = (text || '').toLowerCase()
+    return /\b450\b/.test(s) || /4\.2\.1/.test(s) || s.includes('receiving rate') || s.includes('gsmtp')
+  }
+  const blockedMessage = 'The company’s mail server does not allow verification checks. This email may still exist, but we couldn’t confirm it.'
+  const rateLimitMessage = 'This inbox exists, but Gmail is temporarily limiting verification. Try again in a few minutes to confirm.'
 
   const verifySingle = async () => {
     if (!singleEmail.trim()) {
@@ -117,21 +129,28 @@ export default function VerifyPage() {
       // Debug log to see the actual response
       console.log('API Response:', data)
       
-      setSingleResult({ 
-        status: data.status, 
-        reason: typeof data.reason === 'string' && data.reason ? data.reason : undefined, 
-        error: typeof data.error === 'string' && data.error ? data.error : undefined 
-      })
+      const rawStatus = data.status
+      const rawReason = (typeof data.reason === 'string' && data.reason) || (typeof data.message === 'string' && data.message) || (typeof data.error === 'string' && data.error) || ''
+      let uiStatus = rawStatus
+      let uiReason = rawReason || undefined
+      if (isSmtpBlocked(rawReason)) {
+        uiStatus = 'unknown'
+        uiReason = blockedMessage
+      } else if (isGmailRateLimit(rawReason)) {
+        uiStatus = 'risky'
+        uiReason = rateLimitMessage
+      }
+      setSingleResult({ status: uiStatus, reason: uiReason })
       setSingleRaw(data)
       
-      if (data.status === 'valid') {
+      if (uiStatus === 'valid') {
         toast.success('Email is valid!')
-      } else if (data.status === 'invalid') {
+      } else if (uiStatus === 'invalid') {
         toast.error('Email is invalid')
-      } else if (data.status === 'risky') {
+      } else if (uiStatus === 'risky') {
         toast.warning('Email is risky')
-      } else if (data.status === 'error') {
-        toast.error(data.error || 'Failed to verify email')
+      } else if (uiStatus === 'error') {
+        toast.error(rawReason || 'Failed to verify email')
       }
       
       // Invalidate queries for real-time credit updates
@@ -304,21 +323,33 @@ export default function VerifyPage() {
       totals.processed += proc
       const items: { email?: string; status?: string; result?: string; email_status?: string; catch_all?: boolean; connections?: number; domain?: string; message?: string; mx?: string; time_exec?: number; user_name?: string }[] = Array.isArray(data?.results) ? data.results : []
       if (items.length > 0) {
-        setResults(items.map(it => ({
-          email: it?.email || '',
-          status: (it?.status ?? it?.result ?? it?.email_status),
-          catch_all: it?.catch_all,
-          connections: it?.connections,
-          domain: it?.domain,
-          message: it?.message,
-          mx: it?.mx,
-          time_exec: it?.time_exec,
-          user_name: it?.user_name
-        })))
+        setResults(items.map(it => {
+          const rawMsg = typeof it?.message === 'string' ? it.message : ''
+          const baseStatus = (it?.status ?? it?.result ?? it?.email_status)
+          const overrideUnknown = isSmtpBlocked(rawMsg)
+          const overrideRisky = !overrideUnknown && isGmailRateLimit(rawMsg)
+          const finalStatus = overrideUnknown ? 'unknown' : (overrideRisky ? 'risky' : baseStatus)
+          const finalMessage = overrideUnknown ? blockedMessage : (overrideRisky ? rateLimitMessage : rawMsg)
+          return {
+            email: it?.email || '',
+            status: finalStatus,
+            catch_all: it?.catch_all,
+            connections: it?.connections,
+            domain: it?.domain,
+            message: finalMessage,
+            mx: it?.mx,
+            time_exec: it?.time_exec,
+            user_name: it?.user_name
+          }
+        }))
         setRows(prev => prev.map(r => {
           const found = items.find(it => normalizeEmail(it?.email || '') === normalizeEmail(r.email || ''))
           if (!found) return r
-          const st = normalizeStatus(found?.status ?? found?.result ?? found?.email_status)
+          const rawMsg = typeof found?.message === 'string' ? found.message : ''
+          const baseStatusVal = found?.status ?? found?.result ?? found?.email_status
+          const overrideUnknown = isSmtpBlocked(rawMsg)
+          const overrideRisky = !overrideUnknown && isGmailRateLimit(rawMsg)
+          const st = overrideUnknown ? 'unknown' : (overrideRisky ? 'risky' : normalizeStatus(baseStatusVal))
           return { ...r, status: st, catch_all: (typeof found.catch_all === 'boolean' ? found.catch_all : r.catch_all), domain: (typeof found.domain === 'string' ? found.domain : r.domain), mx: (typeof found.mx === 'string' ? found.mx : r.mx), user_name: (typeof found.user_name === 'string' ? found.user_name : r.user_name) }
         }))
       }
