@@ -495,7 +495,7 @@ export default function VerifyPage() {
                       Status: <span>{singleResult.status}</span>
                     </p>
                     {singleResult.status !== 'valid' && singleResult.status !== 'invalid' && (() => {
-                      const msg = (typeof singleRaw?.reason === 'string' && singleRaw.reason) || singleResult.reason || singleResult.error
+                      const msg = singleResult.reason || singleResult.error || (typeof singleRaw?.reason === 'string' && singleRaw.reason)
                       return msg ? (
                         <p className="text-sm text-gray-600">Reason: {String(msg)}</p>
                       ) : null
