@@ -1464,7 +1464,6 @@ export default function ApiCallsPage() {
                                         const payload = unwrapData<Record<string, unknown>>(tryVerifyResult)
                                         const email = getStr(payload, 'email') || tryVerifyEmail || null
                                         const status = getStr(payload, 'status')
-                                        const confidence = getNum(payload, 'confidence')
                                         const domain = getStr(payload, 'domain') || (((email || tryVerifyEmail || '').split('@')[1]) || '')
                                         const cls = statusBadgeClass(status)
                                         return (
@@ -1476,10 +1475,6 @@ export default function ApiCallsPage() {
                                             <div className="flex items-center gap-2">
                                               <div className="text-sm">Status:</div>
                                               <Badge variant="outline" className={cn('text-xs border', cls)}>{statusLabel(status)}</Badge>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                              <div className="text-sm">Confidence:</div>
-                                              <div className="text-sm font-medium">{payload && typeof payload === 'object' && 'confidence' in payload ? `${Math.round(getNum(payload, 'confidence') * 100)}%` : '-'}</div>
                                             </div>
                                             <div className="flex items-center gap-2">
                                               <div className="text-sm">Domain:</div>
@@ -1646,7 +1641,6 @@ export default function ApiCallsPage() {
                                     const payload = unwrapData<Record<string, unknown>>(tryVerifyResult)
                                     const email = getStr(payload, 'email') || tryVerifyEmail || null
                                     const status = getStr(payload, 'status')
-                                    const confidence = getNum(payload, 'confidence')
                                     const domain = getStr(payload, 'domain') || (((email || tryVerifyEmail || '').split('@')[1]) || '')
                                     const cls = statusBadgeClass(status)
                                     return (
@@ -1660,10 +1654,6 @@ export default function ApiCallsPage() {
                                           <div className="space-y-1">
                                             <div className="text-sm font-medium">Status</div>
                                             <Badge variant="outline" className={cn('text-xs border', cls)}>{statusLabel(status)}</Badge>
-                                          </div>
-                                          <div className="space-y-1">
-                                            <div className="text-sm font-medium">Confidence</div>
-                                            <div className="text-sm">{payload && typeof payload === 'object' && 'confidence' in payload ? `${Math.round(getNum(payload, 'confidence') * 100)}%` : '-'}</div>
                                           </div>
                                           <div className="space-y-1">
                                             <div className="text-sm font-medium">Domain</div>
