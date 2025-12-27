@@ -2,7 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getBackendBaseUrl } from '@/lib/api'
 
 export async function POST(req: NextRequest) {
-  const backend = getBackendBaseUrl()
+  let backend = getBackendBaseUrl()
+  try {
+    const appHost = (req.headers.get('x-forwarded-host') || req.headers.get('host') || '').toLowerCase()
+    const backendHost = (() => { try { return new URL(backend).host.toLowerCase() } catch { return '' } })()
+    if (backendHost && appHost && backendHost === appHost) {
+      backend = 'https://server.mailsfinder.com'
+    }
+  } catch {}
   const url = `${backend}/api/user/auth/login`
   const cookie = req.headers.get('cookie') || ''
   
