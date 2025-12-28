@@ -282,7 +282,7 @@ if (isPurchaseArray(parsed)) {
   }
 
   const handleBuyCredits = (creditPackage: { credits: number }) => {
-    const pkgLabel = creditPackage.credits >= 100000 ? '100k' : creditPackage.credits >= 50000 ? '50k' : creditPackage.credits >= 25000 ? '25k' : '10k'
+    const pkgLabel = creditPackage.credits === 7200 ? '7200' : creditPackage.credits === 4100 ? '4100' : creditPackage.credits === 2500 ? '2500' : '2000'
     const loadingKey = `credits-${creditPackage.credits}`
     setLoadingStates(prev => ({ ...prev, [loadingKey]: true }))
     startTransition(async () => {
@@ -534,24 +534,24 @@ const handleManageBilling = async () => {
 
   const customCreditPackages = [
     {
-      credits: 100000,
+      credits: 7200,
       price: 35,
-      description: '100K credits for email finding and verification'
+      description: '7,200 credits for email finding and verification'
     },
     {
-      credits: 50000,
+      credits: 4100,
       price: 20,
-      description: '50K credits for email finding and verification'
+      description: '4,100 credits for email finding and verification'
     },
     {
-      credits: 25000,
+      credits: 2500,
       price: 12,
-      description: '25K credits for email finding and verification'
+      description: '2,500 credits for email finding and verification'
     },
     {
-      credits: 10000,
+      credits: 2000,
       price: 9,
-      description: '10K credits for email finding and verification'
+      description: '2,000 credits for email finding and verification'
     }
   ]
 

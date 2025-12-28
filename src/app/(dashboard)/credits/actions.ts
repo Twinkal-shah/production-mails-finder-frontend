@@ -214,10 +214,10 @@ export async function createCustomCreditCheckout(creditData: {
   
   // Validate credit package data
   const validPackages = {
-    100000: 35,
-    50000: 20,
-    25000: 12,
-    10000: 9
+    7200: 35,
+    4100: 20,
+    2500: 12,
+    2000: 9
   }
   
   const validPrice = validPackages[creditData.credits as keyof typeof validPackages]
@@ -230,10 +230,10 @@ export async function createCustomCreditCheckout(creditData: {
     
     // Map credit amounts to LemonSqueezy variant IDs
     const creditVariantIds = {
-      100000: process.env.LEMONSQUEEZY_CREDITS_100K_VARIANT_ID || 'credits-100k-variant-id',
-      50000: process.env.LEMONSQUEEZY_CREDITS_50K_VARIANT_ID || 'credits-50k-variant-id',
-      25000: process.env.LEMONSQUEEZY_CREDITS_25K_VARIANT_ID || 'credits-25k-variant-id',
-      10000: process.env.LEMONSQUEEZY_CREDITS_10K_VARIANT_ID || 'credits-10k-variant-id'
+      7200: process.env.LEMONSQUEEZY_CREDITS_7200_VARIANT_ID || 'credits-7200-variant-id',
+      4100: process.env.LEMONSQUEEZY_CREDITS_4100_VARIANT_ID || 'credits-4100-variant-id',
+      2500: process.env.LEMONSQUEEZY_CREDITS_2500_VARIANT_ID || 'credits-2500-variant-id',
+      2000: process.env.LEMONSQUEEZY_CREDITS_2000_VARIANT_ID || 'credits-2000-variant-id'
     }
     
     const variantId = creditVariantIds[creditData.credits as keyof typeof creditVariantIds]
@@ -249,6 +249,8 @@ export async function createCustomCreditCheckout(creditData: {
         customData: {
           credits: creditData.credits,
           package_type: 'credits',
+          find_credits: creditData.credits,
+          verify_credits: 0,
         },
       },
       userId
