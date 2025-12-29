@@ -287,24 +287,16 @@ if (isPurchaseArray(parsed)) {
     setLoadingStates(prev => ({ ...prev, [loadingKey]: true }))
     startTransition(async () => {
       try {
-        if (useProxyForCheckout) {
-          const res = await fetch('/api/checkout', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ plan: 'credits', package: pkgLabel }),
-          })
-          const json = await res.json().catch(() => ({}))
-          const ls = Array.isArray(json?.data) ? json?.data?.[0] : json
-          const url = ls?.data?.attributes?.url || ls?.data?.attributes?.checkout_url || json?.data?.attributes?.url
-          if (!url) throw new Error('Checkout URL missing')
-          window.location.href = url
-        } else {
-          const pkg = customCreditPackages.find(p => p.credits === creditPackage.credits)
-          if (!pkg) throw new Error('Invalid credit package')
-          const { url } = await createCustomCreditCheckout({ credits: pkg.credits, price: pkg.price })
-          if (!url) throw new Error('Checkout URL missing')
-          window.location.href = url
-        }
+        const res = await fetch('/api/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ plan: 'credits', package: pkgLabel }),
+        })
+        const json = await res.json().catch(() => ({}))
+        const ls = Array.isArray(json?.data) ? json?.data?.[0] : json
+        const url = ls?.data?.attributes?.url || ls?.data?.attributes?.checkout_url || json?.data?.attributes?.url
+        if (!url) throw new Error('Checkout URL missing')
+        window.location.href = url
       } catch (error) {
         console.error('Error creating custom credit checkout:', error)
         toast.error(error instanceof Error ? error.message : 'Failed to create checkout session')
