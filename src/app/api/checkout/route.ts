@@ -7,7 +7,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ message: 'Not authenticated' }, { status: 401 })
   }
   let plan: 'pro' | 'agency' | 'lifetime' | 'credits' = 'pro'
-  let pkg: '7200' | '4100' | '2500' | '2000' | undefined
+  let pkg: '100k' | '50k' | '25k' | '10k' | '7200' | '4100' | '2500' | '2000' | undefined
   let incomingVariantId: string | undefined
   try {
     const json = await req.json()
@@ -25,10 +25,16 @@ export async function POST(req: NextRequest) {
   let variantId = backendPlan !== 'Credits' ? variantMap[backendPlan] : undefined
   if (backendPlan === 'Credits') {
     const creditsVariantMap: Record<string, string | undefined> = {
-      '7200': process.env.LEMONSQUEEZY_CREDITS_7200_VARIANT_ID,
-      '4100': process.env.LEMONSQUEEZY_CREDITS_4100_VARIANT_ID,
-      '2500': process.env.LEMONSQUEEZY_CREDITS_2500_VARIANT_ID,
-      '2000': process.env.LEMONSQUEEZY_CREDITS_2000_VARIANT_ID,
+      // New pack IDs (preferred)
+      '7200': process.env.LEMONSQUEEZY_CREDITS_7200_VARIANT_ID || process.env.LEMONSQUEEZY_CREDITS_100K_VARIANT_ID,
+      '4100': process.env.LEMONSQUEEZY_CREDITS_4100_VARIANT_ID || process.env.LEMONSQUEEZY_CREDITS_50K_VARIANT_ID,
+      '2500': process.env.LEMONSQUEEZY_CREDITS_2500_VARIANT_ID || process.env.LEMONSQUEEZY_CREDITS_25K_VARIANT_ID,
+      '2000': process.env.LEMONSQUEEZY_CREDITS_2000_VARIANT_ID || process.env.LEMONSQUEEZY_CREDITS_10K_VARIANT_ID,
+      // Legacy pack IDs (fallback)
+      '100k': process.env.LEMONSQUEEZY_CREDITS_100K_VARIANT_ID,
+      '50k': process.env.LEMONSQUEEZY_CREDITS_50K_VARIANT_ID,
+      '25k': process.env.LEMONSQUEEZY_CREDITS_25K_VARIANT_ID,
+      '10k': process.env.LEMONSQUEEZY_CREDITS_10K_VARIANT_ID,
     }
     variantId = incomingVariantId ?? (pkg ? creditsVariantMap[pkg] : undefined)
   }
