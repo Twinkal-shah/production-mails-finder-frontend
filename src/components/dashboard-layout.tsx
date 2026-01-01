@@ -311,14 +311,16 @@ const [currentProfile, setCurrentProfile] = useState({
       >
         <div className="flex h-full flex-col">
           {/* Logo */}
-          <div className="relative flex h-16 items-center justify-center px-6 border-b">
+          <div className="relative flex h-20 items-center justify-center px-6 border-b">
             <Link href="/find" className="flex items-center">
               <Image 
                 src="/Mailsfinder black - Fav (1).png" 
                 alt="MailsFinder Logo" 
-                width={100}
-                height={25}
-                className="h-[25px] w-auto"
+                width={320}
+                height={100}
+                priority
+                sizes="(max-width: 1024px) 200px, 320px"
+                className="h-20 w-auto"
               />
             </Link>
             <Button
@@ -375,7 +377,7 @@ const [currentProfile, setCurrentProfile] = useState({
       <div className="flex flex-1 flex-col lg:pl-0">
         {/* Top bar */}
         <header className="bg-white shadow-sm border-b">
-          <div className="flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
+          <div className="flex h-20 items-center justify-between px-4 sm:px-6 lg:px-8">
             <Button
               variant="ghost"
               size="sm"
