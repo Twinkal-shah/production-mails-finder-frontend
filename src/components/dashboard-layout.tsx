@@ -63,7 +63,10 @@ const getNavigation = (userPlan: string) => {
     },
   ]
 
-  baseNavigation[1].items.push({ name: 'API', href: '/api-calls', icon: Code2 })
+  const normalizedPlan = (userPlan || '').toLowerCase().trim()
+  if (normalizedPlan === 'agency' || normalizedPlan === 'lifetime') {
+    baseNavigation[1].items.push({ name: 'API', href: '/api-calls', icon: Code2 })
+  }
 
   // Add Video Tutorials section for agency or lifetime plan users
   if (userPlan === 'agency' || userPlan === 'lifetime') {

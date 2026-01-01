@@ -479,6 +479,12 @@ export default function ApiCallsPage() {
     router.push('/credits')
   }
 
+  useEffect(() => {
+    if (restricted) {
+      router.replace('/credits')
+    }
+  }, [restricted, router])
+
   // --- keep the ApiKeyRecord type but ensure we use this shape in UI ---
   type ApiKeyRecord = {
     id: string
