@@ -24,6 +24,12 @@ import {
   X,
   PlayCircle,
   Code2,
+  LayoutDashboard,
+  Settings,
+  Database,
+  Shuffle,
+  Sparkles,
+  MessageSquare,
 } from 'lucide-react'
 import { getProfileDataClient } from '@/lib/profile'
 import { apiGet } from '@/lib/api'
@@ -77,6 +83,20 @@ const getNavigation = (userPlan: string) => {
       ],
     })
   }
+
+  // Connector OS module
+  baseNavigation.push({
+    name: 'CONNECTOR OS',
+    items: [
+      { name: 'Dashboard', href: '/connector/dashboard', icon: LayoutDashboard },
+      { name: 'Setup', href: '/connector/setup', icon: Settings },
+      { name: 'Data', href: '/connector/data', icon: Database },
+      { name: 'Matching', href: '/connector/matching', icon: Shuffle },
+      { name: 'Enrich', href: '/connector/enrich', icon: Sparkles },
+      { name: 'Leads', href: '/connector/leads', icon: Users },
+      { name: 'Replies', href: '/connector/replies', icon: MessageSquare },
+    ],
+  })
 
   return baseNavigation
 }
