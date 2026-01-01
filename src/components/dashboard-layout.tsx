@@ -84,19 +84,22 @@ const getNavigation = (userPlan: string) => {
     })
   }
 
-  // Connector OS module
-  baseNavigation.push({
-    name: 'CONNECTOR OS',
-    items: [
-      { name: 'Dashboard', href: '/connector/dashboard', icon: LayoutDashboard },
-      { name: 'Setup', href: '/connector/setup', icon: Settings },
-      { name: 'Data', href: '/connector/data', icon: Database },
-      { name: 'Matching', href: '/connector/matching', icon: Shuffle },
-      { name: 'Enrich', href: '/connector/enrich', icon: Sparkles },
-      { name: 'Leads', href: '/connector/leads', icon: Users },
-      { name: 'Replies', href: '/connector/replies', icon: MessageSquare },
-    ],
-  })
+  const connectorEnabled =
+    typeof window !== 'undefined' && localStorage.getItem('connector_os_enabled') === 'true'
+  if (connectorEnabled) {
+    baseNavigation.push({
+      name: 'CONNECTOR OS',
+      items: [
+        { name: 'Dashboard', href: '/connector/dashboard', icon: LayoutDashboard },
+        { name: 'Setup', href: '/connector/setup', icon: Settings },
+        { name: 'Data', href: '/connector/data', icon: Database },
+        { name: 'Matching', href: '/connector/matching', icon: Shuffle },
+        { name: 'Enrich', href: '/connector/enrich', icon: Sparkles },
+        { name: 'Leads', href: '/connector/leads', icon: Users },
+        { name: 'Replies', href: '/connector/replies', icon: MessageSquare },
+      ],
+    })
+  }
 
   return baseNavigation
 }
