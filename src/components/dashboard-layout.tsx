@@ -24,12 +24,6 @@ import {
   X,
   PlayCircle,
   Code2,
-  LayoutDashboard,
-  Settings,
-  Database,
-  Shuffle,
-  Sparkles,
-  MessageSquare,
 } from 'lucide-react'
 import { getProfileDataClient } from '@/lib/profile'
 import { apiGet } from '@/lib/api'
@@ -80,23 +74,6 @@ const getNavigation = (userPlan: string) => {
       name: 'TUTORIALS',
       items: [
         { name: 'Video Tutorials', href: '/video-tutorials', icon: PlayCircle },
-      ],
-    })
-  }
-
-  const connectorEnabled =
-    typeof window !== 'undefined' && localStorage.getItem('connector_os_enabled') === 'true'
-  if (connectorEnabled) {
-    baseNavigation.push({
-      name: 'CONNECTOR OS',
-      items: [
-        { name: 'Dashboard', href: '/connector/dashboard', icon: LayoutDashboard },
-        { name: 'Setup', href: '/connector/setup', icon: Settings },
-        { name: 'Data', href: '/connector/data', icon: Database },
-        { name: 'Matching', href: '/connector/matching', icon: Shuffle },
-        { name: 'Enrich', href: '/connector/enrich', icon: Sparkles },
-        { name: 'Leads', href: '/connector/leads', icon: Users },
-        { name: 'Replies', href: '/connector/replies', icon: MessageSquare },
       ],
     })
   }
@@ -311,16 +288,14 @@ const [currentProfile, setCurrentProfile] = useState({
       >
         <div className="flex h-full flex-col">
           {/* Logo */}
-          <div className="relative flex h-20 items-center justify-center px-6 border-b">
+          <div className="relative flex h-16 items-center justify-center px-6 border-b">
             <Link href="/find" className="flex items-center">
               <Image 
                 src="/Mailsfinder black - Fav (1).png" 
                 alt="MailsFinder Logo" 
-                width={320}
-                height={100}
-                priority
-                sizes="(max-width: 1024px) 200px, 320px"
-                className="h-20 w-auto"
+                width={100}
+                height={25}
+                className="h-[25px] w-auto"
               />
             </Link>
             <Button
@@ -377,7 +352,7 @@ const [currentProfile, setCurrentProfile] = useState({
       <div className="flex flex-1 flex-col lg:pl-0">
         {/* Top bar */}
         <header className="bg-white shadow-sm border-b">
-          <div className="flex h-20 items-center justify-between px-4 sm:px-6 lg:px-8">
+          <div className="flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
             <Button
               variant="ghost"
               size="sm"
