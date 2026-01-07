@@ -287,13 +287,13 @@ const [currentProfile, setCurrentProfile] = useState({
         <div className="flex h-full flex-col">
           {/* Logo */}
           <div className="relative flex h-16 items-center justify-center px-6 border-b">
-            <Link href="/find" className="flex items-center">
-              <Image 
-                src="/Mailsfinder black - Fav (1).png" 
-                alt="MailsFinder Logo" 
-                width={100}
-                height={25}
-                className="h-[25px] w-auto"
+            <Link href="/find" className="relative flex h-full w-full items-center justify-center">
+              <Image
+                src="/Mailsfinder black - Fav (1).png"
+                alt="MailsFinder Logo"
+                fill
+                sizes="(max-width: 768px) 100vw, 100vw"
+                className="object-contain object-center"
               />
             </Link>
             <Button
