@@ -35,6 +35,43 @@ export default function VideoTutorialsPage() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
+        <Card className="overflow-hidden">
+          <div className="relative aspect-video">
+            <iframe
+              title="MailsFinder Tutorial 1"
+              src="https://www.loom.com/embed/d7cc3e82b3b14610a2ae75da438e5d40"
+              className="absolute inset-0 w-full h-full"
+              frameBorder="0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowFullScreen
+              referrerPolicy="no-referrer-when-downgrade"
+            />
+          </div>
+          <CardHeader>
+            <CardTitle className="text-lg">Tutorial 1</CardTitle>
+            <CardDescription>Watch this Loom video to learn more.</CardDescription>
+          </CardHeader>
+        </Card>
+        <Card className="overflow-hidden">
+          <div className="relative aspect-video">
+            <iframe
+              title="MailsFinder Tutorial 2"
+              src="https://www.loom.com/embed/c501feb401304a518ce37e84792ca77d"
+              className="absolute inset-0 w-full h-full"
+              frameBorder="0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowFullScreen
+              referrerPolicy="no-referrer-when-downgrade"
+            />
+          </div>
+          <CardHeader>
+            <CardTitle className="text-lg">Tutorial 2</CardTitle>
+            <CardDescription>Watch this Loom video to learn more.</CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-2">
         {tutorials.map((tutorial) => (
           <Card key={tutorial.id} className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer">
             <div className="relative">
