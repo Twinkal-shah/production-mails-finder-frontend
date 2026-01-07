@@ -68,15 +68,13 @@ const getNavigation = (userPlan: string) => {
     baseNavigation[1].items.push({ name: 'API', href: '/api-calls', icon: Code2 })
   }
 
-  // Add Video Tutorials section for agency or lifetime plan users
-  if (userPlan === 'agency' || userPlan === 'lifetime') {
-    baseNavigation.push({
-      name: 'TUTORIALS',
-      items: [
-        { name: 'Video Tutorials', href: '/video-tutorials', icon: PlayCircle },
-      ],
-    })
-  }
+  // Add Video Tutorials section for all plans
+  baseNavigation.push({
+    name: 'TUTORIALS',
+    items: [
+      { name: 'Video Tutorials', href: '/video-tutorials', icon: PlayCircle },
+    ],
+  })
 
   return baseNavigation
 }

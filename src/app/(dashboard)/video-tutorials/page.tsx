@@ -30,7 +30,7 @@ export default function VideoTutorialsPage() {
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Video Tutorials</h1>
         <p className="mt-2 text-gray-600">
-          Exclusive tutorials for Agency and Lifetime users to maximize your email automation potential.
+          Tutorials to help you get the most from MailsFinder across all plans.
         </p>
       </div>
 
@@ -70,10 +70,9 @@ export default function VideoTutorialsPage() {
         <div className="flex items-start gap-4">
           <Users className="h-6 w-6 text-blue-600 mt-1" />
           <div>
-            <h3 className="font-semibold text-blue-900">Exclusive Content</h3>
+            <h3 className="font-semibold text-blue-900">Available For All Plans</h3>
             <p className="text-blue-700 mt-1">
-              These video tutorials are exclusively available to Agency and Lifetime plan users. 
-              Upgrade your plan to access more advanced features and tutorials.
+              Free, Pro, Agency, and Lifetime users can access these tutorials.
             </p>
           </div>
         </div>
