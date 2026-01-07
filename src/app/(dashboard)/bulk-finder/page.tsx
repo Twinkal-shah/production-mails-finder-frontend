@@ -7,12 +7,12 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
 import { toast } from 'sonner'
-import { Upload, Download, Play, Users, CheckCircle } from 'lucide-react'
+import { Upload, Play, Users, CheckCircle } from 'lucide-react'
 import Papa from 'papaparse'
 import * as XLSX from 'xlsx'
 // Job endpoints are not available; direct bulk find only
 import { useQueryInvalidation } from '@/lib/query-invalidation'
-import { bulkFind, buildBulkFindPayload } from '@/lib/bulk-find-utils'
+import { bulkFindBatched, buildBulkFindPayload } from '@/lib/bulk-find-utils'
 
 interface CsvRow {
   'Full Name'?: string
@@ -122,9 +122,9 @@ export default function BulkFinderPage() {
   const [isProcessingDirect, setIsProcessingDirect] = useState(false)
   const [progressDirect, setProgressDirect] = useState(0)
   const [processedDirectCount, setProcessedDirectCount] = useState(0)
-  const [successDirectCount, setSuccessDirectCount] = useState(0)
-  const [failedDirectCount, setFailedDirectCount] = useState(0)
   const [statusDirectText, setStatusDirectText] = useState('')
+  const [currentBatch, setCurrentBatch] = useState(0)
+  const [totalBatches, setTotalBatches] = useState(0)
 
   // No job-based endpoints on backend; page runs direct bulk find only
 
@@ -259,8 +259,6 @@ export default function BulkFinderPage() {
     setIsProcessingDirect(true)
     setProcessedDirectCount(0)
     setProgressDirect(0)
-    setSuccessDirectCount(0)
-    setFailedDirectCount(0)
     setStatusDirectText('')
     setRows(prev => prev.map(r => ({ ...r, status: 'processing' })))
     try {
@@ -297,116 +295,22 @@ export default function BulkFinderPage() {
       }
       setStatusDirectText('Processing 0/...')
       setProgressDirect(0)
-      const { items, totalCredits } = await bulkFind(
+      const { totalCredits } = await bulkFindBatched(
         validRows.map(r => ({ fullName: r.fullName, domain: r.domain })),
-        5,
-        2,
-        (completed, total) => {
-          setStatusDirectText(`Processing ${completed}/${total}`)
+        100,
+        (completed, total, batchIdx, batchTotal) => {
+          setProcessedDirectCount(completed)
+          setStatusDirectText(`Processing ${completed} / ${total}`)
           setProgressDirect(Math.round((completed / total) * 100))
+          setCurrentBatch(batchIdx)
+          setTotalBatches(batchTotal)
         }
       )
-      const updates = new Map<string, BulkRow>()
-      const matchedIds = new Set<string>()
-      const domainQueues = new Map<string, BulkRow[]>()
-      for (const row of validRows) {
-        const key = (row.domain || '').toLowerCase().trim()
-        const arr = domainQueues.get(key)
-        if (arr) arr.push(row)
-        else domainQueues.set(key, [row])
-      }
-      const allQueue = [...validRows]
-      let foundCount = 0
-      const tryMatchRowByEmail = (emailVal: string): BulkRow | undefined => {
-        const [localPart, domPart] = (emailVal || '').split('@')
-        if (!localPart || !domPart) return undefined
-        const domainNorm = domPart.toLowerCase().trim()
-        for (const row of validRows) {
-          if (matchedIds.has(row.id)) continue
-          const rowDomainNorm = (row.domain || '').toLowerCase().trim()
-          if (rowDomainNorm !== domainNorm) continue
-          const parts = (row.fullName || '').toLowerCase().replace(/[^a-z\s]/g, '').trim().split(/\s+/)
-          const fn = (parts[0] || '').replace(/\s+/g, '')
-          const ln = (parts.slice(1).join(' ') || '').replace(/\s+/g, '')
-          const localNorm = localPart.toLowerCase().replace(/\.|_/g, '')
-          const combos = new Set<string>([
-            fn,
-            ln,
-            fn + ln,
-            fn + '.' + ln,
-            fn + '_' + ln,
-            (fn[0] || '') + ln,
-            fn + (ln[0] || ''),
-            (ln[0] || '') + fn,
-            ln + (fn[0] || '')
-          ].map(s => s.replace(/\.|_/g, '')))
-          if (combos.has(localNorm) || (localNorm.includes(fn) && localNorm.includes(ln))) {
-            return row
-          }
-        }
-        return undefined
-      }
-      for (const it of items) {
-        const obj = it as Record<string, unknown>
-        const emailVal = typeof obj.email === 'string' ? (obj.email as string) : ''
-        const statusVal = typeof obj.status === 'string' ? (obj.status as string) : undefined
-        const domainVal = typeof obj.domain === 'string' ? (obj.domain as string) : ''
-        let row: BulkRow | undefined
-        if (emailVal) row = tryMatchRowByEmail(emailVal)
-        if (!row && domainVal) {
-          const key = domainVal.toLowerCase().trim()
-          const dq = domainQueues.get(key) || []
-          while (dq.length && !row) {
-            const candidate = dq[0]
-            if (!matchedIds.has(candidate.id)) row = candidate
-            dq.shift()
-          }
-          domainQueues.set(key, dq)
-        }
-        if (!row) {
-          while (allQueue.length && !row) {
-            const candidate = allQueue[0]
-            if (!matchedIds.has(candidate.id)) row = candidate
-            allQueue.shift()
-          }
-        }
-        if (!row) continue
-        matchedIds.add(row.id)
-        const confidenceVal = typeof obj.confidence === 'number' ? (obj.confidence as number) : row.confidence
-        const catchAllVal = typeof obj.catch_all === 'boolean' ? (obj.catch_all as boolean) : row.catch_all
-        const userNameVal = typeof obj.user_name === 'string' ? (obj.user_name as string) : (emailVal ? emailVal.split('@')[0] : row.user_name)
-        const mxVal = typeof obj.mx === 'string' ? (obj.mx as string) : row.mx
-        const errorVal = typeof obj.error === 'string' ? (obj.error as string) : (typeof obj.message === 'string' ? (obj.message as string) : undefined)
-        const uiStatus: BulkRow['status'] = statusVal === 'found' || statusVal === 'invalid' ? 'completed' : (statusVal ? 'failed' : 'completed')
-        if (statusVal === 'found') foundCount++
-        const updated: BulkRow = {
-          ...row,
-          email: emailVal || row.email,
-          confidence: confidenceVal,
-          status: uiStatus,
-          catch_all: catchAllVal,
-          user_name: userNameVal,
-          mx: mxVal,
-          error: errorVal,
-          result_status: statusVal
-        }
-        updates.set(row.id, updated)
-      }
-      for (const row of validRows) {
-        if (!matchedIds.has(row.id)) {
-          updates.set(row.id, { ...row, status: 'failed', error: 'Not Found', result_status: 'invalid' })
-        }
-      }
-      const totals = { processed: validRows.length, found: foundCount, notFound: Math.max(0, validRows.length - foundCount) }
-      setProcessedDirectCount(totals.processed)
-      setSuccessDirectCount(totals.found)
-      setFailedDirectCount(totals.notFound)
-      setRows(prev => prev.map(r => updates.has(r.id) ? (updates.get(r.id) as BulkRow) : r))
       setProgressDirect(100)
       setIsProcessingDirect(false)
-      setStatusDirectText('Completed')
-      toast.success(`Bulk find completed${totalCredits ? ` • Credits used: ${totalCredits}` : ''}`)
+      setStatusDirectText('Your file is being processed. You will receive the final results by email.')
       invalidateCreditsData()
+      toast.success(`Batches submitted • ${processedDirectCount} rows • Credits used: ${totalCredits}`)
     } catch (e) {
       setIsProcessingDirect(false)
       const msg = e instanceof Error ? e.message : 'Failed to run bulk find'
@@ -415,50 +319,6 @@ export default function BulkFinderPage() {
     }
   }
 
-  const downloadDirectResults = () => {
-    const finderResultColumns = ['Email', 'Confidence', 'Status', 'Catch All', 'User Name', 'MX', 'Error']
-    const columnsToUse = originalColumnOrder.length > 0
-      ? originalColumnOrder
-      : (rows.length > 0 ? Object.keys(rows[0]).filter(key => !['email', 'confidence', 'status', 'catch_all', 'user_name', 'mx', 'error', 'result_status'].includes(key)) : [])
-    const orderedColumns = Array.from(new Set([...columnsToUse, ...finderResultColumns]))
-    const csvData = rows.map(row => {
-      const { fullName, domain, role, email, confidence, result_status, catch_all, user_name, mx, error, ...originalColumns } = row
-      const rowData: Record<string, string | number | boolean | null | undefined> = {}
-      columnsToUse.forEach(col => {
-        if (col === 'Full Name' || col === 'full_name' || col === 'fullName') {
-          rowData[col] = fullName || (originalColumns[col] as string) || ''
-        } else if (col === 'Domain' || col === 'domain' || col === 'Website' || col === 'website') {
-          rowData[col] = domain || (originalColumns[col] as string) || ''
-        } else if (col === 'Role' || col === 'role') {
-          rowData[col] = role || (originalColumns[col] as string) || ''
-        } else {
-          rowData[col] = (originalColumns[col] as string) || ''
-        }
-      })
-      rowData['Email'] = email || ''
-      rowData['Confidence'] = typeof confidence === 'number' ? confidence : ''
-      rowData['Status'] = result_status || ''
-      rowData['Catch All'] = catch_all ? 'Yes' : 'No'
-      rowData['User Name'] = user_name || ''
-      rowData['MX'] = mx || ''
-      rowData['Error'] = error || ''
-      return rowData
-    })
-    const csv = Papa.unparse(csvData, { columns: orderedColumns })
-    const blob = new Blob([csv], { type: 'text/csv' })
-    const url = window.URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    const downloadFileName = originalFileName 
-      ? `result-${originalFileName.replace(/\.[^/.]+$/, '')}.csv` 
-      : `bulk_finder_results_${new Date().toISOString().split('T')[0]}.csv`
-    a.download = downloadFileName
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    window.URL.revokeObjectURL(url)
-    toast.success('Results exported to CSV')
-  }
 
   // No job-based status
 
@@ -515,14 +375,7 @@ export default function BulkFinderPage() {
               <Play className="mr-2 h-4 w-4" />
               {isProcessingDirect ? 'Processing...' : 'Start Direct Bulk Find'}
             </Button>
-            <Button
-              variant="outline"
-              onClick={downloadDirectResults}
-              disabled={rows.length === 0 || isProcessingDirect}
-            >
-              <Download className="mr-2 h-4 w-4" />
-              Download Results
-            </Button>
+           
           </div>
         </CardContent>
       </Card>
@@ -539,32 +392,14 @@ export default function BulkFinderPage() {
                   <span className="text-sm text-gray-600">{processedDirectCount} / {rows.length} processed</span>
                 </div>
                 <Progress value={progressDirect} className="w-full h-3" />
-                <div className="text-center text-sm text-gray-500">{Math.round(progressDirect)}% complete</div>
+                <div className="text-center text-sm text-gray-500">{Math.round(progressDirect)}% complete • Batch {currentBatch} of {totalBatches}</div>
               </div>
             ) : (processedDirectCount > 0 ? (
               <div className="space-y-4 text-center">
                 <div className="flex items-center justify-center space-x-2">
                   <CheckCircle className="h-6 w-6 text-green-600" />
-                  <span className="text-lg font-medium text-green-600">Bulk Find Complete</span>
+                  <span className="text-lg font-medium text-green-600">Your file is being processed. You will receive the final results by email.</span>
                 </div>
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <p className="text-2xl font-bold text-green-600">{successDirectCount}</p>
-                    <p className="text-sm text-gray-600">Found</p>
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-red-600">{failedDirectCount}</p>
-                    <p className="text-sm text-gray-600">Not Found</p>
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold">{processedDirectCount}</p>
-                    <p className="text-sm text-gray-600">Processed</p>
-                  </div>
-                </div>
-                <Button onClick={downloadDirectResults}>
-                  <Download className="mr-2 h-4 w-4" />
-                  Download Results
-                </Button>
               </div>
             ) : (
               <div className="text-center">
