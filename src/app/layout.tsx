@@ -6,6 +6,7 @@ import { QueryProvider } from "@/components/providers/query-provider"
 import { StartupInitializer } from "@/components/startup-initializer"
 import Script from "next/script"
 import GtmPageview from "../components/gtm-pageview"
+import { Suspense } from "react"
 
 const bricolage = Bricolage_Grotesque({
   subsets: ["latin"],
@@ -44,7 +45,9 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
       >
         <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-WV6JKFGV" height="0" width="0" style={{ display: "none", visibility: "hidden" }}></iframe></noscript>
         <QueryProvider>
-          <GtmPageview />
+          <Suspense fallback={null}>
+            <GtmPageview />
+          </Suspense>
           <StartupInitializer />
           {children}
           <Toaster />
