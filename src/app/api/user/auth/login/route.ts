@@ -15,14 +15,28 @@ export async function POST(req: NextRequest) {
   
   try {
     const body = await req.text()
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        ...(cookie ? { Cookie: cookie } : {}),
-        'content-type': 'application/json'
-      },
-      body,
-    })
+    let res: Response
+    try {
+      res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          ...(cookie ? { Cookie: cookie } : {}),
+          'content-type': 'application/json'
+        },
+        body,
+      })
+    } catch (primaryError) {
+      const local = (process.env.NEXT_PUBLIC_LOCAL_URL || 'http://localhost:8000').replace(/\/+$/, '')
+      const fallbackUrl = `${local}/api/user/auth/login`
+      res = await fetch(fallbackUrl, {
+        method: 'POST',
+        headers: {
+          ...(cookie ? { Cookie: cookie } : {}),
+          'content-type': 'application/json'
+        },
+        body,
+      })
+    }
     
     const contentType = res.headers.get('content-type') || 'application/json'
     const text = await res.text()

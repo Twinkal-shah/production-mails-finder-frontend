@@ -194,22 +194,41 @@ if (isPurchaseArray(parsed)) {
   
   
   // Memoize chart data to prevent unnecessary recalculations
+  const filledUsage = useMemo(() => {
+    const days = 30
+    const map = new Map<string, number>()
+    for (const item of creditUsage as Array<{ date: string; totalCreditsUsed?: number }>) {
+      const k = new Date(item.date).toISOString().split('T')[0]
+      const v = Number(item.totalCreditsUsed ?? 0)
+      map.set(k, v)
+    }
+    const out: Array<{ date: string; totalCreditsUsed: number }> = []
+    const now = new Date()
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date(now)
+      d.setDate(d.getDate() - i)
+      const k = d.toISOString().split('T')[0]
+      out.push({ date: k, totalCreditsUsed: map.get(k) ?? 0 })
+    }
+    return out
+  }, [creditUsage])
+
   const chartData = useMemo(() => ({
-    labels: creditUsage.map(item => {
+    labels: filledUsage.map(item => {
       const date = new Date(item.date)
       return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
     }),
     datasets: [
       {
         label: 'Credits Used',
-        data: creditUsage.map(item => item.credits_used),
+        data: filledUsage.map(item => item.totalCreditsUsed),
         borderColor: 'rgb(59, 130, 246)',
         backgroundColor: 'rgba(59, 130, 246, 0.1)',
         tension: 0.1,
         fill: true
       }
     ]
-  }), [creditUsage])
+  }), [filledUsage])
 
   // Memoize chart options to prevent unnecessary recalculations
   const chartOptions = useMemo(() => ({

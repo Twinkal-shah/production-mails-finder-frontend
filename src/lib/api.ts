@@ -11,12 +11,9 @@ interface RequestOptions {
 
 export function getBackendBaseUrl(): string {
   const isProd = process.env.NODE_ENV === 'production'
-  const raw = (
-    (!isProd && process.env.NEXT_PUBLIC_LOCAL_URL) ||
-    process.env.NEXT_PUBLIC_SERVER_URL ||
-    process.env.NEXT_PUBLIC_CORE_API_BASE ||
-    'https://server.mailsfinder.com'
-  )
+  const raw = isProd
+    ? (process.env.NEXT_PUBLIC_SERVER_URL || process.env.NEXT_PUBLIC_CORE_API_BASE || 'https://server.mailsfinder.com')
+    : (process.env.NEXT_PUBLIC_LOCAL_URL || process.env.NEXT_PUBLIC_CORE_API_BASE || 'http://localhost:8000')
   return raw.replace(/\/+$/, '')
 }
 

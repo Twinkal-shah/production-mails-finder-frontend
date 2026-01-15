@@ -2,6 +2,7 @@
 
 import { Suspense, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -264,6 +265,13 @@ function LoginInner() {
                 placeholder="Enter your password"
                 minLength={6}
               />
+              {!isSignUp && (
+                <div className="text-right mt-2">
+                  <Link href="/forgot-password" className="text-sm text-blue-600 hover:text-blue-500 font-medium">
+                    Forgot your password?
+                  </Link>
+                </div>
+              )}
             </div>
 
             {success && (

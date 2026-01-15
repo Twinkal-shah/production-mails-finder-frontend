@@ -1,7 +1,7 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import { getTransactionHistory, getCreditUsageHistory } from '@/app/(dashboard)/credits/actions'
+import { getTransactionHistory } from '@/app/(dashboard)/credits/actions'
 import { useEffect, useState } from 'react'
 import { getProfileDataClient } from '@/lib/profile'
 import { apiGet } from '@/lib/api'
@@ -64,7 +64,15 @@ export function useTransactionHistory(limit: number = 10) {
 export function useCreditUsageHistory() {
   return useQuery({
     queryKey: ['creditUsageHistory'],
-    queryFn: getCreditUsageHistory,
+    queryFn: async () => {
+      const res = await apiGet<unknown>('/api/credit-usage/daily', { useProxy: true })
+      const d = res.ok ? res.data : null
+      if (Array.isArray(d)) return d as Array<{ date: string; totalCreditsUsed: number }>
+      if (d && typeof d === 'object' && Array.isArray((d as Record<string, unknown>)['data'] as unknown[])) {
+        return (d as Record<string, unknown>)['data'] as Array<{ date: string; totalCreditsUsed: number }>
+      }
+      return []
+    },
     staleTime: 30 * 1000, // 30 seconds for more real-time updates
     gcTime: 5 * 60 * 1000, // 5 minutes
     retry: 2,

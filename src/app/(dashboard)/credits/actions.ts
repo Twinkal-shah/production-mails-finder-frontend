@@ -5,7 +5,7 @@ import type { LemonSqueezyWebhookEvent } from '@/lib/services/lemonsqueezy'
 
 interface CreditUsage {
   date: string
-  credits_used: number
+  totalCreditsUsed: number
 }
 
 interface CreditTransaction {
@@ -77,67 +77,16 @@ export async function getUserProfileWithCredits() {
 
 export async function getCreditUsageHistory(): Promise<CreditUsage[]> {
   try {
-    const { getCurrentUserFromCookies } = await import('@/lib/auth-server')
-    const user = await getCurrentUserFromCookies()
-    if (!user) {
-      return []
+    const res = await apiGet<unknown>('/api/credit-usage/daily', { useProxy: true })
+    if (!res.ok || !res.data) return []
+    const d = res.data as unknown
+    if (Array.isArray(d)) return d as CreditUsage[]
+    if (typeof d === 'object' && d !== null) {
+      const inner = (d as Record<string, unknown>)['data']
+      if (Array.isArray(inner)) return inner as CreditUsage[]
     }
-    const transactions = await getTransactionHistory()
-    const todayStr = new Date().toISOString().split('T')[0]
-    const usageToday = transactions.filter((t) => {
-      const dateStr = new Date(t.created_at).toISOString().split('T')[0]
-      const isToday = dateStr === todayStr
-      const isPurchase = (t.product_type || '').toLowerCase() === 'purchase' || (t.webhook_event || '').toLowerCase().includes('order')
-      const addedCredits = (t.credits_find_added || 0) > 0 || (t.credits_verify_added || 0) > 0
-      const meta = (t.metadata ?? {}) as Record<string, unknown>
-      const op = String(meta['operation'] ?? '').toLowerCase()
-      const pt = (t.product_type || '').toLowerCase()
-      const isUsageType = pt.includes('usage') || pt.includes('deduct') || pt.includes('consum')
-      const isUsageOp = op.includes('email') || op.includes('verify') || op.includes('find')
-      const isUsageCandidate = !isPurchase && !addedCredits && (isUsageOp || isUsageType || typeof t.amount === 'number')
-      return isToday && isUsageCandidate
-    })
-    if (usageToday.length === 0) return []
-    const totalUsed = usageToday.reduce((sum, t) => {
-      const meta = (t.metadata ?? {}) as Record<string, unknown>
-      const summary = (meta['summary'] && typeof meta['summary'] === 'object') ? (meta['summary'] as Record<string, unknown>) : undefined
-      const dataObj = (meta['data'] && typeof meta['data'] === 'object') ? (meta['data'] as Record<string, unknown>) : undefined
-      const dataSummary = (dataObj && typeof dataObj['summary'] === 'object') ? (dataObj['summary'] as Record<string, unknown>) : undefined
-      const metaUsed =
-        Number(meta['credits_used'] ?? 0) ||
-        Number(meta['used'] ?? 0) ||
-        Number(meta['totalCredits'] ?? 0) ||
-        Number(meta['total_credits'] ?? 0) ||
-        Number(meta['credits'] ?? 0) ||
-        Number(meta['processed_emails'] ?? 0) ||
-        Number(meta['total_emails'] ?? 0) ||
-        Number(meta['count'] ?? 0) ||
-        Number(summary?.['valid_emails'] ?? 0) ||
-        Number(dataSummary?.['valid_emails'] ?? 0)
-      const byMeta = Number.isFinite(metaUsed) && metaUsed > 0 ? metaUsed : 0
-      const byAmount = typeof t.amount === 'number' && Number.isFinite(t.amount) ? Math.abs(Number(t.amount)) : 0
-      const used = byMeta || byAmount || 1
-      return sum + used
-    }, 0)
-    let todayUsed = totalUsed
-    try {
-      const res = await apiGet<CreditTransaction[]>('/api/user/credits/transactions', { useProxy: true })
-      if (res.ok && Array.isArray(res.data)) {
-        const backendToday = (res.data as CreditTransaction[]).filter((tx) => {
-          const ds = new Date(tx.created_at).toISOString().split('T')[0]
-          return ds === todayStr && Number(tx.amount) <= 0
-        })
-        const backendTotal = backendToday.reduce((sum, tx) => {
-          const n = Math.abs(Number(tx.amount))
-          return sum + (Number.isFinite(n) ? n : 0)
-        }, 0)
-        if (backendTotal > todayUsed) todayUsed = backendTotal
-      }
-    } catch {}
-    if (todayUsed <= 0) return []
-    return [{ date: todayStr, credits_used: todayUsed }]
+    return []
   } catch (error) {
-    console.error('Error in getCreditUsageHistory:', error)
     return []
   }
 }
