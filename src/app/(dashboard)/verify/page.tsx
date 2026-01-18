@@ -273,7 +273,7 @@ export default function VerifyPage() {
 
       const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
       const verifyBulkChunk = async (emailsBatch: string[]) => {
-        const resp = await fetch('https://server.mailsfinder.com/verify-bulk', {
+        const resp = await fetch('/api/verify-bulk', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
