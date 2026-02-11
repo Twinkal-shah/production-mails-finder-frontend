@@ -2,9 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
-import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -13,19 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import {
-  Search,
-  Users,
-  CheckCircle,
-  CreditCard,
-  User,
-  LogOut,
-  Menu,
-  X,
-  PlayCircle,
-  Code2,
-} from 'lucide-react'
-import { getProfileDataClient } from '@/lib/profile'
+import { User, LogOut, Search, Users, CheckCircle, Code2 } from 'lucide-react'
 import { apiGet } from '@/lib/api'
 import { OnboardingFlow } from '@/components/onboarding-flow'
 import { toast } from 'sonner'
@@ -45,42 +31,10 @@ interface DashboardLayoutProps {
   }
 }
 
-const getNavigation = (userPlan: string) => {
-  const baseNavigation = [
-    {
-      name: 'EMAIL TOOLS',
-      items: [
-        { name: 'Find', href: '/find', icon: Search },
-        { name: 'Bulk finder', href: '/bulk-finder', icon: Users },
-        { name: 'Verify', href: '/verify', icon: CheckCircle },
-      ],
-    },
-    {
-      name: 'ACCOUNT',
-      items: [
-        { name: 'Credits & Billing', href: '/credits', icon: CreditCard },
-      ],
-    },
-  ]
-
-  const normalizedPlan = (userPlan || '').toLowerCase().trim()
-  if (normalizedPlan === 'agency' || normalizedPlan === 'lifetime') {
-    baseNavigation[1].items.push({ name: 'API', href: '/api-calls', icon: Code2 })
-  }
-
-  // Add Video Tutorials section for all plans
-  baseNavigation.push({
-    name: 'TUTORIALS',
-    items: [
-      { name: 'Video Tutorials', href: '/video-tutorials', icon: PlayCircle },
-    ],
-  })
-
-  return baseNavigation
-}
+ 
 
 export function DashboardLayout({ children, userProfile }: DashboardLayoutProps) {
-  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [isDark, setIsDark] = useState(false)
   const initialCredits =
   Math.max(userProfile.credits_find || 0, 0) + Math.max(userProfile.credits_verify || 0, 0)
 
@@ -88,9 +42,39 @@ const [currentProfile, setCurrentProfile] = useState({
   ...userProfile,
   credits: initialCredits   // 👈 override immediately
 })
-  const pathname = usePathname()
   const router = useRouter()
+  const pathname = usePathname()
   const { data: queryProfile } = useUserProfile()
+
+  useEffect(() => {
+    const stored = typeof window !== 'undefined' ? localStorage.getItem('theme') : null
+    const prefersDark = typeof window !== 'undefined' ? window.matchMedia?.('(prefers-color-scheme: dark)').matches : false
+    const enableDark = stored ? stored === 'dark' : prefersDark
+    setIsDark(enableDark)
+    try {
+      const root = document.documentElement
+      if (enableDark) {
+        root.classList.add('dark')
+      } else {
+        root.classList.remove('dark')
+      }
+    } catch {}
+  }, [])
+
+  const toggleTheme = () => {
+    const next = !isDark
+    setIsDark(next)
+    try {
+      const root = document.documentElement
+      if (next) {
+        root.classList.add('dark')
+        localStorage.setItem('theme', 'dark')
+      } else {
+        root.classList.remove('dark')
+        localStorage.setItem('theme', 'light')
+      }
+    } catch {}
+  }
 
   // Listen for focus events to refresh profile data when user returns from payment
   useEffect(() => {
@@ -265,108 +249,20 @@ const [currentProfile, setCurrentProfile] = useState({
   }
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex h-screen bg-gray-50 dark:bg-[#0b0b0b] transition-colors duration-500 ease-out">
       {/* Onboarding Flow */}
       <OnboardingFlow userProfile={currentProfile} />
       
-      {/* Mobile sidebar overlay */}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-gray-600 bg-opacity-75 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
+      
 
-      {/* Sidebar */}
-      <div
-        className={cn(
-          'fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-lg transform transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0',
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        )}
-      >
-        <div className="flex h-full flex-col">
-          {/* Logo */}
-          <div className="relative flex h-16 items-center justify-center px-6 border-b">
-            <Link href="/find" className="relative flex h-full w-full items-center justify-center">
-              <Image
-                src="/Mailsfinder black - Fav (1).png"
-                alt="MailsFinder Logo"
-                fill
-                sizes="(max-width: 768px) 100vw, 100vw"
-                className="object-contain object-center"
-              />
-            </Link>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="absolute right-6 lg:hidden"
-              onClick={() => setSidebarOpen(false)}
-            >
-              <X className="h-5 w-5" />
-            </Button>
-          </div>
-
-          {/* Navigation */}
-          <nav className="flex-1 px-4 py-6 space-y-8">
-            {getNavigation(currentProfile.plan).map((section) => (
-              <div key={section.name}>
-                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
-                  {section.name}
-                </h3>
-                <ul className="space-y-1">
-                  {section.items.map((item) => {
-                    const isActive = pathname === item.href
-                    return (
-                      <li key={item.name}>
-                        <Link
-                          href={item.href}
-                          className={cn(
-                            'group flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors',
-                            isActive
-                              ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-700'
-                              : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
-                          )}
-                          onClick={() => setSidebarOpen(false)}
-                        >
-                          <item.icon
-                            className={cn(
-                              'mr-3 h-5 w-5 flex-shrink-0',
-                              isActive ? 'text-blue-500' : 'text-gray-400 group-hover:text-gray-500'
-                            )}
-                          />
-                          {item.name}
-                        </Link>
-                      </li>
-                    )
-                  })}
-                </ul>
-              </div>
-            ))}
-          </nav>
-        </div>
-      </div>
+      
 
       {/* Main content */}
       <div className="flex flex-1 flex-col lg:pl-0">
         {/* Top bar */}
-        <header className="bg-white shadow-sm border-b">
-          <div className="flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="lg:hidden"
-              onClick={() => setSidebarOpen(true)}
-            >
-              <Menu className="h-5 w-5" />
-            </Button>
-
+        <header className="bg-white dark:bg-[#0f0f0f] shadow-sm border-b dark:border-white/10 transition-colors duration-500 ease-out">
+          <div className="mx-auto max-w-6xl w-full flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
             <div className="flex items-center space-x-4">
-              {/* Credits pill */}
-              <div className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-sm font-medium">
-                Credits: {Math.max(currentProfile.credits_find || 0, 0) + Math.max(currentProfile.credits_verify || 0, 0)}
-              </div>
-
-              {/* User menu and details link */}
               <div className="flex items-center space-x-2">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -374,16 +270,16 @@ const [currentProfile, setCurrentProfile] = useState({
                       <User className="h-5 w-5" />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-64">
+                  <DropdownMenuContent align="end" className="w-64 dark:bg-[#121212] dark:text-gray-100">
                     <div className="px-3 py-2 text-sm">
                       <div className="font-medium">{currentProfile.full_name || 'User'}</div>
-                      <div className="text-gray-500">{currentProfile.email}</div>
+                      <div className="text-gray-500 dark:text-gray-400">{currentProfile.email}</div>
                       {currentProfile.company && (
-                        <div className="text-gray-500 text-xs">{currentProfile.company}</div>
+                        <div className="text-gray-500 dark:text-gray-400 text-xs">{currentProfile.company}</div>
                       )}
                     </div>
                     <DropdownMenuSeparator />
-                    <div className="px-3 py-2 text-xs text-gray-500">
+                    <div className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">
                       <div className="flex justify-between">
                         <span>Plan:</span>
                         <span className="capitalize font-medium">{currentProfile.plan}</span>
@@ -415,18 +311,114 @@ const [currentProfile, setCurrentProfile] = useState({
                 <Link href="/user" className="hidden sm:block hover:underline">
                   {currentProfile.full_name || 'User'}
                 </Link>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  aria-label="Toggle theme"
+                  className="ml-2 hover:bg-white/10 dark:hover:bg-white/10"
+                  onClick={toggleTheme}
+                >
+                  {isDark ? (
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="h-5 w-5 fill-yellow-400" aria-hidden="true"><path d="M12 3a1 1 0 0 1 1 1v2a1 1 0 1 1-2 0V4a1 1 0 0 1 1-1Zm0 13a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm7-5a1 1 0 0 1 1 1v0a1 1 0 1 1-2 0v0a1 1 0 0 1 1-1ZM4 12a1 1 0 0 1 1-1v0a1 1 0 1 1 0 2v0a1 1 0 0 1-1-1Zm14.95 6.536a1 1 0 0 1-1.414 1.414l-1.414-1.414a1 1 0 1 1 1.414-1.414l1.414 1.414ZM7.879 7.879a1 1 0 0 1-1.415-1.415L7.879 5.05a1 1 0 0 1 1.415 1.415L7.879 7.88ZM5.05 16.121a1 1 0 0 1 1.415-1.415l1.414 1.414a1 1 0 1 1-1.415 1.415L5.05 16.121ZM16.121 7.879a1 1 0 0 1 1.415-1.415l1.414 1.414a1 1 0 1 1-1.415 1.415L16.12 7.88Z"></path></svg>
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="h-5 w-5 text-gray-900 dark:text-white" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"/></svg>
+                  )}
+                </Button>
               </div>
+            </div>
+            <div className="bg-blue-50 text-blue-700 dark:bg-white/5 dark:text-gray-200 px-3 py-1 rounded-full text-sm font-medium">
+              Credits: {Math.max(currentProfile.credits_find || 0, 0) + Math.max(currentProfile.credits_verify || 0, 0)}
             </div>
           </div>
         </header>
 
         {/* Page content */}
         <main className="flex-1 overflow-auto">
-          <div className="p-4 sm:p-6 lg:p-8">
+          <div key={pathname} className="p-4 sm:p-6 lg:p-8 pb-28 animate-fade-slide-in">
             {children}
           </div>
         </main>
       </div>
+
+      {/* Bottom Navigation */}
+      <nav
+        className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 rounded-xl border dark:border-white/10 border-gray-200 bg-white/90 dark:bg-[#121212]/95 backdrop-blur px-4 py-2 shadow-xl"
+        aria-label="Primary"
+      >
+        <ul className="flex items-center gap-2 sm:gap-4">
+          {[
+            { href: '/home', label: 'Home', icon: 'home' },
+            { href: '/find', label: 'Find Email', icon: 'search' },
+            { href: '/bulk-finder', label: 'Bulk Find', icon: 'users' },
+            { href: '/verify', label: 'Verify Email', icon: 'check' },
+            { href: '/api-calls', label: 'API', icon: 'code' },
+            { href: '/user', label: 'Account', icon: 'user' },
+          ].map((item) => {
+            const isAccount = item.icon === 'user'
+            const active = isAccount
+              ? (pathname.startsWith('/user') || pathname.startsWith('/credits'))
+              : pathname.startsWith(item.href)
+            return (
+              <li key={item.href} className={isAccount ? 'relative group' : ''}>
+                {isAccount ? (
+                  <>
+                    <div
+                      className={`group flex flex-col items-center justify-center rounded-[10px] px-3 sm:px-4 py-2 transition-all duration-200 ease-out motion-reduce:transition-none hover:scale-[1.03] active:scale-[0.98] ${
+                        active
+                          ? 'text-gray-900 dark:text-white'
+                          : 'text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/5'
+                      }`}
+                    >
+                      <span className={`h-5 w-5 transition-transform duration-200 ${active ? 'text-yellow-400' : 'text-gray-400 dark:text-gray-400'} group-hover:scale-105`}>
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm0 2c-4.42 0-8 1.79-8 4v2h16v-2c0-2.21-3.58-4-8-4z"/></svg>
+                      </span>
+                      <span className="mt-1 text-xs">Account</span>
+                    </div>
+                    {/* Invisible hover bridge to maintain hover across the gap */}
+                    <div className="absolute left-1/2 -translate-x-1/2 bottom-[calc(100%+0px)] h-3 w-48 hidden group-hover:block bg-transparent z-[59]" />
+                    <div className="absolute left-1/2 -translate-x-1/2 bottom-[calc(100%+12px)] hidden group-hover:block z-[60] w-48 rounded-xl border border-gray-200 dark:border-white/10 bg-white/95 dark:bg-[#121212]/95 shadow-lg backdrop-blur-sm p-1 space-y-1">
+                      <Link href="/credits" className="block rounded-md px-3 py-2 text-sm font-medium text-gray-800 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5 transition-colors text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/50">
+                        Credits & Billing
+                      </Link>
+                      <Link href="/user" className="block rounded-md px-3 py-2 text-sm font-medium text-gray-800 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5 transition-colors text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/50">
+                        Settings
+                      </Link>
+                    </div>
+                  </>
+                ) : (
+                  <Link
+                    href={item.href}
+                    className={`group flex flex-col items-center justify-center rounded-[10px] px-3 sm:px-4 py-2 transition-all duration-200 ease-out motion-reduce:transition-none hover:scale-[1.03] active:scale-[0.98] ${
+                      active
+                        ? 'text-gray-900 dark:text-white'
+                        : 'text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/5'
+                    }`}
+                  >
+                    <span className={`h-5 w-5 transition-transform duration-200 ${active ? 'text-yellow-400' : 'text-gray-500 dark:text-gray-300'} group-hover:scale-105`}>
+                      {item.icon === 'home' && (
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+                      )}
+                      {item.icon === 'search' && (
+                        <Search className="h-5 w-5" />
+                      )}
+                      {item.icon === 'check' && (
+                        <CheckCircle className="h-5 w-5" />
+                      )}
+                      {item.icon === 'users' && (
+                        <Users className="h-5 w-5" />
+                      )}
+                      {item.icon === 'code' && (
+                        <Code2 className="h-5 w-5" />
+                      )}
+                    </span>
+                    <span className="mt-1 text-xs">{item.label}</span>
+                  </Link>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+      </nav>
     </div>
   )
 }

@@ -1,11 +1,10 @@
 'use client'
 
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Users } from 'lucide-react'
 
 export default function VideoTutorialsPage() {
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-6xl space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-gray-900">Video Tutorials</h1>
         <p className="mt-2 text-gray-600">
@@ -50,17 +49,6 @@ export default function VideoTutorialsPage() {
         </Card>
       </div>
 
-      <div className="mt-8 p-6 bg-blue-50 rounded-lg">
-        <div className="flex items-start gap-4">
-          <Users className="h-6 w-6 text-blue-600 mt-1" />
-          <div>
-            <h3 className="font-semibold text-blue-900">Available For All Plans</h3>
-            <p className="text-blue-700 mt-1">
-              Free, Pro, Agency, and Lifetime users can access these tutorials.
-            </p>
-          </div>
-        </div>
-      </div>
     </div>
   )
 }

@@ -6,6 +6,9 @@ const nextConfig: NextConfig = {
       bodySizeLimit: '10mb', // Increase from default 1MB to 10MB for large CSV uploads
     },
   },
+  turbopack: {
+    root: __dirname,
+  },
   async rewrites() {
     const target = (process.env.NEXT_PUBLIC_SERVER_URL || process.env.NEXT_PUBLIC_LOCAL_URL || 'https://server.mailsfinder.com').replace(/\/+$/, '')
     return {

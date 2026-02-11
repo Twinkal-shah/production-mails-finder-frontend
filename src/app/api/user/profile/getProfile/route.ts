@@ -44,7 +44,23 @@ export async function GET(req: NextRequest) {
     }
     return new NextResponse(text, { status: res.status, headers: { 'content-type': contentType } })
   } catch (error) {
-    return NextResponse.json({ error: 'Proxy error', message: (error as Error).message }, { status: 500 })
+    try {
+      const user = await getCurrentUserFromCookies()
+      const fullName = user?.full_name || `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || user?.email?.split('@')[0] || 'User'
+      const profileFallback = {
+        id: user?._id || user?.id || 'client-user',
+        full_name: fullName,
+        email: user?.email || '',
+        company: user?.company ?? null,
+        plan: user?.plan || 'free',
+        plan_expiry: user?.plan_expiry ?? null,
+        credits_find: Math.max(Number(user?.credits_find ?? 0), 0),
+        credits_verify: Math.max(Number(user?.credits_verify ?? 0), 0)
+      }
+      return NextResponse.json(profileFallback, { status: 200 })
+    } catch {
+      return NextResponse.json({ error: 'Proxy error', message: (error as Error).message }, { status: 500 })
+    }
   }
 }
 

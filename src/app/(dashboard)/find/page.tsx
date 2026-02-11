@@ -98,16 +98,10 @@ export default function FindPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Find Email</h1>
-        <p className="text-gray-600 mt-2">
-          Find professional email addresses using a person&apos;s name and company domain.
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+    <div className="max-w-4xl mx-auto h-[calc(100vh-4rem-7rem)] flex items-center justify-center">
+      <div className={`grid gap-8 w-full ${result ? 'lg:grid-cols-2 lg:place-items-start' : 'grid-cols-1 place-items-center place-content-center'}`}>
         {/* Search Form */}
+        <div className="w-full max-w-lg">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -168,6 +162,7 @@ export default function FindPage() {
             </form>
           </CardContent>
         </Card>
+        </div>
 
         {/* Results */}
         <div className="space-y-6">

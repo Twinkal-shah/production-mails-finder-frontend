@@ -15,13 +15,7 @@ export default async function Layout({
   // Let's use a simpler approach by fetching directly from backend
   const user = await getCurrentUserFromCookies()
   
-  // Debug: Log the user data from cookies
-  console.log('Server-side user from cookies:', user)
-  
-  // Debug: Check what cookies are actually present
-  const cookieStore = await cookies()
-  const allCookies = cookieStore.getAll()
-  console.log('All cookies:', allCookies.map(c => ({ name: c.name, value: c.value.substring(0, 50) + '...' })))
+  // Remove server-side debug logs to prevent runtime errors in edge
   
   // If no user found via cookies, don't redirect immediately
   // Let the client-side handle authentication

@@ -434,10 +434,10 @@ const statusBadgeClass = (status?: string) => {
   const s = (status || '').toLowerCase()
   const key = s === 'found' ? 'valid' : s === 'not_found' ? 'invalid' : s
   switch (key) {
-    case 'valid': return 'bg-green-100 text-green-700 border-green-200'
-    case 'risky': return 'bg-orange-100 text-orange-700 border-orange-200'
-    case 'invalid': return 'bg-red-100 text-red-700 border-red-200'
-    default: return 'bg-gray-100 text-gray-700 border-gray-200'
+    case 'valid': return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+    case 'risky': return 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+    case 'invalid': return 'bg-rose-500/10 text-rose-400 border-rose-500/30'
+    default: return 'bg-muted text-muted-foreground border-border'
   }
 }
 
@@ -1055,10 +1055,10 @@ export default function ApiCallsPage() {
   }
 
   return (
-    <div className="w-full bg-[#f9fafb]">
+    <div className="w-full bg-background text-foreground">
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 space-y-10 relative">
       {restricted && (
-        <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/70 backdrop-blur-sm">
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/70 backdrop-blur-sm">
           <Card className="w-full max-w-md">
             <CardHeader>
               <CardTitle>Upgrade Required</CardTitle>
@@ -1241,7 +1241,7 @@ export default function ApiCallsPage() {
         <div className="lg:col-span-3 space-y-6">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <div className="w-full my-10 flex items-center justify-center">
-              <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900">
+              <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight">
                 API Docs
               </h2>
             </div>
@@ -1255,7 +1255,7 @@ export default function ApiCallsPage() {
                 const isExpanded = openDocId === doc.id
                 const tabValue = docTabs[doc.id] || 'overview'
                 return (
-                  <Card key={doc.id} className="rounded-xl border bg-white hover:shadow-md transition-shadow">
+                  <Card key={doc.id} className="rounded-xl border shadow-sm transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-md">
                     <CardHeader className="p-4 sm:p-6 cursor-pointer" onClick={() => toggleDoc(doc.id)} role="button" aria-expanded={isExpanded}>
                       <div className="flex items-center justify-between">
                         <div className="flex flex-col sm:flex-row sm:items-center sm:gap-3">
@@ -1310,7 +1310,7 @@ export default function ApiCallsPage() {
                                   {(REQUIRED_FIELDS[doc.id] || []).map((f) => (
                                     <div key={f.field} className="grid grid-cols-3 gap-2 p-3 border-t text-sm">
                                       <div className="font-mono">{f.field}</div>
-                                      <div className={cn('font-medium', f.required ? 'text-green-700' : 'text-muted-foreground')}>{f.required ? 'Yes' : 'No'}</div>
+                                      <div className={cn('font-medium', f.required ? 'text-emerald-400' : 'text-muted-foreground')}>{f.required ? 'Yes' : 'No'}</div>
                                       <div className="text-muted-foreground">{f.description}</div>
                                     </div>
                                   ))}

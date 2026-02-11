@@ -7,6 +7,7 @@ export async function GET(req: NextRequest) {
   const cookie = req.headers.get('cookie') || ''
   const auth = req.headers.get('authorization') || ''
   const { getAccessTokenFromCookies } = await import('@/lib/auth-server')
+  const { getCurrentUserFromCookies } = await import('@/lib/auth-server')
   const accessToken = await getAccessTokenFromCookies()
   
   try {
@@ -23,7 +24,20 @@ export async function GET(req: NextRequest) {
     const text = await res.text()
     return new NextResponse(text, { status: res.status, headers: { 'content-type': contentType } })
   } catch (error) {
-    return NextResponse.json({ error: 'Proxy error', message: (error as Error).message }, { status: 500 })
+    try {
+      const user = await getCurrentUserFromCookies()
+      const find = Math.max(Number(user?.credits_find ?? 0), 0)
+      const verify = Math.max(Number(user?.credits_verify ?? 0), 0)
+      return NextResponse.json({
+        credits_find: find,
+        credits_verify: verify,
+        find,
+        verify,
+        total_credits: find + verify
+      }, { status: 200 })
+    } catch {
+      return NextResponse.json({ error: 'Proxy error', message: (error as Error).message }, { status: 500 })
+    }
   }
 }
 

@@ -76,7 +76,7 @@ function LoginInner() {
       
       // Force a page reload to ensure auth state is updated
       setTimeout(() => {
-        window.location.href = '/find'
+        window.location.href = '/home'
       }, 100)
       
     } catch (e: unknown) {

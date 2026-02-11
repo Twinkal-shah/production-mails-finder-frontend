@@ -89,7 +89,7 @@ export default function UserDetailsPage() {
   const expiryStr = data?.plan_expiry ? new Date(data.plan_expiry).toLocaleDateString() : 'N/A'
 
   return (
-    <div className="space-y-8">
+    <div className="mx-auto max-w-6xl space-y-8">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold">User Details</h1>
@@ -152,4 +152,3 @@ export default function UserDetailsPage() {
     </div>
   )
 }
-

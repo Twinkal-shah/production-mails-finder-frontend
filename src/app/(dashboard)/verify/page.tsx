@@ -418,11 +418,11 @@ export default function VerifyPage() {
       </div>
 
       {/* Info Banner */}
-      <Card className="border-blue-200 bg-blue-50">
+      <Card className="border-blue-200 bg-blue-50 dark:border-blue-700/40 dark:bg-blue-900/20">
         <CardContent className="pt-6">
           <div className="flex items-start gap-3">
-            <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5" />
-            <p className="text-blue-800">
+            <AlertCircle className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5" />
+            <p className="text-blue-800 dark:text-blue-300">
               Emails found by Email Finder are already verified. You only need to use the Verifier for emails found elsewhere.
             </p>
           </div>
@@ -443,7 +443,7 @@ export default function VerifyPage() {
         <CardContent className="space-y-4">
           <div className="flex gap-4">
             <div className="flex-1">
-              <Label htmlFor="single-email">Email Address</Label>
+              <Label htmlFor="single-email" className="dark:text-gray-200">Email Address</Label>
               <Input
                 id="single-email"
                 type="email"
@@ -451,6 +451,7 @@ export default function VerifyPage() {
                 value={singleEmail}
                 onChange={(e) => setSingleEmail(e.target.value)}
                 disabled={isVerifyingSingle}
+                className="mt-2"
               />
             </div>
             <div className="flex items-end">
