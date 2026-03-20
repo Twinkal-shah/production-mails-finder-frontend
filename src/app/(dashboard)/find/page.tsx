@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
 import { toast } from 'sonner'
-import { Search, Mail, CheckCircle, Clock } from 'lucide-react'
+import { Search, Mail, CheckCircle } from 'lucide-react'
 import { findEmail as findEmailAction } from './actions'
 import { isAuthenticated, saveRedirectUrl } from '@/lib/auth'
 import { useQueryInvalidation } from '@/lib/query-invalidation'
@@ -38,6 +38,7 @@ export default function FindPage() {
   const [history, setHistory] = useState<SearchHistoryItem[]>([])
   const [fullName, setFullName] = useState('')
   const [companyDomain, setCompanyDomain] = useState('')
+  const [role, setRole] = useState('')
   const router = useRouter()
   const { invalidateCreditsData } = useQueryInvalidation()
 
@@ -51,12 +52,10 @@ export default function FindPage() {
     }
   }, [router])
 
-  const handleSubmit = async (formData: FormData) => {
-    const fullName = formData.get('fullName') as string
-    const companyDomain = formData.get('companyDomain') as string
-    const role = formData.get('role') as string
+  const handleSubmit = async () => {
+    if (isLoading) return
 
-    if (!fullName || !companyDomain) {
+    if (!fullName.trim() || !companyDomain.trim()) {
       toast.error('Please fill in all required fields')
       return
     }
@@ -115,7 +114,7 @@ export default function FindPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <form action={handleSubmit} className="space-y-4">
+              <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }} className="space-y-4">
                 <div>
                   <Label htmlFor="fullName">Full Name *</Label>
                   <Input
@@ -148,32 +147,19 @@ export default function FindPage() {
                     id="role"
                     name="role"
                     placeholder="e.g., Marketing Manager"
+                    value={role}
+                    onChange={(e) => setRole(e.target.value)}
                     disabled={isLoading}
                   />
                 </div>
 
                 <Button type="submit"
                   disabled={isLoading || !fullName.trim() || !companyDomain.trim()}
-                  className="w-full transition-all 
-             active:bg-gray-200 
-             active:text-gray-700 
-             active:shadow-inner 
-             active:scale-95
-             disabled:bg-gray-200 
-             disabled:text-gray-500
-             disabled:cursor-not-allowed
-             disabled:shadow-none">
-                  {isLoading ? (
-                    <>
-                      <Clock className="mr-2 h-4 w-4 animate-spin" />
-                      Finding Email...
-                    </>
-                  ) : (
-                    <>
-                      <Search className="mr-2 h-4 w-4" />
-                      Find Email
-                    </>
-                  )}
+                  className="w-full">
+                  <>
+                    <Search className="mr-2 h-4 w-4" />
+                    Find Email
+                  </>
                 </Button>
               </form>
             </CardContent>
