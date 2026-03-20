@@ -36,6 +36,8 @@ export default function FindPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [result, setResult] = useState<EmailResult | null>(null)
   const [history, setHistory] = useState<SearchHistoryItem[]>([])
+  const [fullName, setFullName] = useState('')
+  const [companyDomain, setCompanyDomain] = useState('')
   const router = useRouter()
   const { invalidateCreditsData } = useQueryInvalidation()
 
@@ -102,66 +104,80 @@ export default function FindPage() {
       <div className={`grid gap-8 w-full ${result ? 'lg:grid-cols-2 lg:place-items-start' : 'grid-cols-1 place-items-center place-content-center'}`}>
         {/* Search Form */}
         <div className="w-full max-w-lg">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Search className="h-5 w-5" />
-              Email Finder
-            </CardTitle>
-            <CardDescription>
-              Enter the person&apos;s details to find their email address.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form action={handleSubmit} className="space-y-4">
-              <div>
-                <Label htmlFor="fullName">Full Name *</Label>
-                <Input
-                  id="fullName"
-                  name="fullName"
-                  placeholder="e.g., John Doe"
-                  required
-                  disabled={isLoading}
-                />
-              </div>
-              
-              <div>
-                <Label htmlFor="companyDomain">Company Domain *</Label>
-                <Input
-                  id="companyDomain"
-                  name="companyDomain"
-                  placeholder="e.g., company.com"
-                  required
-                  disabled={isLoading}
-                />
-              </div>
-              
-              <div>
-                <Label htmlFor="role">Role (Optional)</Label>
-                <Input
-                  id="role"
-                  name="role"
-                  placeholder="e.g., Marketing Manager"
-                  disabled={isLoading}
-                />
-              </div>
-              
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? (
-                  <>
-                    <Clock className="mr-2 h-4 w-4 animate-spin" />
-                    Finding Email...
-                  </>
-                ) : (
-                  <>
-                    <Search className="mr-2 h-4 w-4" />
-                    Find Email
-                  </>
-                )}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Search className="h-5 w-5" />
+                Email Finder
+              </CardTitle>
+              <CardDescription>
+                Enter the person&apos;s details to find their email address.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form action={handleSubmit} className="space-y-4">
+                <div>
+                  <Label htmlFor="fullName">Full Name *</Label>
+                  <Input
+                    id="fullName"
+                    name="fullName"
+                    placeholder="e.g., John Doe"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    required
+                    disabled={isLoading}
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="companyDomain">Company Domain *</Label>
+                  <Input
+                    id="companyDomain"
+                    name="companyDomain"
+                    placeholder="e.g., company.com"
+                    value={companyDomain}
+                    onChange={(e) => setCompanyDomain(e.target.value)}
+                    required
+                    disabled={isLoading}
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="role">Role (Optional)</Label>
+                  <Input
+                    id="role"
+                    name="role"
+                    placeholder="e.g., Marketing Manager"
+                    disabled={isLoading}
+                  />
+                </div>
+
+                <Button type="submit"
+                  disabled={isLoading || !fullName.trim() || !companyDomain.trim()}
+                  className="w-full transition-all 
+             active:bg-gray-200 
+             active:text-gray-700 
+             active:shadow-inner 
+             active:scale-95
+             disabled:bg-gray-200 
+             disabled:text-gray-500
+             disabled:cursor-not-allowed
+             disabled:shadow-none">
+                  {isLoading ? (
+                    <>
+                      <Clock className="mr-2 h-4 w-4 animate-spin" />
+                      Finding Email...
+                    </>
+                  ) : (
+                    <>
+                      <Search className="mr-2 h-4 w-4" />
+                      Find Email
+                    </>
+                  )}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Results */}
@@ -205,10 +221,10 @@ export default function FindPage() {
                         s === 'risky'
                           ? 'This inbox exists, but Gmail is temporarily limiting verification.'
                           : s === 'invalid'
-                          ? 'Mailbox is not deliverable (server rejected).'
-                          : s === 'unknown'
-                          ? 'Verification could not be completed (SMTP blocked or not reachable).'
-                          : ''
+                            ? 'Mailbox is not deliverable (server rejected).'
+                            : s === 'unknown'
+                              ? 'Verification could not be completed (SMTP blocked or not reachable).'
+                              : ''
                       return msg ? <div className="text-sm text-gray-500">{msg}</div> : null
                     })()}
                   </div>
@@ -257,10 +273,10 @@ export default function FindPage() {
                                   s === 'risky'
                                     ? 'Gmail is temporarily limiting verification.'
                                     : s === 'invalid'
-                                    ? 'Mailbox is not deliverable.'
-                                    : s === 'unknown'
-                                    ? 'Verification blocked or unreachable.'
-                                    : ''
+                                      ? 'Mailbox is not deliverable.'
+                                      : s === 'unknown'
+                                        ? 'Verification blocked or unreachable.'
+                                        : ''
                                 return msg ? <p className="text-xs text-gray-400">{msg}</p> : null
                               })()}
                             </div>
