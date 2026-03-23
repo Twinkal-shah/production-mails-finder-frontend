@@ -177,7 +177,7 @@ const PREDEFINED_ENDPOINTS: PredefinedEndpoint[] = [
   {
     name: 'API-Key • Create',
     method: 'POST',
-    url: 'http://localhost:8000/api/api-key/createApiKey',
+    url: 'http://server.mailsfinder.com/api/api-key/createApiKey',
     description: 'Create a new API key (JWT required)',
     headers: [
       { id: '1', key: 'Content-Type', value: 'application/json', enabled: true },
@@ -191,7 +191,7 @@ const PREDEFINED_ENDPOINTS: PredefinedEndpoint[] = [
   {
     name: 'API-Key • Deactivate',
     method: 'DELETE',
-    url: 'http://localhost:8000/api/api-key/deactivateAPIKey/REPLACE_KEY_ID',
+    url: 'http://server.mailsfinder.com/api/api-key/deactivateAPIKey/REPLACE_KEY_ID',
     description: 'Deactivate an API key by ID (JWT required)',
     headers: [
       { id: '1', key: 'Authorization', value: 'Bearer ACCESS_TOKEN', enabled: true }
@@ -624,7 +624,7 @@ export default function ApiCallsPage() {
     }
     setCreatingKey(true)
     try {
-      const res = await apiPost<unknown>('http://localhost:8000/api/api-key/createApiKey', { keyName: name }, { includeAuth: true })
+      const res = await apiPost<unknown>('http://server.mailsfinder.com/api/api-key/createApiKey', { keyName: name }, { includeAuth: true })
       if (!res.ok) {
         const msg = typeof res.error === 'string' ? res.error : (res.error && typeof res.error === 'object' && 'message' in res.error ? String((res.error as Record<string, unknown>).message) : 'Failed to create API key')
         toast.error(msg)
