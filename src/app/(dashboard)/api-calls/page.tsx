@@ -168,7 +168,7 @@ const PREDEFINED_ENDPOINTS: PredefinedEndpoint[] = [
   {
     name: 'API-Key • List',
     method: 'GET',
-    url: 'http://localhost:8000/api/api-key/getApiKeys',
+    url: 'https://server.mailsfinder.com/api/api-key/getApiKeys',
     description: 'List all API keys (JWT required)',
     headers: [
       { id: '1', key: 'Authorization', value: 'Bearer ACCESS_TOKEN', enabled: true }
@@ -177,7 +177,7 @@ const PREDEFINED_ENDPOINTS: PredefinedEndpoint[] = [
   {
     name: 'API-Key • Create',
     method: 'POST',
-    url: 'http://server.mailsfinder.com/api/api-key/createApiKey',
+    url: 'https://server.mailsfinder.com/api/api-key/createApiKey',
     description: 'Create a new API key (JWT required)',
     headers: [
       { id: '1', key: 'Content-Type', value: 'application/json', enabled: true },
@@ -191,7 +191,7 @@ const PREDEFINED_ENDPOINTS: PredefinedEndpoint[] = [
   {
     name: 'API-Key • Deactivate',
     method: 'DELETE',
-    url: 'http://server.mailsfinder.com/api/api-key/deactivateAPIKey/REPLACE_KEY_ID',
+    url: 'https://server.mailsfinder.com/api/api-key/deactivateAPIKey/REPLACE_KEY_ID',
     description: 'Deactivate an API key by ID (JWT required)',
     headers: [
       { id: '1', key: 'Authorization', value: 'Bearer ACCESS_TOKEN', enabled: true }
@@ -593,7 +593,7 @@ export default function ApiCallsPage() {
   const fetchApiKeys = useCallback(async () => {
     setKeysLoading(true)
     try {
-      const res = await apiGet<unknown>('http://localhost:8000/api/api-key/getApiKeys', { includeAuth: true })
+      const res = await apiGet<unknown>('https://server.mailsfinder.com/api/api-key/getApiKeys', { includeAuth: true })
       if (!res.ok) {
         const msg = typeof res.error === 'string' ? res.error : (res.error && typeof res.error === 'object' && 'message' in res.error ? String((res.error as Record<string, unknown>).message) : 'Failed to fetch API keys')
         toast.error(msg)
@@ -624,7 +624,7 @@ export default function ApiCallsPage() {
     }
     setCreatingKey(true)
     try {
-      const res = await apiPost<unknown>('http://server.mailsfinder.com/api/api-key/createApiKey', { keyName: name }, { includeAuth: true })
+      const res = await apiPost<unknown>('https://server.mailsfinder.com/api/api-key/createApiKey', { keyName: name }, { includeAuth: true })
       if (!res.ok) {
         const msg = typeof res.error === 'string' ? res.error : (res.error && typeof res.error === 'object' && 'message' in res.error ? String((res.error as Record<string, unknown>).message) : 'Failed to create API key')
         toast.error(msg)
@@ -664,7 +664,7 @@ export default function ApiCallsPage() {
   const handleDeactivate = async (id: string) => {
     setDeactivatingId(id)
     try {
-      const res = await apiDelete<unknown>(`http://localhost:8000/api/api-key/deactivateAPIKey/${id}`, { includeAuth: true })
+      const res = await apiDelete<unknown>(`https://server.mailsfinder.com/api/api-key/deactivateAPIKey/${id}`, { includeAuth: true })
       if (!res.ok) {
         const msg = typeof res.error === 'string' ? res.error : (res.error && typeof res.error === 'object' && 'message' in res.error ? String((res.error as Record<string, unknown>).message) : 'Failed to deactivate API key')
         toast.error(msg)
