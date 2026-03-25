@@ -312,7 +312,6 @@ export default function VerifyPage() {
       let partialChunk = ''
       
       const totals = { valid: 0, invalid: 0, unknown: 0, processed: 0 }
-      const allResults: any[] = []
 
       while (true) {
         const { done, value } = await reader.read()
@@ -350,7 +349,6 @@ export default function VerifyPage() {
                 user_name: item?.user_name
               }
               
-              allResults.push(resultItem)
               setResults(prev => [...prev, resultItem])
               
               // Update individual row status in real-time
