@@ -372,7 +372,7 @@ export default function VerifyPage() {
                 return r
               }))
 
-              // Update local totals for later summary calculation if needed
+              // Update local totals but NOT UI counts during processing
               totals.processed++
               if (finalStatus === 'valid' || finalStatus === 'risky') totals.valid++
               else totals.invalid++
@@ -398,17 +398,31 @@ export default function VerifyPage() {
                   emailsData: updatedEmailsData
                 }
               })
-            } else if ((data.status === 'completed' || data.type === 'summary') && data.data?.summary) {
+            } else if ((data.status === 'completed' || data.type === 'summary') && (data.data?.summary || data.results)) {
                 // Final summary update from backend
-                const s = data.data.summary
+                const backendResults = data.results || []
                 
-                // Extract values safely, prioritizing results count if available
-                // If the user says "total results = results.length", we should use that
-                // However, 'results' state update is async. Let's use totals from loop.
-                
-                const finalFound = totals.valid
-                const finalTotal = totals.processed
-                const finalNotFound = totals.invalid
+                let finalFound = 0
+                let finalNotFound = 0
+                let finalTotal = 0
+
+                if (backendResults.length > 0) {
+                  // Use results from SSE data if provided
+                  backendResults.forEach((row: { status?: string; catch_all?: boolean }) => {
+                    const s = (row.status || '').toLowerCase()
+                    if (s === 'found' || s === 'guessed' || s === 'valid' || s === 'risky' || row.catch_all === true) {
+                      finalFound++
+                    } else {
+                      finalNotFound++
+                    }
+                  })
+                  finalTotal = backendResults.length
+                } else {
+                  // Fallback to local totals if results list is not in SSE data
+                  finalFound = totals.valid
+                  finalTotal = totals.processed
+                  finalNotFound = totals.invalid
+                }
 
                 // Update state with final counts
                 setValidCount(finalFound)
