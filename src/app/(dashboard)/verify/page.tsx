@@ -254,7 +254,8 @@ export default function VerifyPage() {
       processedEmails: 0,
       successfulVerifications: 0,
       failedVerifications: 0,
-      filename: originalFileName
+      filename: originalFileName,
+      emailsData: validRows.map(r => ({ ...r, status: 'pending' }))
     })
     try {
       const normalizeEmail = (e: string) => (e || '').trim().toLowerCase()
@@ -272,22 +273,6 @@ export default function VerifyPage() {
       }))
 
       const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
-      const verifyBulkChunk = async (emailsBatch: string[]) => {
-        const resp = await fetch('/api/verify-bulk', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {})
-          },
-          body: JSON.stringify({ emails: emailsBatch })
-        })
-        const body = await resp.json()
-        if (!resp.ok || body?.success === false) {
-          const status = resp.status || body?.status
-          throw { status, body }
-        }
-        return body?.data
-      }
       const normalizeStatus = (s: unknown): VerifyRow['status'] => {
         const v = typeof s === 'string' ? s.toLowerCase() : ''
         if (v === 'valid' || v === 'deliverable' || v === 'ok') return 'valid'
@@ -297,59 +282,153 @@ export default function VerifyPage() {
         if (v === 'error' || v === 'failed') return 'error'
         return 'unknown'
       }
-      setStatusText('Processing 1/1')
-      setProgress(10)
-      const totals = { valid: 0, invalid: 0, unknown: 0, processed: 0 }
-      const data = await verifyBulkChunk(uniqueEmails)
-      const s = data?.summary || {}
-      const v = Number(s?.valid_emails || 0)
-      const inv = Number(s?.invalid_emails || 0)
-      const unk = Number(s?.unknown_emails || 0)
-      const proc = Number(s?.total_emails || (Array.isArray(data?.results) ? data.results.length : 0))
-      totals.valid += v
-      totals.invalid += inv
-      totals.unknown += unk
-      totals.processed += proc
-      const items: { email?: string; status?: string; result?: string; email_status?: string; catch_all?: boolean; connections?: number; domain?: string; message?: string; mx?: string; time_exec?: number; user_name?: string }[] = Array.isArray(data?.results) ? data.results : []
-      if (items.length > 0) {
-        setResults(items.map(it => {
-          const rawMsg = typeof it?.message === 'string' ? it.message : ''
-          const baseStatus = (it?.status ?? it?.result ?? it?.email_status)
-          const normalized = normalizeStatus(baseStatus)
-          const finalStatus = it?.catch_all === true ? 'risky' : normalized
-          const finalMessage = rawMsg
-          return {
-            email: it?.email || '',
-            status: finalStatus,
-            catch_all: it?.catch_all,
-            connections: it?.connections,
-            domain: it?.domain,
-            message: finalMessage,
-            mx: it?.mx,
-            time_exec: it?.time_exec,
-            user_name: it?.user_name
-          }
-        }))
-        setRows(prev => prev.map(r => {
-          const found = items.find(it => normalizeEmail(it?.email || '') === normalizeEmail(r.email || ''))
-          if (!found) return r
-          const baseStatusVal = found?.status ?? found?.result ?? found?.email_status
-          const normalized = normalizeStatus(baseStatusVal)
-          const st = found?.catch_all === true ? 'risky' : normalized
-          return { ...r, status: st, catch_all: (typeof found.catch_all === 'boolean' ? found.catch_all : r.catch_all), domain: (typeof found.domain === 'string' ? found.domain : r.domain), mx: (typeof found.mx === 'string' ? found.mx : r.mx), user_name: (typeof found.user_name === 'string' ? found.user_name : r.user_name) }
-        }))
+
+      setStatusText('Processing...')
+      setProgress(0)
+      
+      const resp = await fetch('/api/verify-bulk', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ emails: uniqueEmails })
+      })
+
+      if (!resp.ok) {
+        let errorData = {}
+        try {
+          errorData = await resp.json()
+        } catch {}
+        throw { status: resp.status, body: errorData }
       }
-      setValidCount(totals.valid)
-      setInvalidCount(totals.invalid)
-      setUnknownCount(totals.unknown)
-      setProcessedCount(Math.max(totals.processed, validRows.length))
+
+      if (!resp.body) {
+        throw new Error('No response body available')
+      }
+
+      const reader = resp.body.getReader()
+      const decoder = new TextDecoder()
+      let partialChunk = ''
+      
+      const totals = { valid: 0, invalid: 0, unknown: 0, processed: 0 }
+      const allResults: any[] = []
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        const chunk = decoder.decode(value, { stream: true })
+        const lines = (partialChunk + chunk).split('\n')
+        partialChunk = lines.pop() || ''
+
+        for (const line of lines) {
+          const trimmedLine = line.trim()
+          if (!trimmedLine || !trimmedLine.startsWith('data:')) continue
+
+          const jsonStr = trimmedLine.replace(/^data:\s*/, '')
+          try {
+            const data = JSON.parse(jsonStr)
+            
+            // Handle result update (could be a single result or summary)
+            if (data.type === 'result' && data.data) {
+              const item = data.data
+              const rawMsg = typeof item?.message === 'string' ? item.message : ''
+              const baseStatus = (item?.status ?? item?.result ?? item?.email_status)
+              const normalized = normalizeStatus(baseStatus)
+              const finalStatus = item?.catch_all === true ? 'risky' : normalized
+              
+              const resultItem = {
+                email: item?.email || '',
+                status: finalStatus,
+                catch_all: item?.catch_all,
+                connections: item?.connections,
+                domain: item?.domain,
+                message: rawMsg,
+                mx: item?.mx,
+                time_exec: item?.time_exec,
+                user_name: item?.user_name
+              }
+              
+              allResults.push(resultItem)
+              setResults(prev => [...prev, resultItem])
+              
+              // Update individual row status in real-time
+              setRows(prev => prev.map(r => {
+                if (normalizeEmail(r.email || '') === normalizeEmail(item?.email || '')) {
+                  return { 
+                    ...r, 
+                    status: finalStatus, 
+                    catch_all: (typeof item.catch_all === 'boolean' ? item.catch_all : r.catch_all), 
+                    domain: (typeof item.domain === 'string' ? item.domain : r.domain), 
+                    mx: (typeof item.mx === 'string' ? item.mx : r.mx), 
+                    user_name: (typeof item.user_name === 'string' ? item.user_name : r.user_name) 
+                  }
+                }
+                return r
+              }))
+
+              // Update counts
+              totals.processed++
+              if (finalStatus === 'valid' || finalStatus === 'risky') totals.valid++
+              else if (finalStatus === 'invalid') totals.invalid++
+              else totals.unknown++
+
+              setProcessedCount(totals.processed)
+              setValidCount(totals.valid)
+              setInvalidCount(totals.invalid)
+              setUnknownCount(totals.unknown)
+              
+              const progressPercent = Math.min(100, (totals.processed / validRows.length) * 100)
+              setProgress(progressPercent)
+              
+              setCurrentJob(prev => {
+                if (!prev) return prev
+                const updatedEmailsData = (prev.emailsData || []).map(r => {
+                  if (normalizeEmail(r.email || '') === normalizeEmail(item?.email || '')) {
+                    return { 
+                      ...r, 
+                      status: finalStatus, 
+                      catch_all: (typeof item.catch_all === 'boolean' ? item.catch_all : r.catch_all), 
+                      domain: (typeof item.domain === 'string' ? item.domain : r.domain), 
+                      mx: (typeof item.mx === 'string' ? item.mx : r.mx), 
+                      user_name: (typeof item.user_name === 'string' ? item.user_name : r.user_name) 
+                    }
+                  }
+                  return r
+                })
+                
+                return {
+                  ...prev,
+                  processedEmails: totals.processed,
+                  successfulVerifications: totals.valid,
+                  failedVerifications: totals.invalid,
+                  emailsData: updatedEmailsData
+                }
+              })
+            } else if (data.type === 'summary' && data.data) {
+              // Final summary update if backend sends one
+              const s = data.data
+              setValidCount(Number(s?.valid_emails || totals.valid))
+              setInvalidCount(Number(s?.invalid_emails || totals.invalid))
+              setUnknownCount(Number(s?.unknown_emails || totals.unknown))
+              setProcessedCount(Number(s?.total_emails || totals.processed))
+            }
+          } catch (e) {
+            console.error('Error parsing SSE JSON:', e, jsonStr)
+          }
+        }
+      }
+
       setCurrentJob(prev => prev ? {
         ...prev,
         status: 'completed',
-        processedEmails: Math.max(totals.processed, validRows.length),
+        processedEmails: totals.processed,
         successfulVerifications: totals.valid,
-        failedVerifications: totals.invalid
+        failedVerifications: totals.invalid,
+        emailsData: prev.emailsData // Preserve existing updated emailsData
       } : prev)
+      
       setProgress(100)
       setIsProcessing(false)
       setStatusText('Completed')
@@ -542,8 +621,17 @@ export default function VerifyPage() {
               onClick={runBulkVerify}
               disabled={isProcessing || rows.length === 0}
             >
-              <Play className="mr-2 h-4 w-4" />
-              Start Bulk Verify
+              {isProcessing ? (
+                <>
+                  <Clock className="mr-2 h-4 w-4 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <Play className="mr-2 h-4 w-4" />
+                  Start Bulk Verify
+                </>
+              )}
             </Button>
             
 
