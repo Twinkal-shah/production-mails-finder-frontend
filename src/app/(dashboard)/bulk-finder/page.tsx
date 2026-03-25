@@ -124,7 +124,6 @@ export default function BulkFinderPage() {
   const [processedDirectCount, setProcessedDirectCount] = useState(0)
   const [successDirectCount, setSuccessDirectCount] = useState(0)
   const [guessedDirectCount, setGuessedDirectCount] = useState(0)
-  const [failedDirectCount, setFailedDirectCount] = useState(0)
   const [statusDirectText, setStatusDirectText] = useState('')
 
   // No job-based endpoints on backend; page runs direct bulk find only
@@ -181,7 +180,6 @@ export default function BulkFinderPage() {
           setProcessedDirectCount(0)
           setSuccessDirectCount(0)
           setGuessedDirectCount(0)
-          setFailedDirectCount(0)
           toast.success(`Loaded ${newRows.length} rows from CSV`)
         },
         error: (error) => {
@@ -237,7 +235,6 @@ export default function BulkFinderPage() {
           setProcessedDirectCount(0)
           setSuccessDirectCount(0)
           setGuessedDirectCount(0)
-          setFailedDirectCount(0)
           toast.success(`Loaded ${newRows.length} rows from Excel`)
         } catch (error) {
           toast.error('Failed to parse Excel file')
@@ -270,7 +267,6 @@ export default function BulkFinderPage() {
     setProgressDirect(0)
     setSuccessDirectCount(0)
     setGuessedDirectCount(0)
-    setFailedDirectCount(0)
     setStatusDirectText('')
     setRows(prev => prev.map(r => ({ ...r, status: 'processing' })))
     try {
@@ -310,7 +306,6 @@ export default function BulkFinderPage() {
       const { items, totalCredits } = await bulkFind(
         validRows.map(r => ({ fullName: r.fullName, domain: r.domain })),
         100, // Chunk size 100
-        1,   // Sequential
         (completed, total) => {
           setStatusDirectText(`Processing ${completed}/${total}`)
           setProgressDirect(Math.round((completed / total) * 100))
@@ -328,7 +323,6 @@ export default function BulkFinderPage() {
       const allQueue = [...validRows]
       let foundCount = 0
       let guessedCount = 0
-      let notFoundCount = 0
 
       const tryMatchRowByEmail = (emailVal: string): BulkRow | undefined => {
         const [localPart, domPart] = (emailVal || '').split('@')
@@ -393,14 +387,12 @@ export default function BulkFinderPage() {
         
         // Correct Status Mapping
         if (statusVal === 'found') {
-          foundCount++
-        } else if (statusVal === 'guessed') {
-          guessedCount++
-        } else {
-          notFoundCount++
-        }
+           foundCount++
+         } else if (statusVal === 'guessed') {
+           guessedCount++
+         }
 
-        const uiStatus: BulkRow['status'] = (statusVal === 'found' || statusVal === 'guessed' || statusVal === 'invalid') ? 'completed' : 'failed'
+         const uiStatus: BulkRow['status'] = (statusVal === 'found' || statusVal === 'guessed' || statusVal === 'invalid') ? 'completed' : 'failed'
         
         const updated: BulkRow = {
           ...row,
@@ -418,14 +410,12 @@ export default function BulkFinderPage() {
       for (const row of validRows) {
         if (!matchedIds.has(row.id)) {
           updates.set(row.id, { ...row, status: 'failed', error: 'Not Found', result_status: 'invalid' })
-          notFoundCount++
         }
       }
       
       setProcessedDirectCount(validRows.length)
       setSuccessDirectCount(foundCount)
       setGuessedDirectCount(guessedCount)
-      setFailedDirectCount(notFoundCount)
       setRows(prev => prev.map(r => updates.has(r.id) ? (updates.get(r.id) as BulkRow) : r))
       setProgressDirect(100)
       setIsProcessingDirect(false)

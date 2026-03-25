@@ -53,7 +53,6 @@ export function chunk<T>(list: T[], size: number): T[][] {
 export async function bulkFind(
   rows: Array<{ fullName: string; domain: string }>,
   chunkSize = 100,
-  _maxConcurrency = 1, // sequential as requested
   onProgress?: (completed: number, total: number) => void
 ): Promise<{ items: Array<Record<string, unknown>>; totalCredits: number }> {
   const payload = buildBulkFindPayload(rows)
@@ -105,7 +104,7 @@ export async function bulkFind(
 
   const processChunk = async (currentChunk: BulkFindItem[], retryCount = 0): Promise<void> => {
     try {
-      let resp = await fetch((sameOrigin ? `${sameOrigin}/api/email/findBulkEmail` : `${apiBase}/email/findBulkEmail`), {
+      const resp = await fetch((sameOrigin ? `${sameOrigin}/api/email/findBulkEmail` : `${apiBase}/email/findBulkEmail`), {
         method: 'POST',
         headers: buildHeaders(),
         body: JSON.stringify(currentChunk),
@@ -113,7 +112,7 @@ export async function bulkFind(
         mode: 'cors'
       })
 
-      let body: any
+      let body: Record<string, unknown>
       try {
         body = await resp.json()
       } catch {
@@ -140,8 +139,8 @@ export async function bulkFind(
         return
       }
 
-      const dataObj = body.data || {}
-      const results = Array.isArray(dataObj.results) ? dataObj.results : []
+      const dataObj = (body.data as Record<string, unknown>) || {}
+      const results = Array.isArray(dataObj.results) ? (dataObj.results as Array<Record<string, unknown>>) : []
       const credits = Number(dataObj.totalCredits ?? 0)
       
       totalCredits += credits
