@@ -312,6 +312,7 @@ export default function VerifyPage() {
       let partialChunk = ''
       
       const totals = { valid: 0, invalid: 0, unknown: 0, processed: 0 }
+      let summaryReceived = false
 
       while (true) {
         const { done, value } = await reader.read()
@@ -329,6 +330,11 @@ export default function VerifyPage() {
           try {
             const data = JSON.parse(jsonStr)
             
+            // Update progress if percentage is provided
+            if (typeof data.percentage === 'number') {
+              setProgress(data.percentage)
+            }
+
             // Handle result update (could be a single result or summary)
             if (data.type === 'result' && data.data) {
               const item = data.data
@@ -377,9 +383,6 @@ export default function VerifyPage() {
               setInvalidCount(totals.invalid)
               setUnknownCount(totals.unknown)
               
-              const progressPercent = Math.min(100, (totals.processed / validRows.length) * 100)
-              setProgress(progressPercent)
-              
               setCurrentJob(prev => {
                 if (!prev) return prev
                 const updatedEmailsData = (prev.emailsData || []).map(r => {
@@ -404,28 +407,50 @@ export default function VerifyPage() {
                   emailsData: updatedEmailsData
                 }
               })
-            } else if (data.type === 'summary' && data.data) {
-              // Final summary update if backend sends one
-              const s = data.data
-              setValidCount(Number(s?.valid_emails || totals.valid))
-              setInvalidCount(Number(s?.invalid_emails || totals.invalid))
-              setUnknownCount(Number(s?.unknown_emails || totals.unknown))
-              setProcessedCount(Number(s?.total_emails || totals.processed))
-            }
+            } else if ((data.status === 'completed' || data.type === 'summary') && data.data?.summary) {
+                // Final summary update from backend
+                const s = data.data.summary
+                
+                // Extract values safely, only updating if they are numbers
+                const v = typeof s?.valid_emails === 'number' ? s.valid_emails : totals.valid
+                const inv = typeof s?.invalid_emails === 'number' ? s.invalid_emails : totals.invalid
+                const unk = typeof s?.unknown_emails === 'number' ? s.unknown_emails : totals.unknown
+                const proc = typeof s?.total_emails === 'number' ? s.total_emails : totals.processed
+
+                // Update state with final counts from backend
+                setValidCount(v)
+                setInvalidCount(inv)
+                setUnknownCount(unk)
+                setProcessedCount(proc)
+                setProgress(100)
+                summaryReceived = true
+
+                // Update current job state with final counts
+                setCurrentJob(prev => prev ? {
+                  ...prev,
+                  status: 'completed',
+                  processedEmails: proc,
+                  successfulVerifications: v,
+                  failedVerifications: inv,
+                  emailsData: prev.emailsData
+                } : prev)
+              }
           } catch (e) {
             console.error('Error parsing SSE JSON:', e, jsonStr)
           }
         }
       }
 
-      setCurrentJob(prev => prev ? {
-        ...prev,
-        status: 'completed',
-        processedEmails: totals.processed,
-        successfulVerifications: totals.valid,
-        failedVerifications: totals.invalid,
-        emailsData: prev.emailsData // Preserve existing updated emailsData
-      } : prev)
+      if (!summaryReceived) {
+        setCurrentJob(prev => prev ? {
+          ...prev,
+          status: 'completed',
+          processedEmails: totals.processed,
+          successfulVerifications: totals.valid,
+          failedVerifications: totals.invalid,
+          emailsData: prev.emailsData // Preserve existing updated emailsData
+        } : prev)
+      }
       
       setProgress(100)
       setIsProcessing(false)
