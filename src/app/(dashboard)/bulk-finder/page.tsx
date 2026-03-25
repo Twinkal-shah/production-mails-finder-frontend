@@ -377,8 +377,8 @@ export default function BulkFinderPage() {
         const userNameVal = typeof obj.user_name === 'string' ? (obj.user_name as string) : (emailVal ? emailVal.split('@')[0] : row.user_name)
         const mxVal = typeof obj.mx === 'string' ? (obj.mx as string) : row.mx
         const errorVal = typeof obj.error === 'string' ? (obj.error as string) : (typeof obj.message === 'string' ? (obj.message as string) : undefined)
-        const uiStatus: BulkRow['status'] = statusVal === 'found' || statusVal === 'invalid' ? 'completed' : (statusVal ? 'failed' : 'completed')
-        if (statusVal === 'found') foundCount++
+        const uiStatus: BulkRow['status'] = statusVal === 'found' || statusVal === 'guessed' || statusVal === 'invalid' ? 'completed' : (statusVal ? 'failed' : 'completed')
+        if (statusVal === 'found' || statusVal === 'guessed') foundCount++
         const updated: BulkRow = {
           ...row,
           email: emailVal || row.email,
