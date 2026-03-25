@@ -52,28 +52,24 @@ export function chunk<T>(list: T[], size: number): T[][] {
 
 export async function bulkFind(
   rows: Array<{ fullName: string; domain: string }>,
-  chunkSize = 100,
+  startBatchSize = 5,
+  maxConcurrency = 2,
   onProgress?: (completed: number, total: number) => void
 ): Promise<{ items: Array<Record<string, unknown>>; totalCredits: number }> {
   const payload = buildBulkFindPayload(rows)
   if (payload.length === 0) return { items: [], totalCredits: 0 }
-  
-  const chunks = chunk(payload, chunkSize)
-  const total = payload.length
+  const total = 1
   let completed = 0
   let totalCredits = 0
   const out: Array<Record<string, unknown>> = []
-  
   const apiBase = ((process.env.NEXT_PUBLIC_CORE_API_BASE || process.env.NEXT_PUBLIC_SERVER_URL || process.env.NEXT_PUBLIC_LOCAL_URL || 'https://server.mailsfinder.com').replace(/\/+$/, '')) + '/api'
   const sameOrigin = typeof window !== 'undefined' ? window.location.origin.replace(/\/$/, '') : ''
   let accessToken: string | null = (typeof window !== 'undefined' ? localStorage.getItem('access_token') : null)
   let refreshToken: string | null = (typeof window !== 'undefined' ? localStorage.getItem('refresh_token') : null)
-  
   const buildHeaders = () => ({
     'Content-Type': 'application/json',
     ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {})
   })
-
   const tryRefresh = async () => {
     if (!refreshToken) return false
     try {
@@ -101,66 +97,59 @@ export async function bulkFind(
       return false
     }
   }
-
-  const processChunk = async (currentChunk: BulkFindItem[], retryCount = 0): Promise<void> => {
+  try {
+    let resp = await fetch((sameOrigin ? `${sameOrigin}/api/email/findBulkEmail` : `${apiBase}/email/findBulkEmail`), {
+      method: 'POST',
+      headers: buildHeaders(),
+      body: JSON.stringify(payload),
+      credentials: 'include',
+      mode: 'cors'
+    })
+    let body: unknown
     try {
-      const resp = await fetch((sameOrigin ? `${sameOrigin}/api/email/findBulkEmail` : `${apiBase}/email/findBulkEmail`), {
-        method: 'POST',
-        headers: buildHeaders(),
-        body: JSON.stringify(currentChunk),
-        credentials: 'include',
-        mode: 'cors'
-      })
-
-      let body: Record<string, unknown>
-      try {
-        body = await resp.json()
-      } catch {
-        body = {}
-      }
-
-      if (!resp.ok || body.success === false) {
-        // Handle 401/Unauthorized with refresh
-        if (resp.status === 401 || body.jwtError === true || body.message === 'unauthorized') {
-          const refreshed = await tryRefresh()
-          if (refreshed) {
-            // Retry once with new token
-            return processChunk(currentChunk, retryCount) 
+      body = await resp.json()
+    } catch {
+      body = {}
+    }
+    const bodyObj: Record<string, unknown> = typeof body === 'object' && body !== null ? (body as Record<string, unknown>) : {}
+    const bodySuccess = typeof bodyObj['success'] === 'boolean' ? (bodyObj['success'] as boolean) : undefined
+    const bodyStatus = typeof bodyObj['status'] === 'number' ? (bodyObj['status'] as number) : undefined
+    const bodyJwtError = typeof bodyObj['jwtError'] === 'boolean' ? (bodyObj['jwtError'] as boolean) : undefined
+    const bodyMessage = typeof bodyObj['message'] === 'string' ? (bodyObj['message'] as string) : undefined
+    if (!resp.ok || bodySuccess === false) {
+      const status = resp.status || bodyStatus
+      if (status === 401 || bodyJwtError === true || bodyMessage === 'unauthorized') {
+        const refreshed = await tryRefresh()
+        if (refreshed) {
+          resp = await fetch((sameOrigin ? `${sameOrigin}/api/email/findBulkEmail` : `${apiBase}/email/findBulkEmail`), {
+            method: 'POST',
+            headers: buildHeaders(),
+            body: JSON.stringify(payload),
+            credentials: 'include',
+            mode: 'cors'
+          })
+          try { body = await resp.json() } catch { body = {} }
+          const retryObj: Record<string, unknown> = typeof body === 'object' && body !== null ? (body as Record<string, unknown>) : {}
+          const retrySuccess = typeof retryObj['success'] === 'boolean' ? (retryObj['success'] as boolean) : undefined
+          const retryData = typeof retryObj['data'] === 'object' && retryObj['data'] !== null ? (retryObj['data'] as Record<string, unknown>) : undefined
+          const retryResults = Array.isArray(retryData?.['results']) ? (retryData?.['results'] as Array<Record<string, unknown>>) : []
+          const retryCredits = Number(retryData?.['totalCredits'] ?? 0)
+          if (resp.ok && retrySuccess !== false) {
+            totalCredits += retryCredits
+            for (const it of retryResults) out.push(it)
           }
         }
-
-        // Retry once for other errors
-        if (retryCount < 1) {
-          return processChunk(currentChunk, retryCount + 1)
-        }
-        
-        // If still failing after retry, we just continue with other chunks
-        console.error(`Chunk failed after ${retryCount} retries`, body)
-        return
       }
-
-      const dataObj = (body.data as Record<string, unknown>) || {}
-      const results = Array.isArray(dataObj.results) ? (dataObj.results as Array<Record<string, unknown>>) : []
-      const credits = Number(dataObj.totalCredits ?? 0)
-      
+    } else {
+      const dataObj: Record<string, unknown> | undefined = typeof bodyObj['data'] === 'object' && bodyObj['data'] !== null ? (bodyObj['data'] as Record<string, unknown>) : undefined
+      const results = Array.isArray(dataObj?.['results']) ? (dataObj?.['results'] as Array<Record<string, unknown>>) : []
+      const credits = Number(dataObj?.['totalCredits'] ?? 0)
       totalCredits += credits
-      results.forEach((it: Record<string, unknown>) => out.push(it))
-
-    } catch (error) {
-      console.error('Error processing chunk:', error)
-      if (retryCount < 1) {
-        return processChunk(currentChunk, retryCount + 1)
-      }
+      for (const it of results) out.push(it)
     }
-  }
-
-  // Sequential processing
-  for (const c of chunks) {
-    await processChunk(c)
-    completed += c.length
+  } finally {
+    completed++
     if (onProgress) onProgress(completed, total)
   }
-
   return { items: out, totalCredits }
 }
-
