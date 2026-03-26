@@ -53,7 +53,7 @@ export function chunk<T>(list: T[], size: number): T[][] {
 export async function bulkFind(
   rows: Array<{ fullName: string; domain: string }>,
   startBatchSize = 5,
-  _maxConcurrency = 2,
+  maxConcurrency = 2,
   onProgress?: (completed: number, total: number) => void
 ): Promise<{ items: Array<Record<string, unknown>>; totalCredits: number }> {
   const payload = buildBulkFindPayload(rows)
@@ -98,7 +98,7 @@ export async function bulkFind(
     }
   }
   try {
-    const currentResp = await fetch((sameOrigin ? `${sameOrigin}/api/email/findBulkEmail` : `${apiBase}/email/findBulkEmail`), {
+    let resp = await fetch((sameOrigin ? `${sameOrigin}/api/email/findBulkEmail` : `${apiBase}/email/findBulkEmail`), {
       method: 'POST',
       headers: buildHeaders(),
       body: JSON.stringify(payload),
@@ -107,7 +107,7 @@ export async function bulkFind(
     })
     let body: unknown
     try {
-      body = await currentResp.json()
+      body = await resp.json()
     } catch {
       body = {}
     }
@@ -116,25 +116,25 @@ export async function bulkFind(
     const bodyStatus = typeof bodyObj['status'] === 'number' ? (bodyObj['status'] as number) : undefined
     const bodyJwtError = typeof bodyObj['jwtError'] === 'boolean' ? (bodyObj['jwtError'] as boolean) : undefined
     const bodyMessage = typeof bodyObj['message'] === 'string' ? (bodyObj['message'] as string) : undefined
-    if (!currentResp.ok || bodySuccess === false) {
-      const status = currentResp.status || bodyStatus
+    if (!resp.ok || bodySuccess === false) {
+      const status = resp.status || bodyStatus
       if (status === 401 || bodyJwtError === true || bodyMessage === 'unauthorized') {
         const refreshed = await tryRefresh()
         if (refreshed) {
-          const retryResp = await fetch((sameOrigin ? `${sameOrigin}/api/email/findBulkEmail` : `${apiBase}/email/findBulkEmail`), {
+          resp = await fetch((sameOrigin ? `${sameOrigin}/api/email/findBulkEmail` : `${apiBase}/email/findBulkEmail`), {
             method: 'POST',
             headers: buildHeaders(),
             body: JSON.stringify(payload),
             credentials: 'include',
             mode: 'cors'
           })
-          try { body = await retryResp.json() } catch { body = {} }
+          try { body = await resp.json() } catch { body = {} }
           const retryObj: Record<string, unknown> = typeof body === 'object' && body !== null ? (body as Record<string, unknown>) : {}
           const retrySuccess = typeof retryObj['success'] === 'boolean' ? (retryObj['success'] as boolean) : undefined
           const retryData = typeof retryObj['data'] === 'object' && retryObj['data'] !== null ? (retryObj['data'] as Record<string, unknown>) : undefined
           const retryResults = Array.isArray(retryData?.['results']) ? (retryData?.['results'] as Array<Record<string, unknown>>) : []
           const retryCredits = Number(retryData?.['totalCredits'] ?? 0)
-          if (retryResp.ok && retrySuccess !== false) {
+          if (resp.ok && retrySuccess !== false) {
             totalCredits += retryCredits
             for (const it of retryResults) out.push(it)
           }

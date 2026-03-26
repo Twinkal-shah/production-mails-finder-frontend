@@ -275,8 +275,8 @@ export default function VerifyPage() {
       const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
       const normalizeStatus = (s: unknown): VerifyRow['status'] => {
         const v = typeof s === 'string' ? s.toLowerCase() : ''
-        if (v === 'valid' || v === 'deliverable' || v === 'ok' || v === 'found' || v === 'guessed') return 'valid'
-        if (v === 'invalid' || v === 'undeliverable' || v === 'not_found') return 'invalid'
+        if (v === 'valid' || v === 'deliverable' || v === 'ok') return 'valid'
+        if (v === 'invalid' || v === 'undeliverable') return 'invalid'
         if (v === 'unknown') return 'unknown'
         if (v === 'risky' || v === 'catch_all' || v === 'catchall') return 'risky'
         if (v === 'error' || v === 'failed') return 'error'
@@ -372,10 +372,16 @@ export default function VerifyPage() {
                 return r
               }))
 
-              // Update local totals but NOT UI counts during processing
+              // Update counts
               totals.processed++
               if (finalStatus === 'valid' || finalStatus === 'risky') totals.valid++
-              else totals.invalid++
+              else if (finalStatus === 'invalid') totals.invalid++
+              else totals.unknown++
+
+              setProcessedCount(totals.processed)
+              setValidCount(totals.valid)
+              setInvalidCount(totals.invalid)
+              setUnknownCount(totals.unknown)
               
               setCurrentJob(prev => {
                 if (!prev) return prev
@@ -395,40 +401,27 @@ export default function VerifyPage() {
                 
                 return {
                   ...prev,
+                  processedEmails: totals.processed,
+                  successfulVerifications: totals.valid,
+                  failedVerifications: totals.invalid,
                   emailsData: updatedEmailsData
                 }
               })
-            } else if ((data.status === 'completed' || data.type === 'summary') && (data.data?.summary || data.results)) {
+            } else if ((data.status === 'completed' || data.type === 'summary') && data.data?.summary) {
                 // Final summary update from backend
-                const backendResults = data.results || []
+                const s = data.data.summary
                 
-                let finalFound = 0
-                let finalNotFound = 0
-                let finalTotal = 0
+                // Extract values safely, only updating if they are numbers
+                const v = typeof s?.valid_emails === 'number' ? s.valid_emails : totals.valid
+                const inv = typeof s?.invalid_emails === 'number' ? s.invalid_emails : totals.invalid
+                const unk = typeof s?.unknown_emails === 'number' ? s.unknown_emails : totals.unknown
+                const proc = typeof s?.total_emails === 'number' ? s.total_emails : totals.processed
 
-                if (backendResults.length > 0) {
-                  // Use results from SSE data if provided
-                  backendResults.forEach((row: { status?: string; catch_all?: boolean }) => {
-                    const s = (row.status || '').toLowerCase()
-                    if (s === 'found' || s === 'guessed' || s === 'valid' || s === 'risky' || row.catch_all === true) {
-                      finalFound++
-                    } else {
-                      finalNotFound++
-                    }
-                  })
-                  finalTotal = backendResults.length
-                } else {
-                  // Fallback to local totals if results list is not in SSE data
-                  finalFound = totals.valid
-                  finalTotal = totals.processed
-                  finalNotFound = totals.invalid
-                }
-
-                // Update state with final counts
-                setValidCount(finalFound)
-                setInvalidCount(finalNotFound)
-                setUnknownCount(0)
-                setProcessedCount(finalTotal)
+                // Update state with final counts from backend
+                setValidCount(v)
+                setInvalidCount(inv)
+                setUnknownCount(unk)
+                setProcessedCount(proc)
                 setProgress(100)
                 summaryReceived = true
 
@@ -436,9 +429,9 @@ export default function VerifyPage() {
                 setCurrentJob(prev => prev ? {
                   ...prev,
                   status: 'completed',
-                  processedEmails: finalTotal,
-                  successfulVerifications: finalFound,
-                  failedVerifications: finalNotFound,
+                  processedEmails: proc,
+                  successfulVerifications: v,
+                  failedVerifications: inv,
                   emailsData: prev.emailsData
                 } : prev)
               }
@@ -449,11 +442,6 @@ export default function VerifyPage() {
       }
 
       if (!summaryReceived) {
-        setValidCount(totals.valid)
-        setInvalidCount(totals.invalid)
-        setUnknownCount(0)
-        setProcessedCount(totals.processed)
-
         setCurrentJob(prev => prev ? {
           ...prev,
           status: 'completed',
