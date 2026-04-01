@@ -334,7 +334,7 @@ const [currentProfile, setCurrentProfile] = useState({
 
         {/* Page content */}
         <main className="flex-1 overflow-auto">
-          <div key={pathname} className="p-4 sm:p-6 lg:p-8 pb-28 animate-fade-slide-in">
+          <div key={pathname} className="p-4 sm:p-6 lg:p-8 pb-32 animate-fade-slide-in">
             {children}
           </div>
         </main>
