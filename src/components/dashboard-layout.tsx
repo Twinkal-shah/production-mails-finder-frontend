@@ -249,7 +249,7 @@ const [currentProfile, setCurrentProfile] = useState({
   }
 
   return (
-    <div className="flex h-screen bg-gray-50 dark:bg-[#0b0b0b] transition-colors duration-500 ease-out">
+    <div className="flex h-screen bg-background transition-colors duration-500 ease-out">
       {/* Onboarding Flow */}
       <OnboardingFlow userProfile={currentProfile} />
       
@@ -263,6 +263,14 @@ const [currentProfile, setCurrentProfile] = useState({
         <header className="bg-white dark:bg-[#0f0f0f] shadow-sm border-b dark:border-white/10 transition-colors duration-500 ease-out">
           <div className="mx-auto max-w-6xl w-full flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
             <div className="flex items-center space-x-4">
+              <Link href="/home" className="flex items-center gap-2">
+                <span className="inline-flex h-6 w-6 items-center justify-center rounded-md" aria-hidden="true">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="h-6 w-6" fill="currentColor" style={{ color: 'var(--primary)' }}>
+                    <path d="M20 4H4a2 2 0 0 0-2 2v.5l10 6 10-6V6a2 2 0 0 0-2-2Zm0 4.236-8 4.8-8-4.8V18a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8.236Z"/>
+                  </svg>
+                </span>
+                <span className="text-lg font-black tracking-tight">Mailsfinder</span>
+              </Link>
               <div className="flex items-center space-x-2">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -326,23 +334,21 @@ const [currentProfile, setCurrentProfile] = useState({
                 </Button>
               </div>
             </div>
-            <div className="bg-blue-50 text-blue-700 dark:bg-white/5 dark:text-gray-200 px-3 py-1 rounded-full text-sm font-medium">
+            <div className="border border-[var(--primary)] text-foreground bg-transparent px-3 py-1 rounded-full text-sm font-medium">
               Credits: {Math.max(currentProfile.credits_find || 0, 0) + Math.max(currentProfile.credits_verify || 0, 0)}
             </div>
           </div>
         </header>
 
         {/* Page content */}
-        <main className="flex-1 overflow-auto">
-          <div key={pathname} className="p-4 sm:p-6 lg:p-8 pb-32 animate-fade-slide-in">
-            {children}
-          </div>
+        <main className="flex-1 px-4 py-4 sm:px-6 sm:py-6 md:px-8 md:py-8 md:pt-8 pb-24">
+         {children}
         </main>
       </div>
 
       {/* Bottom Navigation */}
       <nav
-        className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 rounded-xl border dark:border-white/10 border-gray-200 bg-white/90 dark:bg-[#121212]/95 backdrop-blur px-4 py-2 shadow-xl"
+        className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 rounded-xl border bg-white/90 dark:bg-[#121212]/95 backdrop-blur px-4 py-2 shadow-xl"
         aria-label="Primary"
       >
         <ul className="flex items-center gap-2 sm:gap-4">
@@ -363,13 +369,14 @@ const [currentProfile, setCurrentProfile] = useState({
                 {isAccount ? (
                   <>
                     <div
-                      className={`group flex flex-col items-center justify-center rounded-[10px] px-3 sm:px-4 py-2 transition-all duration-200 ease-out motion-reduce:transition-none hover:scale-[1.03] active:scale-[0.98] ${
+                      className={`group relative flex flex-col items-center justify-center rounded-[10px] px-3 sm:px-4 py-2 transition-all duration-200 ease-out motion-reduce:transition-none hover:scale-[1.03] active:scale-[0.98] ${
                         active
-                          ? 'text-gray-900 dark:text-white'
-                          : 'text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/5'
+                          ? 'text-[var(--primary)]'
+                          : 'text-[#5a4042] dark:text-[#e2bebf] hover:bg-black/5 dark:hover:bg-white/5'
                       }`}
                     >
-                      <span className={`h-5 w-5 transition-transform duration-200 ${active ? 'text-yellow-400' : 'text-gray-400 dark:text-gray-400'} group-hover:scale-105`}>
+                      {active && <span aria-hidden className="absolute -top-0.5 h-[2px] w-6 rounded-full" style={{ backgroundColor: 'var(--primary)' }} />}
+                      <span className={`h-5 w-5 transition-transform duration-200 ${active ? 'text-[var(--primary)]' : 'text-gray-400 dark:text-gray-400'} group-hover:scale-105`}>
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm0 2c-4.42 0-8 1.79-8 4v2h16v-2c0-2.21-3.58-4-8-4z"/></svg>
                       </span>
                       <span className="mt-1 text-xs">Account</span>
@@ -388,13 +395,14 @@ const [currentProfile, setCurrentProfile] = useState({
                 ) : (
                   <Link
                     href={item.href}
-                    className={`group flex flex-col items-center justify-center rounded-[10px] px-3 sm:px-4 py-2 transition-all duration-200 ease-out motion-reduce:transition-none hover:scale-[1.03] active:scale-[0.98] ${
+                    className={`group relative flex flex-col items-center justify-center rounded-[10px] px-3 sm:px-4 py-2 transition-all duration-200 ease-out motion-reduce:transition-none hover:scale-[1.03] active:scale-[0.98] ${
                       active
-                        ? 'text-gray-900 dark:text-white'
-                        : 'text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/5'
+                        ? 'text-[var(--primary)]'
+                        : 'text-[#5a4042] dark:text-[#e2bebf] hover:bg-black/5 dark:hover:bg-white/5'
                     }`}
                   >
-                    <span className={`h-5 w-5 transition-transform duration-200 ${active ? 'text-yellow-400' : 'text-gray-500 dark:text-gray-300'} group-hover:scale-105`}>
+                    {active && <span aria-hidden className="absolute -top-0.5 h-[2px] w-6 rounded-full" style={{ backgroundColor: 'var(--primary)' }} />}
+                    <span className={`h-5 w-5 transition-transform duration-200 ${active ? 'text-[var(--primary)]' : 'text-gray-500 dark:text-gray-300'} group-hover:scale-105`}>
                       {item.icon === 'home' && (
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
                       )}

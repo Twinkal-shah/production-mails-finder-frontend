@@ -99,7 +99,10 @@ export default function FindPage() {
   }
 
   return (
-    <div className={`mx-auto min-h-screen flex flex-col transition-all duration-700 ease-in-out ${result ? 'max-w-6xl' : 'max-w-lg justify-center pt-10'}`}>
+    <div className={`mx-auto h-full flex flex-col items-center transition-all duration-700 ease-in-out ${result 
+  ? 'max-w-6xl mt-6' 
+  : 'max-w-lg min-h-[calc(100vh-140px)] flex items-center justify-center'
+}`}>
       <div className={`grid gap-8 w-full transition-all duration-700 ease-in-out ${result ? 'lg:grid-cols-2' : 'grid-cols-1'}`}>
         {/* Search Form */}
         <div className={`w-full transition-all duration-700 ease-in-out ${result ? 'lg:sticky top-6 self-start' : 'mb-12'}`}>
@@ -115,8 +118,8 @@ export default function FindPage() {
             </CardHeader>
             <CardContent>
               <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }} className="space-y-4">
-                <div>
-                  <Label htmlFor="fullName">Full Name *</Label>
+                <div className="mb-5">
+                  <Label htmlFor="fullName" className="mb-2">Full Name *</Label>
                   <Input
                     id="fullName"
                     name="fullName"
@@ -125,11 +128,12 @@ export default function FindPage() {
                     onChange={(e) => setFullName(e.target.value)}
                     required
                     disabled={isLoading}
+                    className="text-white placeholder-[#e2bebf]/50"
                   />
                 </div>
 
-                <div>
-                  <Label htmlFor="companyDomain">Company Domain *</Label>
+                <div className="mb-5">
+                  <Label htmlFor="companyDomain" className="mb-2">Company Domain *</Label>
                   <Input
                     id="companyDomain"
                     name="companyDomain"
@@ -138,11 +142,12 @@ export default function FindPage() {
                     onChange={(e) => setCompanyDomain(e.target.value)}
                     required
                     disabled={isLoading}
+                    className="text-white placeholder-[#e2bebf]/50"
                   />
                 </div>
 
-                <div>
-                  <Label htmlFor="role">Role (Optional)</Label>
+                <div className="mb-5">
+                  <Label htmlFor="role" className="mb-2">Role (Optional)</Label>
                   <Input
                     id="role"
                     name="role"
@@ -150,6 +155,7 @@ export default function FindPage() {
                     value={role}
                     onChange={(e) => setRole(e.target.value)}
                     disabled={isLoading}
+                    className="text-white placeholder-[#e2bebf]/50"
                   />
                 </div>
 
@@ -235,7 +241,7 @@ export default function FindPage() {
               <CardContent>
                 <div className="space-y-3">
                   {history.map((item) => (
-                    <div key={item.id} className="border-l-4 border-blue-200 pl-4 py-2">
+                    <div key={item.id} className="border-l-4 pl-4 py-2" style={{ borderLeftColor: 'rgba(226,190,191,0.5)' }}>
                       <div className="flex justify-between items-start">
                         <div>
                           <p className="font-medium text-sm">

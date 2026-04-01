@@ -134,8 +134,10 @@ export function OnboardingFlow({ userProfile }: OnboardingFlowProps) {
           </Button>
           
           <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <currentStepData.icon className="h-6 w-6 text-blue-600" />
+            <div className="p-2 rounded-lg" style={{ backgroundColor: 'rgba(183,29,63,0.06)' }}>
+              <span style={{ color: 'var(--primary)' }}>
+                <currentStepData.icon className="h-6 w-6" />
+              </span>
             </div>
             <div>
               <CardTitle className="text-lg">Welcome to MailsFinder!</CardTitle>
@@ -198,7 +200,7 @@ export function OnboardingFlow({ userProfile }: OnboardingFlowProps) {
                 key={step.id}
                 className={`h-2 w-8 rounded-full transition-colors ${
                   index <= currentStep
-                    ? 'bg-blue-600'
+                    ? 'bg-[var(--primary)]'
                     : 'bg-gray-200'
                 }`}
               />

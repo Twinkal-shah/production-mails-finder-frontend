@@ -89,11 +89,11 @@ export default function UserDetailsPage() {
   const expiryStr = data?.plan_expiry ? new Date(data.plan_expiry).toLocaleDateString() : 'N/A'
 
   return (
-    <div className="mx-auto max-w-6xl space-y-8">
+    <div className="mx-auto max-w-6xl space-y-8 user-details">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">User Details</h1>
-          <p className="text-sm text-gray-500">Essential information about your account</p>
+          <h1 className="text-2xl font-semibold dark:text-white">User Details</h1>
+          <p className="text-sm text-gray-500 dark:text-[#e2bebf]">Essential information about your account</p>
         </div>
       </div>
 
@@ -121,7 +121,7 @@ export default function UserDetailsPage() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-l-[3px]" style={{ borderLeftColor: 'var(--primary)' }}>
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Plan & Credits</CardTitle>
             <CardDescription>Current subscription and available credits</CardDescription>
@@ -132,7 +132,7 @@ export default function UserDetailsPage() {
                 <Crown className="h-5 w-5 text-gray-400" />
                 <span className="font-medium capitalize">{data?.plan || 'free'}</span>
               </div>
-              <Badge className={planColor}>{(data?.plan || 'Free').toString()}</Badge>
+              <Badge className="bg-[var(--primary)] text-white">{(data?.plan || 'Free').toString()}</Badge>
             </div>
             <div className="flex items-center space-x-3">
               <Calendar className="h-5 w-5 text-gray-400" />
@@ -140,11 +140,15 @@ export default function UserDetailsPage() {
             </div>
             <div className="flex items-center space-x-3">
               <Coins className="h-5 w-5 text-gray-400" />
-              <span className="text-gray-700">Find: {Math.max(data?.credits_find || 0, 0)}</span>
+              <span className="text-gray-700">
+                Find: <span style={{ color: 'var(--primary)' }}>{Math.max(data?.credits_find || 0, 0)}</span>
+              </span>
             </div>
             <div className="flex items-center space-x-3">
               <Coins className="h-5 w-5 text-gray-400" />
-              <span className="text-gray-700">Verify: {Math.max(data?.credits_verify || 0, 0)}</span>
+              <span className="text-gray-700">
+                Verify: <span style={{ color: 'var(--primary)' }}>{Math.max(data?.credits_verify || 0, 0)}</span>
+              </span>
             </div>
           </CardContent>
         </Card>

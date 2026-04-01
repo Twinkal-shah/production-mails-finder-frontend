@@ -1,5 +1,5 @@
 import type { Metadata } from "next"
-import { Bricolage_Grotesque } from "next/font/google"
+import { Space_Grotesk } from "next/font/google"
 import "./globals.css"
 import { Toaster } from "@/components/ui/sonner"
 import { QueryProvider } from "@/components/providers/query-provider"
@@ -8,10 +8,9 @@ import Script from "next/script"
 import GtmPageview from "../components/gtm-pageview"
 import { Suspense } from "react"
 
-const bricolage = Bricolage_Grotesque({
+const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
   weight: ["300", "400", "500", "600", "700"],
-  variable: "--font-geist-sans",
 })
 
 export const metadata: Metadata = {
@@ -41,7 +40,7 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 })(window,document,'script','dataLayer','GTM-WV6JKFGV');`}</Script>
       </head>
       <body
-        className={`${bricolage.variable} font-sans antialiased`}
+        className={`${spaceGrotesk.className} antialiased`}
       >
         <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-WV6JKFGV" height="0" width="0" style={{ display: "none", visibility: "hidden" }}></iframe></noscript>
         <QueryProvider>

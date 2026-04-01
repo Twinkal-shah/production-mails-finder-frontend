@@ -48,7 +48,7 @@ function ThankYouContent() {
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: 'var(--primary)' }}></div>
       </div>
     )
   }
@@ -58,7 +58,7 @@ function ThankYouContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-green-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-[rgba(183,29,63,0.06)] via-white to-rose-50 flex items-center justify-center p-4">
       <div className="max-w-2xl w-full space-y-8">
         {/* Success Icon and Header */}
         <div className="text-center space-y-4">
@@ -90,7 +90,7 @@ function ThankYouContent() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {paymentDetails.amount && (
                 <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                  <CreditCard className="h-5 w-5 text-blue-600" />
+                  <CreditCard className="h-5 w-5" style={{ color: 'var(--primary)' }} />
                   <div>
                     <p className="text-sm text-gray-600">Amount Paid</p>
                     <p className="font-semibold text-gray-900">${paymentDetails.amount}</p>
@@ -120,9 +120,9 @@ function ThankYouContent() {
             </div>
             
             {/* What's Next Section */}
-            <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <h3 className="font-semibold text-blue-900 mb-2">What&apos;s Next?</h3>
-              <ul className="text-sm text-blue-800 space-y-1">
+            <div className="mt-6 p-4 rounded-lg" style={{ backgroundColor: 'rgba(183,29,63,0.06)', border: '1px solid rgba(183,29,63,0.25)' }}>
+              <h3 className="font-semibold mb-2" style={{ color: 'var(--primary)' }}>What&apos;s Next?</h3>
+              <ul className="text-sm space-y-1" style={{ color: 'var(--primary)' }}>
                 <li>&bull; Your credits are now available in your account</li>
                 <li>&bull; Start finding and verifying email addresses</li>
                 <li>&bull; Check your credit balance anytime in the Credits page</li>
@@ -134,7 +134,7 @@ function ThankYouContent() {
 
         {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <Button asChild size="lg" className="bg-blue-600 hover:bg-blue-700">
+          <Button asChild size="lg" className="">
             <Link href="/find" className="flex items-center gap-2">
               Start Finding Emails
               <ArrowRight className="h-4 w-4" />
@@ -160,7 +160,7 @@ function ThankYouContent() {
         <div className="text-center text-sm text-gray-500 space-y-2">
           <p>
             Need help? Contact our support team at{' '}
-            <a href="mailto:support@mailsfinder.com" className="text-blue-600 hover:underline">
+            <a href="mailto:support@mailsfinder.com" className="hover:underline" style={{ color: 'var(--primary)' }}>
               support@mailsfinder.com
             </a>
           </p>

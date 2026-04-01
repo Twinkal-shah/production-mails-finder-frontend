@@ -52,7 +52,7 @@ export default function HomePage() {
   return (
     <div className="mx-auto max-w-6xl">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">MailFinder</h1>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Mailsfinder</h1>
         <p className="text-gray-600 dark:text-gray-300">Quick access to all tools</p>
       </div>
 
@@ -62,7 +62,9 @@ export default function HomePage() {
             <Card className="bg-white dark:bg-[#131313] border-gray-200 dark:border-white/10 transition-transform duration-200 ease-out motion-reduce:transition-none relative hover:-translate-y-[2px] hover:scale-[1.01] hover:shadow-none hover:border-gray-200 dark:hover:border-white/10 hover-gradient-border">
               <CardHeader>
                 <CardTitle className="flex items-center gap-3 text-gray-900 dark:text-gray-50">
-                  <Icon className="h-5 w-5 text-gray-500 dark:text-gray-300" />
+                  <span className="inline-flex p-2 rounded-md" style={{ backgroundColor: 'rgba(183,29,63,0.06)', color: 'var(--primary)' }}>
+                    <Icon className="h-5 w-5" />
+                  </span>
                   {title}
                 </CardTitle>
                 <CardDescription className="text-gray-600 dark:text-gray-400">
@@ -80,7 +82,9 @@ export default function HomePage() {
             <Card className="bg-white dark:bg-[#131313] border-gray-200 dark:border-white/10 transition-transform duration-200 ease-out motion-reduce:transition-none relative hover:-translate-y-[2px] hover:scale-[1.01] hover:shadow-none hover:border-gray-200 dark:hover:border-white/10 hover-gradient-border">
               <CardHeader>
                 <CardTitle className="flex items-center gap-3 text-gray-900 dark:text-gray-50">
-                  <Users className="h-5 w-5 text-gray-500 dark:text-gray-300" />
+                  <span className="inline-flex p-2 rounded-md" style={{ backgroundColor: 'rgba(183,29,63,0.06)', color: 'var(--primary)' }}>
+                    <Users className="h-5 w-5" />
+                  </span>
                   Join Our Community
                 </CardTitle>
                 <CardDescription className="text-gray-600 dark:text-gray-400">
@@ -103,7 +107,9 @@ export default function HomePage() {
             >
               <CardHeader>
                 <CardTitle className="flex items-center gap-3 text-gray-900 dark:text-gray-50">
-                  <Users className="h-5 w-5 text-gray-500 dark:text-gray-300" />
+                  <span className="inline-flex p-2 rounded-md" style={{ backgroundColor: 'rgba(183,29,63,0.06)', color: 'var(--primary)' }}>
+                    <Users className="h-5 w-5" />
+                  </span>
                   Join Our Community
                   <Lock className="ml-auto h-4 w-4 text-gray-400 dark:text-gray-500" />
                 </CardTitle>

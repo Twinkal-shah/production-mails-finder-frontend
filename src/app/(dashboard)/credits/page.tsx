@@ -222,8 +222,8 @@ if (isPurchaseArray(parsed)) {
       {
         label: 'Credits Used',
         data: filledUsage.map(item => item.totalCreditsUsed),
-        borderColor: 'rgb(59, 130, 246)',
-        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+        borderColor: '#b71d3f',
+        backgroundColor: 'rgba(183, 29, 63, 0.10)',
         tension: 0.1,
         fill: true
       }
@@ -716,7 +716,7 @@ const handleManageBilling = async () => {
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
+    <div className="credits-page max-w-4xl mx-auto space-y-8">
 
       
       <div>
@@ -737,7 +737,7 @@ const handleManageBilling = async () => {
         <CardContent>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-3xl font-bold text-blue-600">
+              <p className="text-3xl font-bold" style={{ color: 'var(--primary)' }}>
                 {profile?.total_credits || 0}
               </p>
               <p className="text-gray-600">Total Available Credits</p>
@@ -832,7 +832,7 @@ const handleManageBilling = async () => {
             {currentPlan.price} {currentPlan.duration}
           </p>
         </div>
-        <Badge className={`${currentPlan.color || 'bg-gray-100 text-gray-800'} dark:bg-white/10 dark:text-gray-100`}>
+        <Badge className="bg-[var(--primary)] text-white">
           {(profile?.plan ?? 'free').toString().toUpperCase()}
         </Badge>
       </div>
@@ -862,7 +862,7 @@ const handleManageBilling = async () => {
       <div className="pt-4 border-t">
         <div className="grid grid-cols-2 gap-4 text-center">
           <div>
-            <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{profile.credits_find}</p>
+            <p className="text-2xl font-bold" style={{ color: 'var(--primary)' }}>{profile.credits_find}</p>
             <p className="text-sm text-gray-600 dark:text-gray-300">Find Credits</p>
           </div>
           <div>
@@ -928,7 +928,7 @@ const handleManageBilling = async () => {
                     isCurrentPlan 
                       ? 'border-green-500 border-2 shadow-lg bg-green-50 dark:bg-green-900/25 dark:border-green-400/60' 
                       : plan.popular 
-                      ? 'border-blue-500 border-2 shadow-lg' 
+                      ? 'border-[var(--primary)] border-2 shadow-lg' 
                       : ''
                   }`}
                 >
@@ -941,7 +941,7 @@ const handleManageBilling = async () => {
                   )}
                   {plan.popular && !isCurrentPlan && (
                     <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                      <span className="bg-blue-500 text-white text-sm px-3 py-1 rounded-full font-medium">
+                      <span className="text-white text-sm px-3 py-1 rounded-full font-medium" style={{ backgroundColor: 'var(--primary)' }}>
                         Most Popular
                       </span>
                     </div>
@@ -949,7 +949,7 @@ const handleManageBilling = async () => {
                   <CardContent className="pt-6">
                     <div className="text-center mb-6">
                       <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2">{plan.name}</h3>
-                      <div className="text-3xl font-bold text-blue-600 dark:text-blue-400 mb-1">
+                      <div className="text-3xl font-bold mb-1" style={{ color: 'var(--primary)' }}>
                         ${plan.price}
                       </div>
                       <div className="text-sm text-gray-600 dark:text-gray-300">
@@ -960,7 +960,7 @@ const handleManageBilling = async () => {
                     <div className="space-y-3 mb-6">
                       {plan.features.map((feature, index) => (
                         <div key={index} className="flex items-start gap-2">
-                          <div className="w-1.5 h-1.5 bg-blue-500 rounded-full mt-2 flex-shrink-0"></div>
+                          <div className="w-1.5 h-1.5 rounded-full mt-2 flex-shrink-0" style={{ backgroundColor: 'var(--primary)' }}></div>
                           <span className="text-sm text-gray-600 dark:text-gray-300">{feature}</span>
                         </div>
                       ))}
@@ -1023,7 +1023,7 @@ const handleManageBilling = async () => {
                     {creditPackage.credits.toLocaleString()}
                   </div>
                   <div className="text-xs text-gray-500 mb-3">Credits</div>
-                  <div className="text-xl font-bold text-blue-600 mb-3">
+                  <div className="text-xl font-bold mb-3" style={{ color: 'var(--primary)' }}>
                     ${creditPackage.price}
                   </div>
                   <p className="text-xs text-gray-600 mb-4">

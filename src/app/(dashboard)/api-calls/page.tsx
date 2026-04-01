@@ -1260,7 +1260,7 @@ export default function ApiCallsPage() {
                       <div className="flex items-center justify-between">
                         <div className="flex flex-col sm:flex-row sm:items-center sm:gap-3">
                           <div className="flex items-center gap-2">
-                            <Badge variant="outline" className="text-xs">{doc.method}</Badge>
+                            <Badge variant="outline" className={cn('text-xs', doc.method === 'POST' ? 'bg-[var(--primary)] text-white border-transparent' : '')}>{doc.method}</Badge>
                             <CardTitle className="text-lg">{doc.name}</CardTitle>
                           </div>
                           <CardDescription>{doc.description}</CardDescription>

@@ -519,17 +519,7 @@ export default function VerifyPage() {
         </p>
       </div>
 
-      {/* Info Banner */}
-      <Card className="border-blue-200 bg-blue-50 dark:border-blue-700/40 dark:bg-blue-900/20">
-        <CardContent className="pt-6">
-          <div className="flex items-start gap-3">
-            <AlertCircle className="h-5 w-5 text-blue-600 dark:text-blue-400 mt-0.5" />
-            <p className="text-blue-800 dark:text-blue-300">
-              Emails found by Email Finder are already verified. You only need to use the Verifier for emails found elsewhere.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Info Banner removed per UI cleanup request */}
 
       {/* Single Email Verification */}
       <Card>
@@ -545,7 +535,7 @@ export default function VerifyPage() {
         <CardContent className="space-y-4">
           <div className="flex gap-4">
             <div className="flex-1">
-              <Label htmlFor="single-email" className="dark:text-gray-200">Email Address</Label>
+              <Label htmlFor="single-email" className="mb-2 dark:text-gray-200">Email Address</Label>
               <Input
                 id="single-email"
                 type="email"
@@ -553,11 +543,11 @@ export default function VerifyPage() {
                 value={singleEmail}
                 onChange={(e) => setSingleEmail(e.target.value)}
                 disabled={isVerifyingSingle}
-                className="mt-2"
+                className="text-white placeholder-[#e2bebf]/50"
               />
             </div>
             <div className="flex items-end">
-              <Button
+                      <Button
                 onClick={verifySingle}
                 disabled={isVerifyingSingle || !singleEmail}
               >
@@ -724,7 +714,7 @@ export default function VerifyPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               {currentJob.status === 'processing' ? (
-                <Clock className="h-5 w-5 text-blue-600" />
+                <Clock className="h-5 w-5" style={{ color: 'var(--primary)' }} />
               ) : currentJob.status === 'completed' ? (
                 <CheckCircle className="h-5 w-5 text-green-600" />
               ) : (
@@ -778,7 +768,7 @@ export default function VerifyPage() {
               
               {currentJob.status === 'completed' && currentJob.emailsData && (
                 <div className="text-center">
-                  <Button
+                      <Button
                     onClick={() => {
                        // Define verification result columns that should be appended
                        const verificationResultColumns = ['catch_all', 'connections', 'domain', 'email', 'message', 'mx', 'status', 'time_exec', 'user_name']
@@ -846,7 +836,7 @@ export default function VerifyPage() {
                        link.click()
                        document.body.removeChild(link)
                      }}
-                    className="bg-blue-600 hover:bg-blue-700"
+                    className=""
                   >
                     <Download className="mr-2 h-4 w-4" />
                     Download Partial Results
@@ -881,7 +871,7 @@ export default function VerifyPage() {
                  <div key={job.jobId} className="flex items-center justify-between p-3 border rounded-lg">
                    <div className="flex items-center gap-3">
                      {job.status === 'processing' ? (
-                       <Clock className="h-4 w-4 text-blue-600" />
+                       <Clock className="h-4 w-4" style={{ color: 'var(--primary)' }} />
                      ) : job.status === 'completed' ? (
                        <CheckCircle className="h-4 w-4 text-green-600" />
                      ) : (
@@ -947,7 +937,7 @@ export default function VerifyPage() {
                            link.click()
                            document.body.removeChild(link)
                          }}
-                         className="mt-1"
+                        className="mt-1"
                        >
                          <Download className="h-3 w-3" />
                        </Button>

@@ -190,7 +190,7 @@ function LoginInner() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen flex items-center justify-center bg-background py-12 px-4 sm:px-6 lg:px-8">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold text-center">
@@ -267,7 +267,7 @@ function LoginInner() {
               />
               {!isSignUp && (
                 <div className="text-right mt-2">
-                  <Link href="/forgot-password" className="text-sm text-blue-600 hover:text-blue-500 font-medium">
+                  <Link href="/forgot-password" className="text-sm font-medium" style={{ color: 'var(--primary)' }}>
                     Forgot your password?
                   </Link>
                 </div>
@@ -294,11 +294,11 @@ function LoginInner() {
 
           <div className="mt-4 text-center">
             {!isSignUp && (
-              <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <p className="text-sm text-blue-800 mb-2">
+              <div className="mb-4 p-4 rounded-lg" style={{ backgroundColor: 'rgba(183,29,63,0.06)', border: '1px solid rgba(183,29,63,0.25)' }}>
+                <p className="text-sm mb-2" style={{ color: 'var(--primary)' }}>
                   <strong>New to MailsFinder?</strong>
                 </p>
-                <p className="text-sm text-blue-700 mb-3">
+                <p className="text-sm mb-3" style={{ color: 'var(--primary)' }}>
                   Create an account to start finding and verifying emails today!
                 </p>
               </div>
@@ -313,7 +313,8 @@ function LoginInner() {
                 setCompany('')
                 setPhone('')
               }}
-              className="text-sm text-blue-600 hover:text-blue-500 font-medium"
+              className="text-sm font-medium"
+              style={{ color: 'var(--primary)' }}
             >
               {isSignUp 
                 ? 'Already have an account? Sign in'
