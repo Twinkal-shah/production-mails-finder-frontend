@@ -99,11 +99,11 @@ export default function FindPage() {
   }
 
   return (
-    <div className={`max-w-6xl mx-auto h-full flex flex-col ${!result ? 'justify-center items-center' : ''}`}>
-      <div className={`grid gap-8 w-full ${result ? 'lg:grid-cols-2' : 'grid-cols-1'}`}>
+    <div className={`mx-auto h-full flex flex-col transition-all duration-700 ease-in-out ${result ? 'max-w-6xl' : 'max-w-lg justify-center'}`}>
+      <div className={`grid gap-8 w-full transition-all duration-700 ease-in-out ${result ? 'lg:grid-cols-2' : 'grid-cols-1'}`}>
         {/* Search Form */}
-        <div className="w-full max-w-lg lg:sticky top-6 self-start">
-          <Card>
+        <div className={`w-full transition-all duration-700 ease-in-out ${result ? 'lg:sticky top-6 self-start' : 'mb-12'}`}>
+          <Card className="shadow-lg border-gray-200 dark:border-white/10">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Search className="h-5 w-5" />
