@@ -99,7 +99,7 @@ export default function FindPage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto h-full flex flex-col">
+    <div className={`max-w-6xl mx-auto h-full flex flex-col ${!result ? 'justify-center items-center' : ''}`}>
       <div className={`grid gap-8 w-full ${result ? 'lg:grid-cols-2' : 'grid-cols-1'}`}>
         {/* Search Form */}
         <div className="w-full max-w-lg lg:sticky top-6 self-start">
