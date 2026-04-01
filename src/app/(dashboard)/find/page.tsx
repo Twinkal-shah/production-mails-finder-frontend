@@ -99,7 +99,7 @@ export default function FindPage() {
   }
 
   return (
-    <div className={`mx-auto h-full flex flex-col transition-all duration-700 ease-in-out ${result ? 'max-w-6xl' : 'max-w-lg justify-center'}`}>
+    <div className={`mx-auto min-h-screen flex flex-col transition-all duration-700 ease-in-out ${result ? 'max-w-6xl' : 'max-w-lg justify-center pt-10'}`}>
       <div className={`grid gap-8 w-full transition-all duration-700 ease-in-out ${result ? 'lg:grid-cols-2' : 'grid-cols-1'}`}>
         {/* Search Form */}
         <div className={`w-full transition-all duration-700 ease-in-out ${result ? 'lg:sticky top-6 self-start' : 'mb-12'}`}>
