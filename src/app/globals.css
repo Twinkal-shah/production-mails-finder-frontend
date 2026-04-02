@@ -198,10 +198,18 @@
     background-color: #1b1c1b !important;
   }
 
-  /* Form field improvements - dark mode visibility & spacing */
+  /* Form field improvements - mode-based visibility */
+  input,
+  textarea {
+    color: #1b1c1b !important; /* light mode */
+  }
+  input::placeholder,
+  textarea::placeholder {
+    color: rgba(90, 64, 66, 0.5) !important;
+  }
   .dark input,
   .dark textarea {
-    color: #fbf9f8 !important;
+    color: #fbf9f8 !important; /* dark mode */
   }
   .dark input::placeholder,
   .dark textarea::placeholder {

@@ -543,7 +543,7 @@ export default function VerifyPage() {
                 value={singleEmail}
                 onChange={(e) => setSingleEmail(e.target.value)}
                 disabled={isVerifyingSingle}
-                className="text-white placeholder-[#e2bebf]/50"
+                className="text-[#1b1c1b] dark:text-white placeholder-[#5a4042]/50 dark:placeholder-[#e2bebf]/50"
               />
             </div>
             <div className="flex items-end">

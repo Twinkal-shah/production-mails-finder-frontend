@@ -128,7 +128,7 @@ export default function FindPage() {
                     onChange={(e) => setFullName(e.target.value)}
                     required
                     disabled={isLoading}
-                    className="text-white placeholder-[#e2bebf]/50"
+                    className="text-[#1b1c1b] dark:text-white placeholder-[#5a4042]/50 dark:placeholder-[#e2bebf]/50"
                   />
                 </div>
 
@@ -142,7 +142,7 @@ export default function FindPage() {
                     onChange={(e) => setCompanyDomain(e.target.value)}
                     required
                     disabled={isLoading}
-                    className="text-white placeholder-[#e2bebf]/50"
+                    className="text-[#1b1c1b] dark:text-white placeholder-[#5a4042]/50 dark:placeholder-[#e2bebf]/50"
                   />
                 </div>
 
@@ -155,7 +155,7 @@ export default function FindPage() {
                     value={role}
                     onChange={(e) => setRole(e.target.value)}
                     disabled={isLoading}
-                    className="text-white placeholder-[#e2bebf]/50"
+                    className="text-[#1b1c1b] dark:text-white placeholder-[#5a4042]/50 dark:placeholder-[#e2bebf]/50"
                   />
                 </div>
 
