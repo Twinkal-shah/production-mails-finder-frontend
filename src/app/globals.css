@@ -224,6 +224,19 @@
   .dark .user-details p {
     color: #e2bebf !important;
   }
+  
+  /* Verification result box text contrast in dark mode (keep icons intact) */
+  .dark .verification-result,
+  .dark .verification-result p,
+  .dark .verification-result span,
+  .dark .verification-result .text-sm,
+  .dark .verification-result .font-medium,
+  .dark .verification-result .text-gray-600,
+  .dark .verification-result .text-gray-500,
+  .dark .verification-result .text-gray-800,
+  .dark .verification-result .text-gray-900 {
+    color: #1b1c1b !important;
+  }
 }
 
 @layer utilities {

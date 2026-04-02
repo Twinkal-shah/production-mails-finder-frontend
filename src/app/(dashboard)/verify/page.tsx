@@ -558,7 +558,7 @@ export default function VerifyPage() {
           </div>
           
           {singleResult && (
-            <Card className={`border-2 ${
+            <Card className={`verification-result border-2 ${
               singleResult.status === 'valid' ? 'border-green-200 bg-green-50' :
               singleResult.status === 'invalid' ? 'border-red-200 bg-red-50' :
               singleResult.status === 'risky' ? 'border-yellow-200 bg-yellow-50' :
