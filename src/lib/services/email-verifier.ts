@@ -10,6 +10,9 @@ interface EmailVerifierResult {
   domain?: string
   mx?: string
   user_name?: string
+  email_provider?: string
+  confidence_score?: number
+  safe_to_send?: boolean | 'risky'
 }
 
 interface EmailVerifierRequest {
@@ -99,10 +102,14 @@ export async function verifyEmailReal(
     // 3️⃣ Extract reason/message
     // -------------------------------
     const reason =
-      details?.message ||
-      data?.message ||
-      json?.message ||
+      details?.reason ||
+      data?.reason ||
       undefined
+
+    const rawDeliverable = details?.deliverable ?? data?.deliverable ?? json?.deliverable
+    const deliverable = typeof rawDeliverable === 'boolean'
+      ? rawDeliverable
+      : normalizedStatus === 'valid'
 
     // -------------------------------
     // 4️⃣ Confidence (using SMTP connections)
@@ -112,6 +119,15 @@ export async function verifyEmailReal(
         ? Math.min(100, details.connections * 20)
         : 0
 
+    const rawProvider = (json?.email_provider ?? data?.email_provider ?? details?.email_provider)
+    const email_provider = typeof rawProvider === 'string' ? rawProvider : undefined
+    const rawConfidenceScore = (json?.confidence_score ?? data?.confidence_score ?? details?.confidence_score)
+    const confidence_score = typeof rawConfidenceScore === 'number' ? rawConfidenceScore : undefined
+    const rawSafeToSend = (json?.safe_to_send ?? data?.safe_to_send ?? details?.safe_to_send)
+    const safe_to_send: boolean | 'risky' | undefined =
+      typeof rawSafeToSend === 'boolean' ? rawSafeToSend :
+      rawSafeToSend === 'risky' ? 'risky' : undefined
+
     // -------------------------------
     // 5️⃣ Final return object
     // -------------------------------
@@ -119,12 +135,15 @@ export async function verifyEmailReal(
       email: request.email,
       status: normalizedStatus,
       confidence,
-      deliverable: normalizedStatus === 'valid',
+      deliverable,
       reason,
-      catch_all: details?.catch_all,
-      domain: details?.domain,
-      mx: details?.mx,
-      user_name: details?.user_name
+      catch_all: details?.catch_all ?? data?.catch_all,
+      domain: details?.domain ?? data?.domain,
+      mx: details?.mx ?? data?.mx,
+      user_name: details?.user_name ?? data?.user_name,
+      email_provider,
+      confidence_score,
+      safe_to_send
     }
   } catch (error) {
     return {

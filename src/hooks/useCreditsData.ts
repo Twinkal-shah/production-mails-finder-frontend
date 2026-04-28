@@ -28,9 +28,16 @@ export function useUserProfile() {
           email: p.email || '',
           full_name: (p.full_name as string) || 'User',
           plan: (p.plan as string) || 'free',
+          // Legacy credit fields — still used by navbar / dropdown / credits page.
           credits_find: Math.max(findCredits, 0),
           credits_verify: Math.max(verifyCredits, 0),
-          total_credits: Math.max(findCredits, 0) + Math.max(verifyCredits, 0)
+          total_credits: Math.max(findCredits, 0) + Math.max(verifyCredits, 0),
+          // New backend fields — exposed for future consumers, no UI wired yet.
+          billing_cycle: p.billing_cycle,
+          subscription_status: p.subscription_status,
+          balances: p.balances,
+          caps: p.caps,
+          credits: typeof p.credits === 'number' ? p.credits : undefined,
         }
       }
       return {
@@ -40,7 +47,12 @@ export function useUserProfile() {
         plan: 'free',
         credits_find: 0,
         credits_verify: 0,
-        total_credits: 0
+        total_credits: 0,
+        billing_cycle: undefined,
+        subscription_status: undefined,
+        balances: undefined,
+        caps: undefined,
+        credits: undefined,
       }
     },
     staleTime: 0,

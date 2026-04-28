@@ -7,7 +7,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { Coins, CreditCard, ExternalLink, History, TrendingUp, Calendar, CheckCircle, Plus } from 'lucide-react'
-import { createLemonSqueezyCheckout, createLemonSqueezyPortal, createCustomCreditCheckout } from './actions'
 import { useCreditsData } from '@/hooks/useCreditsData'
 import { Line } from 'react-chartjs-2'
 import { isAuthenticated, saveRedirectUrl } from '@/lib/auth'
@@ -54,36 +53,56 @@ interface CreditTransaction {
 
 const PLANS = {
   free: {
-    name: 'Free Trial',
+    name: 'Free',
     price: '$0',
-    duration: '3 days',
-    features: ['25 Email Finds', '25 Email Verifications', 'Basic Support'],
+    duration: 'forever',
+    features: ['Email Finder & Verifier only', '100 credits/day', 'No API access', 'No domain search', 'No export'],
     color: 'bg-gray-100 text-gray-800',
     icon: Calendar
   },
-  pro: {
-    name: 'Pro',
-    price: '$49',
+  monthly: {
+    name: 'Monthly',
+    price: '$9.99',
     duration: 'per month',
-    features: ['5,000 Email Finds', '5,000 Email Verifications', 'Priority Support', 'API Access'],
+    features: [
+      'Everything in Free',
+      'Full Finder / Verifier / Enrichment APIs',
+      'Domain search',
+      '25,000 exports / month',
+      'Unlimited Signals',
+      '600 req/min'
+    ],
     color: 'bg-blue-100 text-blue-800',
-    icon: TrendingUp
-  },
-  agency: {
-    name: 'Agency',
-    price: '$99',
-    duration: 'per month',
-    features: ['50,000 Email Finds', '50,000 Email Verifications', 'Premium Support', 'API Access', 'Priority Processing'],
-    color: 'bg-purple-100 text-purple-800',
     icon: TrendingUp
   },
   lifetime: {
     name: 'Lifetime',
     price: '$249',
     duration: 'one-time',
-    features: ['150,000 Email Finds', '150,000 Email Verifications', 'Premium Support', 'API Access', 'Future Updates'],
+    features: [
+      'Finder / Verifier APIs',
+      'Domain search',
+      '5,000 exports / month',
+      '1,000 Enrichment calls / month',
+      '25 Signals / month',
+      '300 req/min'
+    ],
     color: 'bg-green-100 text-green-800',
     icon: TrendingUp
+  },
+  payg: {
+    name: 'Pay As You Go',
+    price: 'From $5',
+    duration: 'one-time',
+    features: [
+      'Email Finder & Verifier only',
+      'No APIs',
+      'No domain search',
+      'No exports',
+      '60 req/min'
+    ],
+    color: 'bg-purple-100 text-purple-800',
+    icon: Coins
   }
 }
 
@@ -119,7 +138,7 @@ function CreditsPageComponent() {
   
   // Use React Query for data fetching with caching
   const { profile, transactions, creditUsage, isLoading, isError, error } = useCreditsData()
-  // Normalize plan name (API returns "Agency", keys in PLANS are lowercase)
+  // Normalize plan name (API returns e.g. "Monthly"; keys in PLANS are lowercase)
 const planKey = (profile?.plan || 'free').toString().trim().toLowerCase() as keyof typeof PLANS;
 const currentPlan = PLANS[planKey] || PLANS.free;
 
@@ -266,31 +285,81 @@ if (isPurchaseArray(parsed)) {
   }
 
   const [pending, startTransition] = useTransition()
-  const useProxyForCheckout = process.env.NEXT_PUBLIC_CHECKOUT_USE_PROXY === '1'
 
-  const handleSubscribe = (planName: 'pro' | 'agency' | 'lifetime') => {
+  // Extract the backend-provided checkout URL. Supports multiple response shapes:
+  //   1. { checkout_url }                              — simplified wrapper
+  //   2. { data: { checkout_url } }                    — wrapped simplified
+  //   3. { data: { data: { attributes: { url } } } }   — current backend shape
+  //      (LemonSqueezy response passed through inside a { success, data } envelope)
+  //   4. { data: { attributes: { url } } }             — raw LemonSqueezy shape (fallback)
+  const extractCheckoutUrl = (json: unknown): string | undefined => {
+    if (!json || typeof json !== 'object') return undefined
+    const j = json as Record<string, unknown>
+    if (typeof j.checkout_url === 'string') return j.checkout_url
+    if (typeof j.url === 'string') return j.url
+    const data = j.data
+    if (data && typeof data === 'object') {
+      const d = data as Record<string, unknown>
+      if (typeof d.checkout_url === 'string') return d.checkout_url
+      if (typeof d.url === 'string') return d.url
+      // Current backend shape: data.data.attributes.url
+      const inner = d.data
+      if (inner && typeof inner === 'object') {
+        const innerAttrs = (inner as Record<string, unknown>).attributes
+        if (innerAttrs && typeof innerAttrs === 'object') {
+          const ia = innerAttrs as Record<string, unknown>
+          if (typeof ia.url === 'string') return ia.url
+          if (typeof ia.checkout_url === 'string') return ia.checkout_url
+        }
+      }
+      // Legacy raw-LemonSqueezy shape: data.attributes.url
+      const attrs = d.attributes
+      if (attrs && typeof attrs === 'object') {
+        const a = attrs as Record<string, unknown>
+        if (typeof a.url === 'string') return a.url
+        if (typeof a.checkout_url === 'string') return a.checkout_url
+      }
+    }
+    return undefined
+  }
+
+  const postCheckout = async (payload: Record<string, string>): Promise<string> => {
+    const res = await fetch('/api/checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+    const json = await res.json().catch(() => ({}))
+    // Debug: surface the full response shape so URL-extraction issues are
+    // obvious in the browser console. Safe to leave — contains no secrets.
+    console.log('[checkout] response:', json)
+    if (!res.ok) {
+      const message =
+        (json && typeof json === 'object' && typeof (json as Record<string, unknown>).message === 'string'
+          ? ((json as Record<string, unknown>).message as string)
+          : undefined) || `Checkout failed (HTTP ${res.status})`
+      throw new Error(message)
+    }
+    const url = extractCheckoutUrl(json)
+    if (!url) throw new Error('Checkout URL missing')
+    return url
+  }
+
+  const handleSubscribe = (planName: 'monthly' | 'annual' | 'lifetime') => {
     const loadingKey = `plan-${planName}`
     setLoadingStates(prev => ({ ...prev, [loadingKey]: true }))
+    // Build payload for the backend pricing taxonomy:
+    //  - Monthly subscription  -> { plan: 'monthly', billing: 'monthly' }
+    //  - Annual subscription   -> { plan: 'monthly', billing: 'annual' }
+    //  - Lifetime              -> { plan: 'lifetime' }
+    const payload: Record<string, string> =
+      planName === 'lifetime'
+        ? { plan: 'lifetime' }
+        : { plan: 'monthly', billing: planName === 'annual' ? 'annual' : 'monthly' }
     startTransition(async () => {
       try {
-        if (useProxyForCheckout) {
-          const res = await fetch('/api/checkout', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ plan: planName }),
-          })
-          const json = await res.json().catch(() => ({}))
-          const ls = Array.isArray(json?.data) ? json?.data?.[0] : json
-          const url = ls?.data?.attributes?.url || ls?.data?.attributes?.checkout_url || json?.data?.attributes?.url
-          if (!url) throw new Error('Checkout URL missing')
-          window.location.href = url
-        } else {
-          const planObj = pricingPlans.find(p => p.name.toLowerCase() === planName)
-          if (!planObj) throw new Error('Invalid plan selected')
-          const { url } = await createLemonSqueezyCheckout(planObj)
-          if (!url) throw new Error('Checkout URL missing')
-          window.location.href = url
-        }
+        const url = await postCheckout(payload)
+        window.location.href = url
       } catch (error) {
         console.error('Error creating subscription checkout:', error)
         toast.error(error instanceof Error ? error.message : 'Failed to create checkout session')
@@ -301,20 +370,24 @@ if (isPurchaseArray(parsed)) {
   }
 
   const handleBuyCredits = (creditPackage: { credits: number }) => {
-    const pkgLabel = creditPackage.credits === 7200 ? '7200' : creditPackage.credits === 4100 ? '4100' : creditPackage.credits === 2500 ? '2500' : '2000'
+    // Map credit count to the PAYG package label expected by the backend.
+    const paygPackageMap: Record<number, '10k' | '22k' | '42k' | '100k' | '250k'> = {
+      10000: '10k',
+      22000: '22k',
+      42000: '42k',
+      100000: '100k',
+      250000: '250k',
+    }
+    const pkgLabel = paygPackageMap[creditPackage.credits]
+    if (!pkgLabel) {
+      toast.error('Invalid credit package')
+      return
+    }
     const loadingKey = `credits-${creditPackage.credits}`
     setLoadingStates(prev => ({ ...prev, [loadingKey]: true }))
     startTransition(async () => {
       try {
-        const res = await fetch('/api/checkout', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ plan: 'credits', package: pkgLabel }),
-        })
-        const json = await res.json().catch(() => ({}))
-        const ls = Array.isArray(json?.data) ? json?.data?.[0] : json
-        const url = ls?.data?.attributes?.url || ls?.data?.attributes?.checkout_url || json?.data?.attributes?.url
-        if (!url) throw new Error('Checkout URL missing')
+        const url = await postCheckout({ plan: 'payg', package: pkgLabel })
         window.location.href = url
       } catch (error) {
         console.error('Error creating custom credit checkout:', error)
@@ -325,135 +398,95 @@ if (isPurchaseArray(parsed)) {
     })
   }
 
-  // const handleManageBilling = async () => {
-  //   setIsCreatingPortal(true)
-  //   try {
-  //     const { url, error } = await createLemonSqueezyPortal()
-  //     if (error) {
-  //       toast.error(error)
-  //       return
-  //     }
-  //     if (url) {
-  //       if (url.startsWith('/')) {
-  //         router.push(url)
-  //         toast.success('Redirecting to pricing plans...')
-  //       } else {
-  //         window.open(url, '_blank')
-  //         toast.success('Redirecting to billing portal...')
-  //       }
-  //     } else {
-  //       toast.error('Billing portal URL unavailable')
-  //     }
-  //   } finally {
-  //     setIsCreatingPortal(false)
-  //   }
-  // }
-
-
-const handleManageBilling = async () => {
-  setIsCreatingPortal(true);
-
-  try {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null;
-
-    const res = await fetch("https://server.mailsfinder.com/api/user/profile/getProfile", {
-      method: "GET",
-      credentials: "include",
+  // Fetches the user's profile through the Next proxy and returns the
+  // `lemonsqueezy_portal_url` that the backend has stored for this user.
+  // The backend (post-LS integration) supplies this URL directly — we must
+  // NOT call LemonSqueezy's API ourselves, as that would return an
+  // app.lemonsqueezy.com URL instead of the custom billing.mailsfinder.com URL.
+  //
+  // Returns `{ url }` on success or `{ error, status }` on failure so callers
+  // can decide between toast vs. redirect (e.g. 401 → login).
+  const fetchPortalUrl = async (): Promise<{ url?: string; error?: string; status?: number }> => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
+    const res = await fetch('/api/user/profile/getProfile', {
+      method: 'GET',
+      credentials: 'include',
       headers: {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        Accept: "application/json",
+        Accept: 'application/json',
       },
-    });
-
-    console.log('[ManageBilling] HTTP status:', res.status);
-    const text = await res.text();
-
-    // parse as unknown (safe)
-    let data: unknown = null;
-    try {
-      data = text ? JSON.parse(text) : null;
-    } catch (parseErr) {
-      console.warn('[ManageBilling] response is not JSON:', text);
-      data = null;
-    }
-    console.log('[ManageBilling] parsed response:', data);
+    })
+    const text = await res.text()
+    let parsed: unknown = null
+    try { parsed = text ? JSON.parse(text) : null } catch { parsed = null }
+    console.log('[billing] profile response:', parsed)
 
     if (res.status === 401 || res.status === 403) {
-      toast.error('Not authenticated. Please login first.');
-      saveRedirectUrl(window.location.pathname + window.location.search);
-      router.push('/auth/login');
-      return;
+      return { error: 'Not authenticated. Please login first.', status: res.status }
+    }
+    if (!res.ok) {
+      return { error: `Failed to load profile (HTTP ${res.status})`, status: res.status }
     }
 
-    // narrow helper to safely read nested keys from unknown object
-    const obj = (data as Record<string, unknown> | null);
-
-    const getNestedString = (base: Record<string, unknown> | null, ...keys: string[]): string | undefined => {
-      let cur: unknown = base;
+    // Extract `lemonsqueezy_portal_url` from the known response shapes:
+    //   - { success, data: { lemonsqueezy_portal_url } }   ← current backend
+    //   - { lemonsqueezy_portal_url }                       ← flat fallback
+    const readString = (o: unknown, ...keys: string[]): string | undefined => {
+      let cur: unknown = o
       for (const k of keys) {
-        if (typeof cur !== 'object' || cur === null) return undefined;
-        cur = (cur as Record<string, unknown>)[k];
+        if (!cur || typeof cur !== 'object') return undefined
+        cur = (cur as Record<string, unknown>)[k]
       }
-      return typeof cur === 'string' ? cur : undefined;
-    };
-
-    // Preferred path: data.data.lemonsqueezy_portal_url (based on backend output)
+      return typeof cur === 'string' && cur.length > 0 ? cur : undefined
+    }
     const portalUrl =
-      getNestedString(obj, 'data', 'lemonsqueezy_portal_url') ||
-      getNestedString(obj, 'lemonsqueezy_portal_url') ||
-      getNestedString(obj, 'data', 'attributes', 'lemonsqueezy_portal_url') ||
-      getNestedString(obj, 'data', 'attributes', 'url') ||
-      getNestedString(obj, 'data', 'attributes', 'checkout_url') ||
-      getNestedString(obj, 'profile', 'lemonsqueezy_portal_url') ||
-      getNestedString(obj, 'user', 'lemonsqueezy_portal_url') ||
-      undefined;
+      readString(parsed, 'data', 'lemonsqueezy_portal_url') ||
+      readString(parsed, 'lemonsqueezy_portal_url')
 
     if (!portalUrl) {
-      console.error('[ManageBilling] portal url not found. Full response:', data ?? text);
-      toast.error('No billing record found. Complete a purchase or subscription first. (See console for details.)');
-      return;
+      return { error: 'No billing portal URL available for your account yet. Try again after your next payment event.', status: res.status }
     }
-
-    if (portalUrl.startsWith('/')) {
-      router.push(portalUrl);
-    } else {
-      window.open(portalUrl, '_blank', 'noopener,noreferrer');
-    }
-    toast.success('Redirecting to billing portal...');
-  } catch (err) {
-    console.error('[ManageBilling] request failed:', err);
-    toast.error('Failed to load billing portal. Check console for details.');
-  } finally {
-    setIsCreatingPortal(false);
+    return { url: portalUrl }
   }
-};
 
-
-
-
-  const handleCancelSubscription = async () => {
+  const openBillingPortal = async (successMessage: string) => {
     setIsCreatingPortal(true)
     try {
-      const { url, error } = await createLemonSqueezyPortal()
-      if (error) {
-        toast.error(error)
+      const { url, error, status } = await fetchPortalUrl()
+      if (status === 401 || status === 403) {
+        toast.error(error || 'Not authenticated. Please login first.')
+        saveRedirectUrl(window.location.pathname + window.location.search)
+        router.push('/auth/login')
         return
       }
-      if (url) {
-        if (url.startsWith('/')) {
-          router.push(url)
-          toast.success('Redirecting to pricing plans...')
-        } else {
-          window.open(url, '_blank')
-          toast.success('Redirecting to billing portal to manage your subscription...')
-        }
-      } else {
-        toast.error('Billing portal URL unavailable')
+      if (error || !url) {
+        toast.error(error || 'Billing portal URL unavailable')
+        return
       }
+      // Loud log so we can verify *exactly* what URL is being handed to the
+      // browser. If the new tab still lands on app.lemonsqueezy.com/dashboard
+      // while this log shows a billing.mailsfinder.com URL, the redirect is
+      // happening on LemonSqueezy's side (not in our code).
+      console.log('[billing] opening portal URL:', url)
+      if (url.startsWith('/')) {
+        router.push(url)
+      } else {
+        // Same-tab navigation — avoids popup blocker and lets the user see
+        // the final URL in the address bar to confirm LemonSqueezy-side
+        // redirect behavior. They can Back-button to return.
+        window.location.href = url
+      }
+      toast.success(successMessage)
+    } catch (err) {
+      console.error('[billing] failed:', err)
+      toast.error('Failed to load billing portal. Check console for details.')
     } finally {
       setIsCreatingPortal(false)
     }
   }
+
+  const handleManageBilling = () => openBillingPortal('Redirecting to billing portal...')
+  const handleCancelSubscription = () => openBillingPortal('Redirecting to billing portal to manage your subscription...')
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -488,37 +521,37 @@ const handleManageBilling = async () => {
 
   const pricingPlans = [
     {
-      name: 'Pro',
-      price: 49,
+      name: 'Monthly',
+      price: 9.99,
       period: 'month',
-      findCredits: 5000,
-      verifyCredits: 5000,
-      popular: false,
+      findCredits: 300000,
+      verifyCredits: 300000,
+      popular: true,
       features: [
-        '5,000 email finding credits/month',
-        '5,000 email verification credits/month',
-        'Monthly billing',
-        'Bulk verification',
-        'Bulk finder',
-        'Email support',
-        'No API Access'
+        '300,000 credits / cycle',
+        'Full Finder / Verifier / Enrichment APIs',
+        'Domain search',
+        '25,000 exports / month',
+        'Unlimited Signals',
+        '600 req/min',
+        'Priority email support'
       ]
     },
     {
-      name: 'Agency',
-      price: 99,
+      name: 'Annual',
+      price: 7.99,
       period: 'month',
-      findCredits: 50000,
-      verifyCredits: 50000,
-      popular: true,
+      findCredits: 300000,
+      verifyCredits: 300000,
+      popular: false,
       features: [
-        'Everything in pro plus',
-        '50,000 email finding credits/month',
-        '50,000 email verification credits/month',
-        'Full API Access',
-        'Email enrichment automation workflow',
-        'Lifetime Community support',
-        'Whatsapp support',
+        '300,000 credits / cycle',
+        'Billed $95.88 / year',
+        'Full Finder / Verifier / Enrichment APIs',
+        'Domain search',
+        '25,000 exports / month',
+        'Unlimited Signals',
+        '600 req/min',
         'Priority email support'
       ]
     },
@@ -526,43 +559,47 @@ const handleManageBilling = async () => {
       name: 'Lifetime',
       price: 249,
       period: 'lifetime',
-      findCredits: 150000,
-      verifyCredits: 150000,
+      findCredits: 2000000,
+      verifyCredits: 2000000,
       popular: false,
       features: [
-        '150,000 email finding credits',
-        '150,000 email verification credits',
-        'Full API support upto 300k credits',
-        'Cold outbound automation support and implementation',
-        'First 2 campaigns are on us with guaranteed deliverability',
-        '1 year founder exclusive community access (for limited founders)',
-        'Lifetime access',
-        'Priority support',
-        'All future features'
+        '2,000,000 credits (lifetime pool)',
+        'Finder / Verifier APIs',
+        'Domain search',
+        '5,000 exports / month',
+        '1,000 Enrichment calls / month',
+        '25 Signals / month',
+        '300 req/min',
+        'Lifetime access'
       ]
     }
   ]
 
   const customCreditPackages = [
     {
-      credits: 7200,
-      price: 35,
-      description: '7,200 credits for email finding and verification'
+      credits: 10000,
+      price: 5,
+      description: '10,000 credits for email finding and verification'
     },
     {
-      credits: 4100,
-      price: 20,
-      description: '4,100 credits for email finding and verification'
-    },
-    {
-      credits: 2500,
-      price: 12,
-      description: '2,500 credits for email finding and verification'
-    },
-    {
-      credits: 2000,
+      credits: 22000,
       price: 9,
-      description: '2,000 credits for email finding and verification'
+      description: '22,000 credits for email finding and verification'
+    },
+    {
+      credits: 42000,
+      price: 14.99,
+      description: '42,000 credits for email finding and verification'
+    },
+    {
+      credits: 100000,
+      price: 29,
+      description: '100,000 credits for email finding and verification'
+    },
+    {
+      credits: 250000,
+      price: 59,
+      description: '250,000 credits for email finding and verification'
     }
   ]
 
@@ -980,7 +1017,7 @@ const handleManageBilling = async () => {
                     ) : (
                       <Button 
                         className="w-full"
-                        onClick={() => handleSubscribe(plan.name.toLowerCase() as 'pro' | 'agency' | 'lifetime')}
+                        onClick={() => handleSubscribe(plan.name.toLowerCase() as 'monthly' | 'annual' | 'lifetime')}
                         disabled={loadingStates[`plan-${plan.name}`]}
                         variant={plan.popular ? 'default' : 'outline'}
                         size="lg"

@@ -13,6 +13,7 @@ import * as XLSX from 'xlsx'
 // Job endpoints are not available; direct bulk find only
 import { useQueryInvalidation } from '@/lib/query-invalidation'
 import { bulkFind, buildBulkFindPayload } from '@/lib/bulk-find-utils'
+import { ActiveJobsBanner } from '@/components/active-jobs-banner'
 
 interface CsvRow {
   'Full Name'?: string
@@ -116,6 +117,7 @@ interface BulkRow extends CsvRow {
 export default function BulkFinderPage() {
   const [rows, setRows] = useState<BulkRow[]>([])
   const [originalFileName, setOriginalFileName] = useState<string | null>(null)
+  const [originalFileNameWithExt, setOriginalFileNameWithExt] = useState<string | null>(null)
   const [originalColumnOrder, setOriginalColumnOrder] = useState<string[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { invalidateCreditsData } = useQueryInvalidation()
@@ -125,6 +127,9 @@ export default function BulkFinderPage() {
   const [successDirectCount, setSuccessDirectCount] = useState(0)
   const [failedDirectCount, setFailedDirectCount] = useState(0)
   const [statusDirectText, setStatusDirectText] = useState('')
+  const [isIndeterminate, setIsIndeterminate] = useState(false)
+  const [duplicateInfo, setDuplicateInfo] = useState('')
+  const [creditsCharged, setCreditsCharged] = useState(0)
 
   // No job-based endpoints on backend; page runs direct bulk find only
 
@@ -135,6 +140,7 @@ export default function BulkFinderPage() {
     // Store the original filename (without extension for later use)
     const fileName = file.name.replace(/\.[^/.]+$/, '') // Remove extension
     setOriginalFileName(fileName)
+    setOriginalFileNameWithExt(file.name)
 
     const fileExtension = file.name.split('.').pop()?.toLowerCase()
 
@@ -262,6 +268,9 @@ export default function BulkFinderPage() {
     setSuccessDirectCount(0)
     setFailedDirectCount(0)
     setStatusDirectText('')
+    setIsIndeterminate(true)
+    setDuplicateInfo('')
+    setCreditsCharged(0)
     setRows(prev => prev.map(r => ({ ...r, status: 'processing' })))
     try {
 
@@ -295,15 +304,34 @@ export default function BulkFinderPage() {
         setIsProcessingDirect(false)
         return
       }
-      setStatusDirectText('Processing 0/...')
+      setStatusDirectText('Finding emails... This may take a few minutes for large batches')
       setProgressDirect(0)
+      setIsIndeterminate(true)
+      let duplicateShown = false
       const { items, totalCredits } = await bulkFind(
-        validRows.map(r => ({ fullName: r.fullName, domain: r.domain })),
+        validRows,
+        originalFileNameWithExt,
+        originalColumnOrder,
         5,
         2,
-        (completed, total) => {
-          setStatusDirectText(`Processing ${completed}/${total}`)
-          setProgressDirect(Math.round((completed / total) * 100))
+        (processed, total) => {
+          // Show duplicate info on first poll response
+          if (!duplicateShown && total < validRows.length) {
+            const dupes = validRows.length - total
+            setDuplicateInfo(`${total} unique items to process (${dupes} duplicates removed)`)
+            duplicateShown = true
+          }
+          if (processed === 0) {
+            // SMTP phase — indeterminate
+            setIsIndeterminate(true)
+            setStatusDirectText('Finding emails... This may take a few minutes for large batches')
+          } else {
+            // Real progress
+            setIsIndeterminate(false)
+            const pct = total > 0 ? Math.round((processed / total) * 100) : 0
+            setStatusDirectText(`Processing ${processed} / ${total}`)
+            setProgressDirect(pct)
+          }
         }
       )
       const updates = new Map<string, BulkRow>()
@@ -404,11 +432,14 @@ export default function BulkFinderPage() {
       setRows(prev => prev.map(r => updates.has(r.id) ? (updates.get(r.id) as BulkRow) : r))
       setProgressDirect(100)
       setIsProcessingDirect(false)
+      setIsIndeterminate(false)
+      setCreditsCharged(totalCredits)
       setStatusDirectText('Completed')
       toast.success(`Bulk find completed${totalCredits ? ` • Credits used: ${totalCredits}` : ''}`)
       invalidateCreditsData()
     } catch (e) {
       setIsProcessingDirect(false)
+      setIsIndeterminate(false)
       const msg = e instanceof Error ? e.message : 'Failed to run bulk find'
       toast.error(msg)
       setRows(prev => prev.map(r => r.status === 'processing' ? { ...r, status: 'failed', error: msg } : r))
@@ -471,7 +502,8 @@ export default function BulkFinderPage() {
         </p>
       </div>
 
-      {/* Job status removed */}
+      {/* Active Jobs Banner (top) */}
+      <ActiveJobsBanner />
 
       {/* Upload and Actions */}
       <Card>
@@ -534,12 +566,21 @@ export default function BulkFinderPage() {
           <CardContent className="pt-6">
             {isProcessingDirect ? (
               <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-lg font-medium">{statusDirectText || 'Finding emails...'}</span>
-                  <span className="text-sm text-gray-600">{processedDirectCount} / {rows.length} processed</span>
-                </div>
-                <Progress value={progressDirect} className="w-full h-3" />
-                <div className="text-center text-sm text-gray-500">{Math.round(progressDirect)}% complete</div>
+                <p className="text-lg font-semibold text-center">{statusDirectText || 'Finding emails...'}</p>
+                {isIndeterminate ? (
+                  <Progress indeterminate className="w-full h-3" />
+                ) : (
+                  <>
+                    <Progress value={progressDirect} className="w-full h-3" />
+                    <div className="text-center text-sm text-gray-500">{Math.round(progressDirect)}% complete</div>
+                  </>
+                )}
+                <p className="text-center text-sm text-gray-500">
+                  {processedDirectCount} / {rows.length} items
+                </p>
+                {duplicateInfo && (
+                  <p className="text-center text-sm text-gray-400">{duplicateInfo}</p>
+                )}
               </div>
             ) : (processedDirectCount > 0 ? (
               <div className="space-y-4 text-center">
@@ -547,7 +588,7 @@ export default function BulkFinderPage() {
                   <CheckCircle className="h-6 w-6 text-green-600" />
                   <span className="text-lg font-medium text-green-600">Bulk Find Complete</span>
                 </div>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-4 gap-4">
                   <div>
                     <p className="text-2xl font-bold text-green-600">{successDirectCount}</p>
                     <p className="text-sm text-gray-600">Found</p>
@@ -560,6 +601,12 @@ export default function BulkFinderPage() {
                     <p className="text-2xl font-bold">{processedDirectCount}</p>
                     <p className="text-sm text-gray-600">Processed</p>
                   </div>
+                  {creditsCharged > 0 && (
+                    <div>
+                      <p className="text-2xl font-bold text-primary">{creditsCharged}</p>
+                      <p className="text-sm text-gray-600">Credits Used</p>
+                    </div>
+                  )}
                 </div>
                 <Button onClick={downloadDirectResults}>
                   <Download className="mr-2 h-4 w-4" />
@@ -574,7 +621,6 @@ export default function BulkFinderPage() {
           </CardContent>
         </Card>
       )}
-      {/* Job history removed */}
     </div>
   )
 }

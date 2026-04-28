@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getBackendBaseUrl } from '@/lib/api'
 
 export async function DELETE(
   req: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   const { id } = await context.params
-  const backend = process.env.NEXT_PUBLIC_SERVER_URL || 'https://server.mailsfinder.com'
+  const backend = getBackendBaseUrl()
   const url = `${backend}/api/api-key/deactivateAPIKey/${id}`
   const cookie = req.headers.get('cookie') || ''
   const auth = req.headers.get('authorization') || ''

@@ -341,7 +341,7 @@ const [currentProfile, setCurrentProfile] = useState({
         </header>
 
         {/* Page content */}
-        <main className="flex-1 px-4 py-4 sm:px-6 sm:py-6 md:px-8 md:py-8 md:pt-8 pb-24">
+        <main className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6 md:px-8 md:py-8 md:pt-8 pb-32">
          {children}
         </main>
       </div>
@@ -362,7 +362,7 @@ const [currentProfile, setCurrentProfile] = useState({
           ].map((item) => {
             const isAccount = item.icon === 'user'
             const active = isAccount
-              ? (pathname.startsWith('/user') || pathname.startsWith('/credits'))
+              ? (pathname.startsWith('/user') || pathname.startsWith('/credits') || pathname.startsWith('/job-history'))
               : pathname.startsWith(item.href)
             return (
               <li key={item.href} className={isAccount ? 'relative group' : ''}>
@@ -384,6 +384,9 @@ const [currentProfile, setCurrentProfile] = useState({
                     {/* Invisible hover bridge to maintain hover across the gap */}
                     <div className="absolute left-1/2 -translate-x-1/2 bottom-[calc(100%+0px)] h-3 w-48 hidden group-hover:block bg-transparent z-[59]" />
                     <div className="absolute left-1/2 -translate-x-1/2 bottom-[calc(100%+12px)] hidden group-hover:block z-[60] w-48 rounded-xl border border-gray-200 dark:border-white/10 bg-white/95 dark:bg-[#121212]/95 shadow-lg backdrop-blur-sm p-1 space-y-1">
+                      <Link href="/job-history" className="block rounded-md px-3 py-2 text-sm font-medium text-gray-800 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5 transition-colors text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/50">
+                        Job History
+                      </Link>
                       <Link href="/credits" className="block rounded-md px-3 py-2 text-sm font-medium text-gray-800 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5 transition-colors text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/50">
                         Credits & Billing
                       </Link>

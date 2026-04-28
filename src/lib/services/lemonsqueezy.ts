@@ -483,11 +483,11 @@ async function handleSubscriptionEvent(supabase: SupabaseClient, event: LemonSqu
   const subscriptionData = event.data.attributes
   
   // Determine plan name from product
-  let planName = 'pro'
-  if (subscriptionData.product_name?.toLowerCase().includes('agency')) {
-    planName = 'agency'
-  } else if (subscriptionData.product_name?.toLowerCase().includes('lifetime')) {
+  let planName = 'monthly'
+  if (subscriptionData.product_name?.toLowerCase().includes('lifetime')) {
     planName = 'lifetime'
+  } else if (subscriptionData.product_name?.toLowerCase().includes('payg')) {
+    planName = 'payg'
   }
 
   // Get current profile to add credits
@@ -610,18 +610,19 @@ async function handleOrderCreated(supabase: SupabaseClient, event: LemonSqueezyW
     if (planNameLower === 'lifetime') {
       updateData.plan = 'lifetime'
       updateData.plan_expiry = null // Lifetime has no expiry
-    } else if (planNameLower === 'pro') {
-      updateData.plan = 'pro'
-      // Set expiry to 1 month from now for monthly plans
+    } else if (planNameLower === 'monthly' || planNameLower === 'annual') {
+      updateData.plan = 'monthly'
+      // Set expiry based on billing cycle (monthly vs annual)
       const expiry = new Date()
-      expiry.setMonth(expiry.getMonth() + 1)
+      if (planNameLower === 'annual') {
+        expiry.setFullYear(expiry.getFullYear() + 1)
+      } else {
+        expiry.setMonth(expiry.getMonth() + 1)
+      }
       updateData.plan_expiry = expiry.toISOString()
-    } else if (planNameLower === 'agency') {
-      updateData.plan = 'agency'
-      // Set expiry to 1 month from now for monthly plans
-      const expiry = new Date()
-      expiry.setMonth(expiry.getMonth() + 1)
-      updateData.plan_expiry = expiry.toISOString()
+    } else if (planNameLower === 'payg') {
+      updateData.plan = 'payg'
+      updateData.plan_expiry = null // PAYG has no expiry
     }
   }
 

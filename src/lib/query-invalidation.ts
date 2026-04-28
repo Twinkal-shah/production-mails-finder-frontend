@@ -21,10 +21,29 @@ export function useQueryInvalidation() {
     queryClient.invalidateQueries({ queryKey: ['creditUsageHistory'] })
   }
 
+  const invalidateJobHistory = () => {
+    queryClient.invalidateQueries({ queryKey: ['email', 'jobs'] })
+  }
+
+  const invalidateActiveJobs = () => {
+    queryClient.invalidateQueries({ queryKey: ['email', 'jobs', 'active'] })
+  }
+
+  const invalidateRecentResults = (type?: 'find' | 'verify') => {
+    if (type) {
+      queryClient.invalidateQueries({ queryKey: ['email', 'recent-results', type] })
+    } else {
+      queryClient.invalidateQueries({ queryKey: ['email', 'recent-results'] })
+    }
+  }
+
   return {
     invalidateCreditsData,
     invalidateUserProfile,
     invalidateCreditUsage,
+    invalidateJobHistory,
+    invalidateActiveJobs,
+    invalidateRecentResults,
   }
 }
 

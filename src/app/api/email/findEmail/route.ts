@@ -1,61 +1,45 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getBackendBaseUrl } from '@/lib/api'
 
-export async function POST(req: NextRequest) {
-  const backend = getBackendBaseUrl()
-  const url = `${backend}/api/email/findEmail`
-  const cookie = req.headers.get('cookie') || ''
-  const auth = req.headers.get('authorization') || ''
-  const { getAccessTokenFromCookies } = await import('@/lib/auth-server')
-  const accessToken = await getAccessTokenFromCookies()
-  
+export async function POST(request: NextRequest) {
   try {
-    const inboundType = req.headers.get('content-type') || ''
-    let outBody: string
-    let outType: string
-    if (inboundType.includes('application/json')) {
-      const json = await req.json() as { full_name?: string; domain?: string; role?: string; first_name?: string; last_name?: string }
-      let first = ''
-      let last = ''
-      if (json.first_name || json.last_name) {
-        first = (json.first_name || '').trim()
-        last = (json.last_name || '').trim()
-      } else if (json.full_name) {
-        const parts = json.full_name.trim().split(/\s+/)
-        first = parts[0] || ''
-        last = parts.slice(1).join(' ') || ''
-      }
-      const params = new URLSearchParams()
-      if (json.domain) params.set('domain', json.domain.trim())
-      if (first) params.set('first_name', first)
-      if (last) params.set('last_name', last)
-      const roleTrimmed = (json.role || '').trim()
-      const roleLower = roleTrimmed.toLowerCase()
-      if (roleTrimmed && roleLower !== 'undefined' && roleLower !== '$undefined' && roleLower !== 'null' && roleLower !== 'none') {
-        params.set('role', roleTrimmed)
-      }
-      outBody = params.toString()
-      outType = 'application/x-www-form-urlencoded'
-    } else {
-      outBody = await req.text()
-      outType = inboundType || 'application/x-www-form-urlencoded'
-    }
+    const ENV = (process.env.NEXT_PUBLIC_API_ENV || '').trim().toLowerCase()
+    const BASE_URL_ENV = ENV === 'staging' ? (process.env.NEXT_PUBLIC_API_URL_STAGING || '').trim() : ''
+    const backend = (BASE_URL_ENV || getBackendBaseUrl()).replace(/\/+$/, '')
+    const url = `${backend}/api/email/findEmail`
+
+    const cookieHeader = request.headers.get('cookie') || ''
+    const body = await request.json()
+    console.log('Forwarding cookies:', cookieHeader)
+    const accessToken = cookieHeader
+      .split('; ')
+      .find(row => row.startsWith('access_token='))
+      ?.split('=')[1]
+
     const res = await fetch(url, {
       method: 'POST',
       headers: {
-        ...(cookie ? { Cookie: cookie } : {}),
-        ...(auth ? { Authorization: auth } : {}),
-        ...(accessToken && !auth ? { Authorization: `Bearer ${accessToken}` } : {}),
-        'content-type': outType
+        'Content-Type': 'application/json',
+        ...(cookieHeader ? { Cookie: cookieHeader } : {}),
+        Authorization: accessToken ? `Bearer ${accessToken}` : ''
       },
-      body: outBody,
+      body: JSON.stringify(body),
     })
-    
-    const contentType = res.headers.get('content-type') || 'application/json'
+
     const text = await res.text()
-    return new NextResponse(text, { status: res.status, headers: { 'content-type': contentType } })
+    let data: unknown
+    try {
+      data = JSON.parse(text)
+    } catch {
+      data = { success: res.ok, message: text }
+    }
+    return NextResponse.json(data, { status: res.status })
   } catch (error) {
-    return NextResponse.json({ error: 'Proxy error', message: (error as Error).message }, { status: 500 })
+    console.error('Find Email API Error:', error)
+    return NextResponse.json(
+      { success: false, message: 'Internal Server Error' },
+      { status: 500 }
+    )
   }
 }
 

@@ -16,6 +16,9 @@ interface VerifyEmailResponse {
   domain?: string
   mx?: string
   user_name?: string
+  email_provider?: string
+  confidence_score?: number
+  safe_to_send?: boolean | "risky"
 }
 
 export async function POST(request: NextRequest) {
@@ -170,7 +173,10 @@ export async function POST(request: NextRequest) {
       catch_all: serviceResult.catch_all,
       domain: serviceResult.domain,
       mx: serviceResult.mx,
-      user_name: serviceResult.user_name
+      user_name: serviceResult.user_name,
+      email_provider: serviceResult.email_provider ?? 'Other',
+      confidence_score: serviceResult.confidence_score ?? 0,
+      safe_to_send: serviceResult.safe_to_send ?? false
     }
 
     return NextResponse.json(response)

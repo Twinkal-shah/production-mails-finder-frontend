@@ -106,23 +106,23 @@ export async function createLemonSqueezyCheckout(planData: {
   
   // Validate plan data
   const validPlans = {
-    'Pro': { price: 49, period: 'month', findCredits: 5000, verifyCredits: 5000 },
-    'Agency': { price: 99, period: 'month', findCredits: 50000, verifyCredits: 50000 },
-    'Lifetime': { price: 249, period: 'lifetime', findCredits: 150000, verifyCredits: 150000 }
+    'Monthly': { price: 9.99, period: 'month', findCredits: 300000, verifyCredits: 300000 },
+    'Annual': { price: 7.99, period: 'month', findCredits: 300000, verifyCredits: 300000 },
+    'Lifetime': { price: 249, period: 'lifetime', findCredits: 2000000, verifyCredits: 2000000 }
   }
-  
+
   const validPlan = validPlans[planData.name as keyof typeof validPlans]
   if (!validPlan || validPlan.price !== planData.price) {
     throw new Error('Invalid subscription plan')
   }
-  
+
   try {
     const { createLemonSqueezyCheckout: createCheckout } = await import('@/lib/services/lemonsqueezy')
-    
-    // Map plan names to LemonSqueezy variant IDs (these would be configured in your LemonSqueezy dashboard)
+
+    // Map plan names to LemonSqueezy variant IDs (configured in the LemonSqueezy dashboard)
     const variantIds = {
-      'Pro': process.env.LEMONSQUEEZY_PRO_VARIANT_ID || 'pro-variant-id',
-      'Agency': process.env.LEMONSQUEEZY_AGENCY_VARIANT_ID || 'agency-variant-id',
+      'Monthly': process.env.LEMONSQUEEZY_MONTHLY_VARIANT_ID || 'monthly-variant-id',
+      'Annual': process.env.LEMONSQUEEZY_ANNUAL_VARIANT_ID || 'annual-variant-id',
       'Lifetime': process.env.LEMONSQUEEZY_LIFETIME_VARIANT_ID || 'lifetime-variant-id'
     }
     
@@ -161,28 +161,30 @@ export async function createCustomCreditCheckout(creditData: {
     throw new Error('User not authenticated')
   }
   
-  // Validate credit package data
+  // Validate credit package data (PAYG packs)
   const validPackages = {
-    7200: 35,
-    4100: 20,
-    2500: 12,
-    2000: 9
+    10000: 5,
+    22000: 9,
+    42000: 14.99,
+    100000: 29,
+    250000: 59
   }
-  
+
   const validPrice = validPackages[creditData.credits as keyof typeof validPackages]
   if (!validPrice || validPrice !== creditData.price) {
     throw new Error('Invalid credit package')
   }
-  
+
   try {
     const { createLemonSqueezyCheckout: createCheckout } = await import('@/lib/services/lemonsqueezy')
-    
-    // Map credit amounts to LemonSqueezy variant IDs
+
+    // Map credit amounts to LemonSqueezy PAYG variant IDs
     const creditVariantIds = {
-      7200: process.env.LEMONSQUEEZY_CREDITS_7200_VARIANT_ID || 'credits-7200-variant-id',
-      4100: process.env.LEMONSQUEEZY_CREDITS_4100_VARIANT_ID || 'credits-4100-variant-id',
-      2500: process.env.LEMONSQUEEZY_CREDITS_2500_VARIANT_ID || 'credits-2500-variant-id',
-      2000: process.env.LEMONSQUEEZY_CREDITS_2000_VARIANT_ID || 'credits-2000-variant-id'
+      10000: process.env.LEMONSQUEEZY_PAYG_10K_VARIANT_ID || 'payg-10k-variant-id',
+      22000: process.env.LEMONSQUEEZY_PAYG_22K_VARIANT_ID || 'payg-22k-variant-id',
+      42000: process.env.LEMONSQUEEZY_PAYG_42K_VARIANT_ID || 'payg-42k-variant-id',
+      100000: process.env.LEMONSQUEEZY_PAYG_100K_VARIANT_ID || 'payg-100k-variant-id',
+      250000: process.env.LEMONSQUEEZY_PAYG_250K_VARIANT_ID || 'payg-250k-variant-id'
     }
     
     const variantId = creditVariantIds[creditData.credits as keyof typeof creditVariantIds]

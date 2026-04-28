@@ -85,7 +85,7 @@ export default function UserDetailsPage() {
 
   const createdStr = data?.created_at ? new Date(data.created_at).toLocaleDateString() : 'N/A'
   const planName = (data?.plan || 'free').toString().trim().toLowerCase()
-  const planColor = planName === 'agency' ? 'bg-purple-100 text-purple-800' : planName === 'lifetime' ? 'bg-green-100 text-green-800' : planName === 'pro' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
+  const planColor = planName === 'payg' ? 'bg-purple-100 text-purple-800' : planName === 'lifetime' ? 'bg-green-100 text-green-800' : planName === 'monthly' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
   const expiryStr = data?.plan_expiry ? new Date(data.plan_expiry).toLocaleDateString() : 'N/A'
 
   return (

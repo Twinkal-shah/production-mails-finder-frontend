@@ -3,7 +3,7 @@ import { getBackendBaseUrl } from '@/lib/api'
 
 export async function GET(request: NextRequest) {
   try {
-    const backend = process.env.NEXT_PUBLIC_LOCAL_URL || 'https://server.mailsfinder.com'
+    const backend = getBackendBaseUrl()
     const url = `${backend}/api/bulk-verify/jobs`
     const cookie = request.headers.get('cookie') || ''
     const auth = request.headers.get('authorization') || ''

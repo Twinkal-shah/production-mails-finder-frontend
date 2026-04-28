@@ -44,6 +44,51 @@ export function buildBulkFindPayload(rows: Array<{ fullName: string; domain: str
   return out
 }
 
+export interface BulkFindRequest {
+  original_filename?: string
+  rows: Array<Record<string, unknown>>
+  lookups: BulkFindItem[]
+}
+
+export function buildBulkFindRequest(
+  inputRows: Array<Record<string, unknown> & { fullName: string; domain: string }>,
+  headerAllowList: string[],
+  originalFilename: string | null
+): BulkFindRequest {
+  const rows: Array<Record<string, unknown>> = []
+  const lookups: BulkFindItem[] = []
+
+  for (const r of inputRows) {
+    const host = toHostname(r.domain)
+    if (!host) continue
+    const normalizedName = (r.fullName || '')
+      .trim()
+      .replace(/[\/,._\-@#$%]+/g, ' ')
+    const parts = normalizedName.split(/\s+/)
+    const firstRaw = parts[0] || ''
+    const lastRaw = parts.slice(1).join(' ') || ''
+    const first = firstRaw.toLowerCase().replace(/[^a-z]/g, '')
+    const last = lastRaw.toLowerCase().replace(/[^a-z]/g, '')
+    if (!first && !last) continue
+
+    const originalRow: Record<string, unknown> = {}
+    for (const col of headerAllowList) {
+      originalRow[col] = r[col]
+    }
+
+    rows.push(originalRow)
+    lookups.push({ domain: host, first_name: first, last_name: last })
+  }
+
+  if (rows.length !== lookups.length) {
+    throw new Error(`bulk-find: rows/lookups length mismatch (${rows.length} vs ${lookups.length})`)
+  }
+
+  const payload: BulkFindRequest = { rows, lookups }
+  if (originalFilename) payload.original_filename = originalFilename
+  return payload
+}
+
 export function chunk<T>(list: T[], size: number): T[][] {
   const res: T[][] = []
   for (let i = 0; i < list.length; i += size) res.push(list.slice(i, i + size))
@@ -51,29 +96,29 @@ export function chunk<T>(list: T[], size: number): T[][] {
 }
 
 export async function bulkFind(
-  rows: Array<{ fullName: string; domain: string }>,
-  startBatchSize = 5,
-  maxConcurrency = 2,
-  onProgress?: (completed: number, total: number) => void
+  rows: Array<Record<string, unknown> & { fullName: string; domain: string }>,
+  originalFilename: string | null,
+  headerAllowList: string[],
+  _startBatchSize = 5,
+  _maxConcurrency = 2,
+  onProgress?: (processed: number, total: number) => void
 ): Promise<{ items: Array<Record<string, unknown>>; totalCredits: number }> {
-  const payload = buildBulkFindPayload(rows)
-  if (payload.length === 0) return { items: [], totalCredits: 0 }
-  const total = 1
-  let completed = 0
-  let totalCredits = 0
-  const out: Array<Record<string, unknown>> = []
-  const apiBase = ((process.env.NEXT_PUBLIC_CORE_API_BASE || process.env.NEXT_PUBLIC_SERVER_URL || process.env.NEXT_PUBLIC_LOCAL_URL || 'https://server.mailsfinder.com').replace(/\/+$/, '')) + '/api'
+  const requestPayload = buildBulkFindRequest(rows, headerAllowList, originalFilename)
+  if (requestPayload.rows.length === 0) return { items: [], totalCredits: 0 }
+
   const sameOrigin = typeof window !== 'undefined' ? window.location.origin.replace(/\/$/, '') : ''
   let accessToken: string | null = (typeof window !== 'undefined' ? localStorage.getItem('access_token') : null)
   let refreshToken: string | null = (typeof window !== 'undefined' ? localStorage.getItem('refresh_token') : null)
+
   const buildHeaders = () => ({
     'Content-Type': 'application/json',
     ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {})
   })
+
   const tryRefresh = async () => {
     if (!refreshToken) return false
     try {
-      const res = await fetch((sameOrigin ? `${sameOrigin}/api/user/auth/refresh` : `${apiBase}/user/auth/refresh`), {
+      const res = await fetch(`${sameOrigin}/api/user/auth/refresh`, {
         method: 'GET',
         headers: { refreshtoken: `Bearer ${refreshToken}` },
         credentials: 'include',
@@ -97,59 +142,63 @@ export async function bulkFind(
       return false
     }
   }
-  try {
-    let resp = await fetch((sameOrigin ? `${sameOrigin}/api/email/findBulkEmail` : `${apiBase}/email/findBulkEmail`), {
-      method: 'POST',
-      headers: buildHeaders(),
-      body: JSON.stringify(payload),
-      credentials: 'include',
-      mode: 'cors'
-    })
-    let body: unknown
-    try {
-      body = await resp.json()
-    } catch {
-      body = {}
+
+  // --- Step 1: Submit to V2 endpoint and get job_id ---
+  let resp = await fetch(`${sameOrigin}/api/email/findBulkEmailV2`, {
+    method: 'POST',
+    headers: buildHeaders(),
+    body: JSON.stringify(requestPayload),
+    credentials: 'include',
+    mode: 'cors'
+  })
+
+  // Handle 401 with token refresh
+  if (resp.status === 401) {
+    const refreshed = await tryRefresh()
+    if (refreshed) {
+      resp = await fetch(`${sameOrigin}/api/email/findBulkEmailV2`, {
+        method: 'POST',
+        headers: buildHeaders(),
+        body: JSON.stringify(requestPayload),
+        credentials: 'include',
+        mode: 'cors'
+      })
     }
-    const bodyObj: Record<string, unknown> = typeof body === 'object' && body !== null ? (body as Record<string, unknown>) : {}
-    const bodySuccess = typeof bodyObj['success'] === 'boolean' ? (bodyObj['success'] as boolean) : undefined
-    const bodyStatus = typeof bodyObj['status'] === 'number' ? (bodyObj['status'] as number) : undefined
-    const bodyJwtError = typeof bodyObj['jwtError'] === 'boolean' ? (bodyObj['jwtError'] as boolean) : undefined
-    const bodyMessage = typeof bodyObj['message'] === 'string' ? (bodyObj['message'] as string) : undefined
-    if (!resp.ok || bodySuccess === false) {
-      const status = resp.status || bodyStatus
-      if (status === 401 || bodyJwtError === true || bodyMessage === 'unauthorized') {
-        const refreshed = await tryRefresh()
-        if (refreshed) {
-          resp = await fetch((sameOrigin ? `${sameOrigin}/api/email/findBulkEmail` : `${apiBase}/email/findBulkEmail`), {
-            method: 'POST',
-            headers: buildHeaders(),
-            body: JSON.stringify(payload),
-            credentials: 'include',
-            mode: 'cors'
-          })
-          try { body = await resp.json() } catch { body = {} }
-          const retryObj: Record<string, unknown> = typeof body === 'object' && body !== null ? (body as Record<string, unknown>) : {}
-          const retrySuccess = typeof retryObj['success'] === 'boolean' ? (retryObj['success'] as boolean) : undefined
-          const retryData = typeof retryObj['data'] === 'object' && retryObj['data'] !== null ? (retryObj['data'] as Record<string, unknown>) : undefined
-          const retryResults = Array.isArray(retryData?.['results']) ? (retryData?.['results'] as Array<Record<string, unknown>>) : []
-          const retryCredits = Number(retryData?.['totalCredits'] ?? 0)
-          if (resp.ok && retrySuccess !== false) {
-            totalCredits += retryCredits
-            for (const it of retryResults) out.push(it)
-          }
-        }
-      }
-    } else {
-      const dataObj: Record<string, unknown> | undefined = typeof bodyObj['data'] === 'object' && bodyObj['data'] !== null ? (bodyObj['data'] as Record<string, unknown>) : undefined
-      const results = Array.isArray(dataObj?.['results']) ? (dataObj?.['results'] as Array<Record<string, unknown>>) : []
-      const credits = Number(dataObj?.['totalCredits'] ?? 0)
-      totalCredits += credits
-      for (const it of results) out.push(it)
-    }
-  } finally {
-    completed++
-    if (onProgress) onProgress(completed, total)
   }
-  return { items: out, totalCredits }
+
+  let submitBody: unknown
+  try { submitBody = await resp.json() } catch { submitBody = {} }
+  const submitObj = typeof submitBody === 'object' && submitBody !== null ? (submitBody as Record<string, unknown>) : {}
+
+  if (!resp.ok || submitObj['success'] === false) {
+    const msg = typeof submitObj['message'] === 'string' ? submitObj['message'] : 'Failed to submit bulk find job'
+    throw new Error(msg)
+  }
+
+  const submitData = submitObj['data'] as Record<string, unknown> | undefined
+  const jobId = typeof submitData?.['job_id'] === 'string' ? submitData['job_id'] as string : undefined
+  if (!jobId) throw new Error('No job_id returned from V2 endpoint')
+
+  // Report initial progress
+  if (onProgress) {
+    const initProgress = submitData?.['progress'] as Record<string, unknown> | undefined
+    const total = Number(initProgress?.['total'] ?? requestPayload.lookups.length)
+    onProgress(0, total)
+  }
+
+  // --- Step 2: Poll for completion ---
+  const { pollJob } = await import('./poll-job')
+  const result = await pollJob(
+    jobId,
+    accessToken || '',
+    (progress) => {
+      if (onProgress) onProgress(progress.processed, progress.total)
+    },
+    5000
+  )
+
+  // --- Step 3: Return results in the same format as V1 ---
+  const items = Array.isArray(result.results) ? result.results : []
+  const totalCredits = Number(result.summary?.credits_charged ?? 0)
+  return { items, totalCredits }
 }

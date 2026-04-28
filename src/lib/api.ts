@@ -10,10 +10,14 @@ interface RequestOptions {
 }
 
 export function getBackendBaseUrl(): string {
-  const isProd = process.env.NODE_ENV === 'production'
-  const raw = isProd
-    ? (process.env.NEXT_PUBLIC_SERVER_URL || process.env.NEXT_PUBLIC_CORE_API_BASE || 'https://server.mailsfinder.com')
-    : (process.env.NEXT_PUBLIC_LOCAL_URL || process.env.NEXT_PUBLIC_CORE_API_BASE || 'http://localhost:8000')
+  const envFlag = (process.env.NEXT_PUBLIC_API_ENV || (process.env.NODE_ENV === 'production' ? 'production' : 'staging')).toLowerCase()
+  let raw =
+    envFlag === 'production'
+      ? (process.env.NEXT_PUBLIC_API_URL_PROD || process.env.NEXT_PUBLIC_SERVER_URL || process.env.NEXT_PUBLIC_CORE_API_BASE)
+      : envFlag === 'local'
+        ? (process.env.NEXT_PUBLIC_API_URL_LOCAL || process.env.NEXT_PUBLIC_LOCAL_URL || process.env.NEXT_PUBLIC_API_URL_STAGING || process.env.NEXT_PUBLIC_CORE_API_BASE)
+        : (process.env.NEXT_PUBLIC_API_URL_STAGING || process.env.NEXT_PUBLIC_LOCAL_URL || process.env.NEXT_PUBLIC_CORE_API_BASE)
+  raw = (raw || '').trim()
   return raw.replace(/\/+$/, '')
 }
 

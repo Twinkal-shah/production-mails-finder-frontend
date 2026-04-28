@@ -7,7 +7,7 @@ export async function POST(req: NextRequest) {
     const appHost = (req.headers.get('x-forwarded-host') || req.headers.get('host') || '').toLowerCase()
     const backendHost = (() => { try { return new URL(backend).host.toLowerCase() } catch { return '' } })()
     if (backendHost && appHost && backendHost === appHost) {
-      backend = 'https://server.mailsfinder.com'
+      backend = (process.env.NEXT_PUBLIC_API_URL_PROD || process.env.NEXT_PUBLIC_SERVER_URL || backend)
     }
   } catch {}
   const url = `${backend}/api/user/auth/forgot-password`
@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
         body
       })
     } catch {
-      const local = (process.env.NEXT_PUBLIC_LOCAL_URL || 'http://localhost:8000').replace(/\/+$/, '')
+      const local = (process.env.NEXT_PUBLIC_API_URL_LOCAL || process.env.NEXT_PUBLIC_API_URL_STAGING || process.env.NEXT_PUBLIC_LOCAL_URL || process.env.NEXT_PUBLIC_CORE_API_BASE || '').replace(/\/+$/, '')
       const fallbackUrl = `${local}/api/user/auth/forgot-password`
       res = await fetch(fallbackUrl, {
         method: 'POST',
@@ -45,4 +45,3 @@ export async function POST(req: NextRequest) {
 }
 
 export const runtime = 'nodejs'
-

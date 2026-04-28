@@ -50,12 +50,12 @@
 :root {
   --radius: 0.75rem;
    --font-geist-sans: 'Space Grotesk';
-  --background: #fbf9f8; 
-  --foreground: #1b1c1b; 
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
+  --background: #fbf9f8;
+  --foreground: #1b1c1b;
+  --card: #fbf9f8;
+  --card-foreground: #1b1c1b;
+  --popover: #fbf9f8;
+  --popover-foreground: #1b1c1b;
   --primary: #b71d3f; 
   --primary-foreground: #ffffff;
   --gradient-start: #b71d3f;
@@ -284,6 +284,18 @@
     50%  { background-position: 100% 0%, 100% 100%, 0% 100%,   0% 100%; }
     75%  { background-position: 100% 0%, 100% 100%, 0% 100%,   0% 0%;   }
     100% { background-position: 0% 0%,   100% 0%,   100% 100%, 0% 100%; }
+  }
+  @keyframes progress-indeterminate {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+  .animate-progress-indeterminate {
+    width: 100% !important;
+    transform: none !important;
+    background: linear-gradient(90deg, transparent, var(--primary) 50%, transparent) !important;
+    background-color: transparent !important;
+    background-size: 200% 100%;
+    animation: progress-indeterminate 1.5s infinite;
   }
   @keyframes fade-in {
     from { opacity: 0 }

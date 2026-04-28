@@ -474,7 +474,7 @@ export default function ApiCallsPage() {
   })
 
   const [activeTab, setActiveTab] = useState('docs')
-  const restricted = !profileLoading && (profile?.plan === 'free' || profile?.plan === 'pro')
+  const restricted = !profileLoading && (profile?.plan === 'free' || profile?.plan === 'payg')
   const handleUpgrade = () => {
     router.push('/credits')
   }
@@ -593,7 +593,7 @@ export default function ApiCallsPage() {
   const fetchApiKeys = useCallback(async () => {
     setKeysLoading(true)
     try {
-      const res = await apiGet<unknown>('https://server.mailsfinder.com/api/api-key/getApiKeys', { includeAuth: true })
+      const res = await apiGet<unknown>('/api/api-key/getApiKeys', { useProxy: true, includeAuth: true })
       if (!res.ok) {
         const msg = typeof res.error === 'string' ? res.error : (res.error && typeof res.error === 'object' && 'message' in res.error ? String((res.error as Record<string, unknown>).message) : 'Failed to fetch API keys')
         toast.error(msg)
@@ -624,7 +624,7 @@ export default function ApiCallsPage() {
     }
     setCreatingKey(true)
     try {
-      const res = await apiPost<unknown>('https://server.mailsfinder.com/api/api-key/createApiKey', { keyName: name }, { includeAuth: true })
+      const res = await apiPost<unknown>('/api/api-key/createApiKey', { keyName: name }, { useProxy: true, includeAuth: true })
       if (!res.ok) {
         const msg = typeof res.error === 'string' ? res.error : (res.error && typeof res.error === 'object' && 'message' in res.error ? String((res.error as Record<string, unknown>).message) : 'Failed to create API key')
         toast.error(msg)
@@ -664,7 +664,7 @@ export default function ApiCallsPage() {
   const handleDeactivate = async (id: string) => {
     setDeactivatingId(id)
     try {
-      const res = await apiDelete<unknown>(`https://server.mailsfinder.com/api/api-key/deactivateAPIKey/${id}`, { includeAuth: true })
+      const res = await apiDelete<unknown>(`/api/api-key/deactivateAPIKey/${id}`, { useProxy: true, includeAuth: true })
       if (!res.ok) {
         const msg = typeof res.error === 'string' ? res.error : (res.error && typeof res.error === 'object' && 'message' in res.error ? String((res.error as Record<string, unknown>).message) : 'Failed to deactivate API key')
         toast.error(msg)

@@ -12,6 +12,9 @@ import Papa from 'papaparse'
 import * as XLSX from 'xlsx'
 import type { BulkVerificationJob, EmailData } from './types'
 import { useQueryInvalidation } from '@/lib/query-invalidation'
+import { useRecentVerifyResults } from '@/hooks/useRecentResults'
+import { RecentVerifyResultsTable } from '@/components/recent-results-table'
+import { ActiveJobsBanner } from '@/components/active-jobs-banner'
 
 interface VerifyRow extends CsvRow {
   id: number
@@ -20,6 +23,7 @@ interface VerifyRow extends CsvRow {
   catch_all?: boolean
   domain?: string
   mx?: string
+  reason?: string
   user_name?: string
 }
 
@@ -43,14 +47,20 @@ export default function VerifyPage() {
   const [validCount, setValidCount] = useState(0)
   const [invalidCount, setInvalidCount] = useState(0)
   const [unknownCount, setUnknownCount] = useState(0)
+  const [riskyCount, setRiskyCount] = useState(0)
   const [statusText, setStatusText] = useState('')
-  const [results, setResults] = useState<{ email: string; status?: string; catch_all?: boolean; connections?: number; domain?: string; message?: string; mx?: string; time_exec?: number; user_name?: string }[]>([])
+  const [results, setResults] = useState<{ email: string; status?: string; catch_all?: boolean; connections?: number; domain?: string; mx?: string; reason?: string; time_exec?: number; user_name?: string }[]>([])
   const [currentJob, setCurrentJob] = useState<BulkVerificationJob | null>(null)
   const [originalFileName, setOriginalFileName] = useState<string>('')
+  const [originalFileNameWithExt, setOriginalFileNameWithExt] = useState<string>('')
   const [originalColumnOrder, setOriginalColumnOrder] = useState<string[]>([])
   const [allJobs, setAllJobs] = useState<BulkVerificationJob[]>([])
+  const [isIndeterminate, setIsIndeterminate] = useState(false)
+  const [duplicateInfo, setDuplicateInfo] = useState('')
+  const [creditsCharged, setCreditsCharged] = useState(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { invalidateCreditsData } = useQueryInvalidation()
+  const { addResult: addRecentVerifyResult } = useRecentVerifyResults()
   // const [isSubmittingJob, setIsSubmittingJob] = useState(false) // Currently unused
 
   // Poll job status every 3 seconds
@@ -96,6 +106,25 @@ export default function VerifyPage() {
     if (v === 'risky') return 'Risky'
     return 'Unknown'
   }
+  const statusDescription = (s?: string) => {
+    const v = typeof s === 'string' ? s.toLowerCase() : ''
+    if (v === 'valid') return 'Email is valid and deliverable.'
+    if (v === 'invalid') return 'Email does not exist or cannot receive messages.'
+    if (v === 'risky') return 'Email appears risky (catch-all or uncertain).'
+    if (v === 'error') return 'Unable to verify this email. Please try again later.'
+    return 'Verification completed. Status is unknown.'
+  }
+  const asRecord = (value: unknown): Record<string, unknown> =>
+    typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {}
+  const getVerificationPayload = (value: unknown) => {
+    const root = asRecord(value)
+    return asRecord(root.data)
+  }
+  const getVerificationDetails = (value: unknown) => {
+    const payload = getVerificationPayload(value)
+    return Object.keys(payload).length > 0 ? payload : asRecord(value)
+  }
+  const getStringValue = (value: unknown) => typeof value === 'string' && value.trim() ? value : undefined
 
   const verifySingle = async () => {
     if (!singleEmail.trim()) {
@@ -117,19 +146,21 @@ export default function VerifyPage() {
       })
       
       const data = await response.json()
+      const details = getVerificationDetails(data)
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to verify email')
+        throw new Error(
+          getStringValue(details.error) ||
+          getStringValue(asRecord(data).error) ||
+          'Failed to verify email'
+        )
       }
-      
-      // Debug log to see the actual response
-      console.log('API Response:', data)
-      
-      const rawStatus = typeof data.status === 'string' ? data.status.toLowerCase() : 'unknown'
-      const rawReason = (typeof data.reason === 'string' && data.reason) || (typeof data.message === 'string' && data.message) || (typeof data.error === 'string' && data.error) || ''
-      const uiStatus = data.catch_all === true ? 'risky' : rawStatus
+
+      const rawStatus = typeof details.status === 'string' ? details.status.toLowerCase() : 'unknown'
+      const rawReason = getStringValue(details.reason) || getStringValue(details.error) || getStringValue(asRecord(data).error) || ''
+      const uiStatus = details.catch_all === true ? 'risky' : rawStatus
       const uiReason = rawReason || undefined
       setSingleResult({ status: uiStatus, reason: uiReason })
-      setSingleRaw(data)
+      setSingleRaw(details)
       
       if (uiStatus === 'valid') {
         toast.success('Email is valid!')
@@ -143,6 +174,19 @@ export default function VerifyPage() {
       
       // Invalidate queries for real-time credit updates
       invalidateCreditsData()
+      // Optimistically add to recent results
+      addRecentVerifyResult({
+        result: {
+          email: singleEmail,
+          status: uiStatus,
+          domain: singleEmail.split('@')[1] || '',
+          confidence_score: typeof details.confidence_score === 'number' ? (details.confidence_score as number) : 0,
+          safe_to_send: typeof details.safe_to_send === 'boolean' ? (details.safe_to_send as boolean) : undefined,
+          email_provider: getStringValue(details.email_provider) || undefined,
+          catch_all: details.catch_all === true,
+        },
+        created_at: new Date().toISOString(),
+      })
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to verify email'
       toast.error(errorMessage)
@@ -158,6 +202,7 @@ export default function VerifyPage() {
     // Store the original filename (without extension for later use)
     const fileName = file.name.replace(/\.[^/.]+$/, '') // Remove extension
     setOriginalFileName(fileName)
+    setOriginalFileNameWithExt(file.name)
 
     const fileExtension = file.name.split('.').pop()?.toLowerCase()
 
@@ -246,9 +291,17 @@ export default function VerifyPage() {
     setIsProcessing(true)
     setProcessedCount(0)
     setProgress(0)
-    const jobId = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `job-${Date.now()}`
+    setResults([])
+    setIsIndeterminate(true)
+    setDuplicateInfo('')
+    setCreditsCharged(0)
+    setValidCount(0)
+    setInvalidCount(0)
+    setUnknownCount(0)
+    setRiskyCount(0)
+    const localJobId = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `job-${Date.now()}`
     setCurrentJob({
-      jobId,
+      jobId: localJobId,
       status: 'processing',
       totalEmails: validRows.length,
       processedEmails: 0,
@@ -260,12 +313,21 @@ export default function VerifyPage() {
     try {
       const normalizeEmail = (e: string) => (e || '').trim().toLowerCase()
       const isValidEmail = (e: string) => /.+@.+\..+/.test(e)
-      const emailsAll = rows
-        .filter(r => r.email)
-        .map(r => normalizeEmail(r.email))
-        .filter(isValidEmail)
 
-      const uniqueEmails = Array.from(new Set(emailsAll))
+      const dedupedRowsMap = new Map<string, Record<string, unknown>>()
+      for (const r of rows) {
+        const normalized = normalizeEmail(r.email || '')
+        if (!normalized || !isValidEmail(normalized)) continue
+        if (dedupedRowsMap.has(normalized)) continue
+        const originalRow: Record<string, unknown> = {}
+        for (const col of originalColumnOrder) {
+          originalRow[col] = (r as Record<string, unknown>)[col]
+        }
+        originalRow.email = normalized
+        dedupedRowsMap.set(normalized, originalRow)
+      }
+      const dedupedRows = Array.from(dedupedRowsMap.values())
+      const uniqueEmails = Array.from(dedupedRowsMap.keys())
 
       setRows(prev => prev.map(r => {
         const ok = isValidEmail(normalizeEmail(r.email || ''))
@@ -283,176 +345,150 @@ export default function VerifyPage() {
         return 'unknown'
       }
 
-      setStatusText('Processing...')
+      setStatusText('Verifying emails... This may take a few minutes for large batches')
       setProgress(0)
-      
-      const resp = await fetch('/api/verify-bulk', {
+      setIsIndeterminate(true)
+
+      // --- Step 1: Submit to V2 endpoint ---
+      const verifyBody: Record<string, unknown> = { rows: dedupedRows }
+      if (originalFileNameWithExt) verifyBody.original_filename = originalFileNameWithExt
+      const resp = await fetch('/api/email/verifyBulkEmailV2', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {})
         },
-        body: JSON.stringify({ emails: uniqueEmails })
+        body: JSON.stringify(verifyBody)
       })
 
       if (!resp.ok) {
-        let errorData = {}
-        try {
-          errorData = await resp.json()
-        } catch {}
-        throw { status: resp.status, body: errorData }
+        let errorData: Record<string, unknown> = {}
+        try { errorData = await resp.json() } catch {}
+        throw new Error(typeof errorData.message === 'string' ? errorData.message : 'Failed to submit bulk verify job')
       }
 
-      if (!resp.body) {
-        throw new Error('No response body available')
+      const submitBody = await resp.json()
+      const submitData = submitBody?.data as Record<string, unknown> | undefined
+      const backendJobId = typeof submitData?.job_id === 'string' ? submitData.job_id : undefined
+      if (!backendJobId) throw new Error('No job_id returned from V2 endpoint')
+
+      // Show duplicate info from initial response
+      const initProgress = submitData?.progress as Record<string, unknown> | undefined
+      const backendTotal = Number(initProgress?.total ?? uniqueEmails.length)
+      if (uniqueEmails.length > backendTotal) {
+        const dupes = uniqueEmails.length - backendTotal
+        setDuplicateInfo(`${backendTotal} unique emails to process (${dupes} duplicates removed)`)
+      } else if (rows.length > backendTotal) {
+        const dupes = rows.length - backendTotal
+        setDuplicateInfo(`${backendTotal} unique emails to process (${dupes} duplicates removed)`)
       }
 
-      const reader = resp.body.getReader()
-      const decoder = new TextDecoder()
-      let partialChunk = ''
-      
-      const totals = { valid: 0, invalid: 0, unknown: 0, processed: 0 }
-      let summaryReceived = false
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        const chunk = decoder.decode(value, { stream: true })
-        const lines = (partialChunk + chunk).split('\n')
-        partialChunk = lines.pop() || ''
-
-        for (const line of lines) {
-          const trimmedLine = line.trim()
-          if (!trimmedLine || !trimmedLine.startsWith('data:')) continue
-
-          const jsonStr = trimmedLine.replace(/^data:\s*/, '')
-          try {
-            const data = JSON.parse(jsonStr)
-            
-            // Update progress if percentage is provided
-            if (typeof data.percentage === 'number') {
-              setProgress(data.percentage)
-            }
-
-            // Handle result update (could be a single result or summary)
-            if (data.type === 'result' && data.data) {
-              const item = data.data
-              const rawMsg = typeof item?.message === 'string' ? item.message : ''
-              const baseStatus = (item?.status ?? item?.result ?? item?.email_status)
-              const normalized = normalizeStatus(baseStatus)
-              const finalStatus = item?.catch_all === true ? 'risky' : normalized
-              
-              const resultItem = {
-                email: item?.email || '',
-                status: finalStatus,
-                catch_all: item?.catch_all,
-                connections: item?.connections,
-                domain: item?.domain,
-                message: rawMsg,
-                mx: item?.mx,
-                time_exec: item?.time_exec,
-                user_name: item?.user_name
-              }
-              
-              setResults(prev => [...prev, resultItem])
-              
-              // Update individual row status in real-time
-              setRows(prev => prev.map(r => {
-                if (normalizeEmail(r.email || '') === normalizeEmail(item?.email || '')) {
-                  return { 
-                    ...r, 
-                    status: finalStatus, 
-                    catch_all: (typeof item.catch_all === 'boolean' ? item.catch_all : r.catch_all), 
-                    domain: (typeof item.domain === 'string' ? item.domain : r.domain), 
-                    mx: (typeof item.mx === 'string' ? item.mx : r.mx), 
-                    user_name: (typeof item.user_name === 'string' ? item.user_name : r.user_name) 
-                  }
-                }
-                return r
-              }))
-
-              // Update counts
-              totals.processed++
-              if (finalStatus === 'valid' || finalStatus === 'risky') totals.valid++
-              else if (finalStatus === 'invalid') totals.invalid++
-              else totals.unknown++
-
-              setProcessedCount(totals.processed)
-              setValidCount(totals.valid)
-              setInvalidCount(totals.invalid)
-              setUnknownCount(totals.unknown)
-              
-              setCurrentJob(prev => {
-                if (!prev) return prev
-                const updatedEmailsData = (prev.emailsData || []).map(r => {
-                  if (normalizeEmail(r.email || '') === normalizeEmail(item?.email || '')) {
-                    return { 
-                      ...r, 
-                      status: finalStatus, 
-                      catch_all: (typeof item.catch_all === 'boolean' ? item.catch_all : r.catch_all), 
-                      domain: (typeof item.domain === 'string' ? item.domain : r.domain), 
-                      mx: (typeof item.mx === 'string' ? item.mx : r.mx), 
-                      user_name: (typeof item.user_name === 'string' ? item.user_name : r.user_name) 
-                    }
-                  }
-                  return r
-                })
-                
-                return {
-                  ...prev,
-                  processedEmails: totals.processed,
-                  successfulVerifications: totals.valid,
-                  failedVerifications: totals.invalid,
-                  emailsData: updatedEmailsData
-                }
-              })
-            } else if ((data.status === 'completed' || data.type === 'summary') && data.data?.summary) {
-                // Final summary update from backend
-                const s = data.data.summary
-                
-                // Extract values safely, only updating if they are numbers
-                const v = typeof s?.valid_emails === 'number' ? s.valid_emails : totals.valid
-                const inv = typeof s?.invalid_emails === 'number' ? s.invalid_emails : totals.invalid
-                const unk = typeof s?.unknown_emails === 'number' ? s.unknown_emails : totals.unknown
-                const proc = typeof s?.total_emails === 'number' ? s.total_emails : totals.processed
-
-                // Update state with final counts from backend
-                setValidCount(v)
-                setInvalidCount(inv)
-                setUnknownCount(unk)
-                setProcessedCount(proc)
-                setProgress(100)
-                summaryReceived = true
-
-                // Update current job state with final counts
-                setCurrentJob(prev => prev ? {
-                  ...prev,
-                  status: 'completed',
-                  processedEmails: proc,
-                  successfulVerifications: v,
-                  failedVerifications: inv,
-                  emailsData: prev.emailsData
-                } : prev)
-              }
-          } catch (e) {
-            console.error('Error parsing SSE JSON:', e, jsonStr)
+      // --- Step 2: Poll for completion ---
+      const { pollJob } = await import('@/lib/poll-job')
+      const jobResult = await pollJob(
+        backendJobId,
+        token || '',
+        (progress) => {
+          if (progress.processed === 0) {
+            // SMTP phase — indeterminate
+            setIsIndeterminate(true)
+            setStatusText('Verifying emails... This may take a few minutes for large batches')
+          } else {
+            // Real progress
+            setIsIndeterminate(false)
+            const pct = progress.total > 0 ? Math.round((progress.processed / progress.total) * 100) : 0
+            setProgress(pct)
+            setStatusText(`Processing ${progress.processed} / ${progress.total} emails`)
           }
+          setProcessedCount(progress.processed)
+          setCurrentJob(prev => prev ? {
+            ...prev,
+            processedEmails: progress.processed,
+            totalEmails: progress.total
+          } : prev)
+        },
+        5000
+      )
+
+      // --- Step 3: Process completed results ---
+      const resultsArr = Array.isArray(jobResult.results) ? jobResult.results : []
+      const collected: { email: string; status?: string; catch_all?: boolean; connections?: number; domain?: string; mx?: string; reason?: string; time_exec?: number; user_name?: string }[] = []
+      const totals = { valid: 0, invalid: 0, unknown: 0, risky: 0, processed: 0 }
+
+      for (const item of resultsArr) {
+        const result = asRecord(item)
+        const baseStatus = result.status ?? result.result ?? result.email_status
+        const normalized = normalizeStatus(baseStatus)
+        const finalStatus = result.catch_all === true ? 'risky' : normalized
+        const rawReason = getStringValue(result.reason)
+        const resultItem = {
+          email: getStringValue(result.email) || '',
+          status: finalStatus,
+          catch_all: typeof result.catch_all === 'boolean' ? result.catch_all : undefined,
+          connections: typeof result.connections === 'number' ? result.connections : undefined,
+          domain: getStringValue(result.domain),
+          mx: getStringValue(result.mx),
+          reason: rawReason,
+          time_exec: typeof result.time_exec === 'number' ? result.time_exec : undefined,
+          user_name: getStringValue(result.user_name)
         }
+        collected.push(resultItem)
+        totals.processed++
+        if (finalStatus === 'valid') totals.valid++
+        else if (finalStatus === 'risky') totals.risky++
+        else if (finalStatus === 'invalid') totals.invalid++
+        else totals.unknown++
       }
 
-      if (!summaryReceived) {
-        setCurrentJob(prev => prev ? {
+      setResults(collected)
+      setValidCount(totals.valid)
+      setInvalidCount(totals.invalid)
+      setUnknownCount(totals.unknown)
+      setRiskyCount(totals.risky)
+      setProcessedCount(totals.processed)
+      setProgress(100)
+      setIsIndeterminate(false)
+      setCreditsCharged(Number(jobResult.summary?.credits_charged ?? 0))
+
+      setRows(prev => prev.map(r => {
+        const hit = collected.find(it => normalizeEmail(it.email || '') === normalizeEmail(r.email || ''))
+        if (!hit || !hit.status) return r
+        return {
+          ...r,
+          status: hit.status as VerifyRow['status'],
+          catch_all: typeof hit.catch_all === 'boolean' ? hit.catch_all : r.catch_all,
+          domain: typeof hit.domain === 'string' ? hit.domain : r.domain,
+          mx: typeof hit.mx === 'string' ? hit.mx : r.mx,
+          reason: typeof hit.reason === 'string' ? hit.reason : r.reason,
+          user_name: typeof hit.user_name === 'string' ? hit.user_name : r.user_name
+        }
+      }))
+
+      setCurrentJob(prev => {
+        if (!prev) return prev
+        const updatedEmailsData = (prev.emailsData || []).map(r => {
+          const hit = collected.find(it => normalizeEmail(it.email || '') === normalizeEmail(r.email || ''))
+          if (!hit || !hit.status) return r
+          return {
+            ...r,
+            status: hit.status as VerifyRow['status'],
+            catch_all: typeof hit.catch_all === 'boolean' ? hit.catch_all : r.catch_all,
+            domain: typeof hit.domain === 'string' ? hit.domain : r.domain,
+            mx: typeof hit.mx === 'string' ? hit.mx : r.mx,
+            reason: typeof hit.reason === 'string' ? hit.reason : r.reason,
+            user_name: typeof hit.user_name === 'string' ? hit.user_name : r.user_name
+          }
+        })
+        return {
           ...prev,
           status: 'completed',
           processedEmails: totals.processed,
           successfulVerifications: totals.valid,
           failedVerifications: totals.invalid,
-          emailsData: prev.emailsData // Preserve existing updated emailsData
-        } : prev)
-      }
-      
-      setProgress(100)
+          emailsData: updatedEmailsData
+        }
+      })
+
       setIsProcessing(false)
       setStatusText('Completed')
       toast.success('Bulk verification completed')
@@ -462,19 +498,19 @@ export default function VerifyPage() {
       toast.error(msg)
       setCurrentJob(prev => prev ? { ...prev, status: 'failed', errorMessage: msg } : prev)
       setIsProcessing(false)
+      setIsIndeterminate(false)
     }
   }
 
   const downloadResults = () => {
     try {
-      const cols = ['catch_all', 'connections', 'domain', 'email', 'message', 'mx', 'status', 'time_exec', 'user_name']
+      const cols = ['catch_all', 'connections', 'domain', 'email', 'mx', 'status', 'time_exec', 'user_name']
       const list = results.length > 0
         ? results.map(it => ({
             catch_all: it.catch_all,
             connections: it.connections,
             domain: it.domain,
             email: it.email,
-            message: it.message,
             mx: it.mx,
             status: it.status,
             time_exec: it.time_exec,
@@ -485,7 +521,6 @@ export default function VerifyPage() {
             connections: undefined,
             domain: r.domain,
             email: r.email,
-            message: undefined,
             mx: r.mx,
             status: r.status,
             time_exec: undefined,
@@ -519,7 +554,8 @@ export default function VerifyPage() {
         </p>
       </div>
 
-      {/* Info Banner removed per UI cleanup request */}
+      {/* Active Jobs Banner */}
+      <ActiveJobsBanner />
 
       {/* Single Email Verification */}
       <Card>
@@ -573,12 +609,9 @@ export default function VerifyPage() {
                     <p className="font-medium">
                       Status: <span>{statusLabel(singleResult.status)}</span>
                     </p>
-                    {singleResult.status !== 'valid' && singleResult.status !== 'invalid' && (() => {
-                      const msg = singleResult.reason || singleResult.error || (typeof singleRaw?.reason === 'string' && singleRaw.reason)
-                      return msg ? (
-                        <p className="text-sm text-gray-600">Reason: {String(msg)}</p>
-                      ) : null
-                    })()}
+                    <p className="text-sm text-gray-600">
+                      {statusDescription(singleResult.status)}
+                    </p>
                   </div>
                 </div>
                 {singleResult.status === 'valid' && singleRaw && (
@@ -658,14 +691,23 @@ export default function VerifyPage() {
           <CardContent className="pt-6">
             {isProcessing ? (
               <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-lg font-medium">{statusText || 'Verifying emails...'}</span>
-                  <span className="text-sm text-gray-600">{processedCount} / {rows.length} completed</span>
-                </div>
-                <Progress value={progress} className="w-full h-3" />
-                <div className="text-center text-sm text-gray-500">
-                  {Math.round(progress)}% complete
-                </div>
+                <p className="text-lg font-semibold text-center">{statusText || 'Verifying emails...'}</p>
+                {isIndeterminate ? (
+                  <Progress indeterminate className="w-full h-3" />
+                ) : (
+                  <>
+                    <Progress value={progress} className="w-full h-3" />
+                    <div className="text-center text-sm text-gray-500">
+                      {Math.round(progress)}% complete
+                    </div>
+                  </>
+                )}
+                <p className="text-center text-sm text-gray-500">
+                  {processedCount} / {currentJob?.totalEmails ?? rows.length} emails
+                </p>
+                {duplicateInfo && (
+                  <p className="text-center text-sm text-gray-400">{duplicateInfo}</p>
+                )}
               </div>
             ) : currentJob?.status === 'completed' ? (
               <div className="space-y-4 text-center">
@@ -674,7 +716,7 @@ export default function VerifyPage() {
                   <span className="text-lg font-medium text-green-600">Verification Complete!</span>
                 </div>
                 <p className="text-sm text-gray-600">Processed {processedCount} emails</p>
-                <div className="grid grid-cols-4 gap-4">
+                <div className={`grid gap-4 ${creditsCharged > 0 ? 'grid-cols-6' : 'grid-cols-5'}`}>
                   <div>
                     <p className="text-2xl font-bold text-green-600">{validCount}</p>
                     <p className="text-sm text-gray-600">Valid</p>
@@ -687,15 +729,46 @@ export default function VerifyPage() {
                     <p className="text-2xl font-bold text-gray-600">{unknownCount}</p>
                     <p className="text-sm text-gray-600">Unknown</p>
                   </div>
+                  <div title="Catch-all or uncertain results — not billed.">
+                    <p className="text-2xl font-bold text-yellow-500">{riskyCount}</p>
+                    <p className="text-sm text-gray-600">Risky</p>
+                  </div>
                   <div>
                     <p className="text-2xl font-bold">{processedCount}</p>
                     <p className="text-sm text-gray-600">Processed</p>
                   </div>
+                  {creditsCharged > 0 && (
+                    <div>
+                      <p className="text-2xl font-bold text-primary">{creditsCharged}</p>
+                      <p className="text-sm text-gray-600">Credits Used</p>
+                    </div>
+                  )}
                 </div>
                 <Button onClick={downloadResults} className="bg-green-600 hover:bg-green-700">
                   <Download className="mr-2 h-4 w-4" />
                   Download Results
                 </Button>
+              </div>
+            ) : currentJob?.status === 'failed' ? (
+              <div className="space-y-4 text-center">
+                <div className="flex items-center justify-center space-x-2">
+                  <AlertCircle className="h-6 w-6 text-red-600" />
+                  <span className="text-lg font-medium text-red-600">Verification Failed</span>
+                </div>
+                {currentJob.errorMessage && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-md">
+                    <p className="text-sm text-red-600">{currentJob.errorMessage}</p>
+                  </div>
+                )}
+                {currentJob.emailsData && (currentJob.processedEmails || 0) > 0 && (
+                  <Button
+                    variant="outline"
+                    onClick={downloadResults}
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    Download Partial Results
+                  </Button>
+                )}
               </div>
             ) : (
               <div className="text-center">
@@ -708,153 +781,8 @@ export default function VerifyPage() {
         </Card>
       )}
 
-      {/* Current Job Status */}
-      {currentJob && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              {currentJob.status === 'processing' ? (
-                <Clock className="h-5 w-5" style={{ color: 'var(--primary)' }} />
-              ) : currentJob.status === 'completed' ? (
-                <CheckCircle className="h-5 w-5 text-green-600" />
-              ) : (
-                <AlertCircle className="h-5 w-5 text-red-600" />
-              )}
-              Current Job Status
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <span className="text-lg font-medium">
-                  Status: <span className="capitalize">{currentJob.status}</span>
-                </span>
-                <span className="text-sm text-gray-600">
-                  {currentJob.processedEmails || 0} / {currentJob.totalEmails} emails processed
-                </span>
-              </div>
-              
-              {currentJob.totalEmails > 0 && (
-                <Progress 
-                  value={((currentJob.processedEmails || 0) / currentJob.totalEmails) * 100} 
-                  className="w-full h-3" 
-                />
-              )}
-              
-              <div className="grid grid-cols-4 gap-4 text-center">
-                <div>
-                  <p className="text-2xl font-bold text-green-600">{validCount}</p>
-                  <p className="text-sm text-gray-600">Valid</p>
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-red-600">{invalidCount}</p>
-                  <p className="text-sm text-gray-600">Invalid</p>
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-gray-600">{unknownCount}</p>
-                  <p className="text-sm text-gray-600">Unknown</p>
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{processedCount}</p>
-                  <p className="text-sm text-gray-600">Processed</p>
-                </div>
-              </div>
-              
-              {currentJob.status === 'processing' && (
-                <div className="text-center text-sm text-gray-500">
-                  Processing in progress
-                </div>
-              )}
-              
-              {currentJob.status === 'completed' && currentJob.emailsData && (
-                <div className="text-center">
-                      <Button
-                    onClick={() => {
-                       // Define verification result columns that should be appended
-                       const verificationResultColumns = ['catch_all', 'connections', 'domain', 'email', 'message', 'mx', 'status', 'time_exec', 'user_name']
-                       
-                       // Use stored original column order or extract from first row
-                       const columnsToUse = originalColumnOrder.length > 0 
-                         ? originalColumnOrder 
-                         : (currentJob.emailsData && currentJob.emailsData.length > 0 ? Object.keys(currentJob.emailsData[0]).filter(key => 
-                             !['catch_all', 'connections', 'domain', 'email', 'message', 'mx', 'status', 'time_exec', 'user_name'].includes(key)
-                           ) : [])
-                       
-                       // Create ordered columns array: original columns + verification result columns
-                       const orderedColumns = [...columnsToUse, ...verificationResultColumns]
-                       
-                       const csvContent = Papa.unparse(currentJob.emailsData || [], { columns: orderedColumns })
-                       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-                       const link = document.createElement('a')
-                       const url = URL.createObjectURL(blob)
-                       link.setAttribute('href', url)
-                       const downloadFileName = currentJob.filename 
-                         ? `result-${currentJob.filename.replace(/\.[^/.]+$/, '')}.csv`
-                         : `bulk_verification_results_${currentJob.jobId}.csv`
-                       link.setAttribute('download', downloadFileName)
-                       link.style.visibility = 'hidden'
-                       document.body.appendChild(link)
-                       link.click()
-                       document.body.removeChild(link)
-                     }}
-                    className="bg-green-600 hover:bg-green-700"
-                  >
-                    <Download className="mr-2 h-4 w-4" />
-                    Download Results
-                  </Button>
-                </div>
-              )}
-              
-              {currentJob.status === 'failed' && currentJob.emailsData && (currentJob.processedEmails || 0) > 0 && (
-                <div className="text-center">
-                  <Button
-                    onClick={() => {
-                       // Define verification result columns that should be appended
-                       const verificationResultColumns = ['catch_all', 'connections', 'domain', 'email', 'message', 'mx', 'status', 'time_exec', 'user_name']
-                       
-                       // Use stored original column order or extract from first row
-                       const columnsToUse = originalColumnOrder.length > 0 
-                         ? originalColumnOrder 
-                         : (currentJob.emailsData && currentJob.emailsData.length > 0 ? Object.keys(currentJob.emailsData[0]).filter(key => 
-                             !['catch_all', 'connections', 'domain', 'email', 'message', 'mx', 'status', 'time_exec', 'user_name'].includes(key)
-                           ) : [])
-                       
-                       // Create ordered columns array: original columns + verification result columns
-                       const orderedColumns = [...columnsToUse, ...verificationResultColumns]
-                       
-                       const csvContent = Papa.unparse(currentJob.emailsData || [], { columns: orderedColumns })
-                       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-                       const link = document.createElement('a')
-                       const url = URL.createObjectURL(blob)
-                       link.setAttribute('href', url)
-                       const downloadFileName = currentJob.filename 
-                         ? `result-${currentJob.filename.replace(/\.[^/.]+$/, '')}.csv`
-                         : `partial_verification_results_${currentJob.jobId}.csv`
-                       link.setAttribute('download', downloadFileName)
-                       link.style.visibility = 'hidden'
-                       document.body.appendChild(link)
-                       link.click()
-                       document.body.removeChild(link)
-                     }}
-                    className=""
-                  >
-                    <Download className="mr-2 h-4 w-4" />
-                    Download Partial Results
-                  </Button>
-                </div>
-              )}
-              
-              {currentJob.errorMessage && (
-                <div className="p-3 bg-red-50 border border-red-200 rounded-md">
-                  <p className="text-sm text-red-600">
-                    Error: {currentJob.errorMessage}
-                  </p>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Recent Verify Results */}
+      <RecentVerifyResultsTable />
 
       {/* Job History */}
       {allJobs.length > 0 && (
@@ -894,7 +822,7 @@ export default function VerifyPage() {
                          variant="outline"
                          onClick={() => {
                            // Define verification result columns to append
-                           const verificationColumns = ['catch_all', 'connections', 'domain', 'email', 'message', 'mx', 'status', 'time_exec', 'user_name']
+                           const verificationColumns = ['catch_all', 'connections', 'domain', 'email', 'mx', 'status', 'time_exec', 'user_name']
                            
                            // Use stored original column order if available, otherwise extract from first row
                            let columnsToUse = originalColumnOrder

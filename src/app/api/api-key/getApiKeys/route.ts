@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getBackendBaseUrl } from '@/lib/api'
 
 export async function GET(req: NextRequest) {
-  const backend = process.env.NEXT_PUBLIC_SERVER_URL || 'https://server.mailsfinder.com'
+  const backend = getBackendBaseUrl()
   const url = `${backend}/api/api-key/getApiKeys`
   const cookie = req.headers.get('cookie') || ''
   const auth = req.headers.get('authorization') || ''
