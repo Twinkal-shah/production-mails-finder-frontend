@@ -19,6 +19,8 @@ interface VerifyEmailResponse {
   email_provider?: string
   confidence_score?: number
   safe_to_send?: boolean | "risky"
+  is_catch_all_domain?: boolean
+  notice?: string
 }
 
 export async function POST(request: NextRequest) {
@@ -176,7 +178,9 @@ export async function POST(request: NextRequest) {
       user_name: serviceResult.user_name,
       email_provider: serviceResult.email_provider ?? 'Other',
       confidence_score: serviceResult.confidence_score ?? 0,
-      safe_to_send: serviceResult.safe_to_send ?? false
+      safe_to_send: serviceResult.safe_to_send ?? false,
+      is_catch_all_domain: serviceResult.is_catch_all_domain,
+      notice: serviceResult.notice
     }
 
     return NextResponse.json(response)

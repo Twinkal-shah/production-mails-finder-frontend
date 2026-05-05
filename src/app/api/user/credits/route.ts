@@ -19,11 +19,27 @@ export async function GET(req: NextRequest) {
     })
     if (creditsProfileRes.ok) {
       const cd = await creditsProfileRes.json()
-      const findRaw = Number(cd.credits_find ?? cd.find ?? cd.findCredits ?? cd.data?.credits_find ?? 0)
-      const verifyRaw = Number(cd.credits_verify ?? cd.verify ?? cd.verifyCredits ?? cd.data?.credits_verify ?? 0)
+      const inner = (cd && typeof cd === 'object' && 'data' in cd ? cd.data : cd) || {}
+      const findRaw = Number(inner.credits_find ?? inner.find ?? inner.findCredits ?? 0)
+      const verifyRaw = Number(inner.credits_verify ?? inner.verify ?? inner.verifyCredits ?? 0)
       const find = Math.max(findRaw, 0)
       const verify = Math.max(verifyRaw, 0)
-      return NextResponse.json({ credits_find: find, credits_verify: verify, find, verify, total_credits: find + verify })
+      // Backend returns the unified spendable total in `available_credits`.
+      // credits_find and credits_verify both echo that same number now, so
+      // summing them double-counts. Prefer available_credits; fall back to
+      // the larger of the legacy values, NOT the sum.
+      const availableRaw = Number(inner.available_credits)
+      const total = Number.isFinite(availableRaw) && availableRaw >= 0
+        ? availableRaw
+        : Math.max(find, verify)
+      return NextResponse.json({
+        available_credits: total,
+        credits_find: find,
+        credits_verify: verify,
+        find,
+        verify,
+        total_credits: total,
+      })
     }
 
     const profileRes = await fetch(`${origin}/api/user/profile/getProfile`, {
@@ -36,9 +52,21 @@ export async function GET(req: NextRequest) {
     })
     if (profileRes.ok) {
       const d = await profileRes.json()
-      const find = Number(d.credits_find ?? d.find ?? d.findCredits ?? d.data?.credits_find ?? 0)
-      const verify = Number(d.credits_verify ?? d.verify ?? d.verifyCredits ?? d.data?.credits_verify ?? 0)
-      return NextResponse.json({ credits_find: find, credits_verify: verify, find, verify, total_credits: find + verify })
+      const inner = (d && typeof d === 'object' && 'data' in d ? d.data : d) || {}
+      const find = Number(inner.credits_find ?? inner.find ?? inner.findCredits ?? 0)
+      const verify = Number(inner.credits_verify ?? inner.verify ?? inner.verifyCredits ?? 0)
+      const availableRaw = Number(inner.available_credits)
+      const total = Number.isFinite(availableRaw) && availableRaw >= 0
+        ? availableRaw
+        : Math.max(find, verify)
+      return NextResponse.json({
+        available_credits: total,
+        credits_find: find,
+        credits_verify: verify,
+        find,
+        verify,
+        total_credits: total,
+      })
     }
 
     const res = await fetch(url, {
@@ -61,12 +89,14 @@ export async function GET(req: NextRequest) {
       const user = await getCurrentUserFromCookies()
       const find = Math.max(Number(user?.credits_find ?? 0), 0)
       const verify = Math.max(Number(user?.credits_verify ?? 0), 0)
+      const total = Math.max(find, verify)
       return NextResponse.json({
+        available_credits: total,
         credits_find: find,
         credits_verify: verify,
         find,
         verify,
-        total_credits: find + verify
+        total_credits: total
       }, { status: 200 })
     }
     return new NextResponse(text, { status: res.status, headers: { 'content-type': contentType } })
@@ -75,12 +105,14 @@ export async function GET(req: NextRequest) {
       const user = await getCurrentUserFromCookies()
       const find = Math.max(Number(user?.credits_find ?? 0), 0)
       const verify = Math.max(Number(user?.credits_verify ?? 0), 0)
+      const total = Math.max(find, verify)
       return NextResponse.json({
+        available_credits: total,
         credits_find: find,
         credits_verify: verify,
         find,
         verify,
-        total_credits: find + verify
+        total_credits: total
       }, { status: 200 })
     } catch {
       return NextResponse.json({ error: 'Proxy error', message: (error as Error).message }, { status: 500 })

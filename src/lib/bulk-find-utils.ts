@@ -171,8 +171,9 @@ export async function bulkFind(
   const submitObj = typeof submitBody === 'object' && submitBody !== null ? (submitBody as Record<string, unknown>) : {}
 
   if (!resp.ok || submitObj['success'] === false) {
-    const msg = typeof submitObj['message'] === 'string' ? submitObj['message'] : 'Failed to submit bulk find job'
-    throw new Error(msg)
+    const rawMsg = typeof submitObj['message'] === 'string' ? submitObj['message'] : ''
+    const { humanizeApiError } = await import('./api-error')
+    throw new Error(humanizeApiError(rawMsg, 'Failed to submit bulk find job'))
   }
 
   const submitData = submitObj['data'] as Record<string, unknown> | undefined

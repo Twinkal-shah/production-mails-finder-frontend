@@ -22,16 +22,26 @@ export function useUserProfile() {
           verifyCredits = Math.max(Number(d['verify'] ?? d['credits_verify'] ?? 0), 0)
         }
       } catch {}
+      // Backend now returns `available_credits` as the unified spendable
+      // total. credits_find and credits_verify both equal that same value,
+      // so summing them double-counts. Prefer available_credits; fall back
+      // to the larger of the two legacy values, NOT the sum.
+      const availableCredits =
+        typeof p?.available_credits === 'number'
+          ? p.available_credits
+          : Math.max(findCredits, verifyCredits)
+
       if (p) {
         return {
           id: p.id,
           email: p.email || '',
           full_name: (p.full_name as string) || 'User',
           plan: (p.plan as string) || 'free',
+          available_credits: availableCredits,
           // Legacy credit fields — still used by navbar / dropdown / credits page.
           credits_find: Math.max(findCredits, 0),
           credits_verify: Math.max(verifyCredits, 0),
-          total_credits: Math.max(findCredits, 0) + Math.max(verifyCredits, 0),
+          total_credits: availableCredits,
           // New backend fields — exposed for future consumers, no UI wired yet.
           billing_cycle: p.billing_cycle,
           subscription_status: p.subscription_status,
@@ -45,6 +55,7 @@ export function useUserProfile() {
         email: 'Please log in',
         full_name: 'Guest User',
         plan: 'free',
+        available_credits: 0,
         credits_find: 0,
         credits_verify: 0,
         total_credits: 0,

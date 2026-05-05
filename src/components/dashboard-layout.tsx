@@ -11,7 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { User, LogOut, Search, Users, CheckCircle, Code2 } from 'lucide-react'
+import { User, LogOut, Search, Users, CheckCircle, Code2, Globe } from 'lucide-react'
 import { apiGet } from '@/lib/api'
 import { OnboardingFlow } from '@/components/onboarding-flow'
 import { toast } from 'sonner'
@@ -28,6 +28,7 @@ interface DashboardLayoutProps {
     plan_expiry: string | null
     credits_find: number
     credits_verify: number
+    available_credits?: number
   }
 }
 
@@ -35,8 +36,12 @@ interface DashboardLayoutProps {
 
 export function DashboardLayout({ children, userProfile }: DashboardLayoutProps) {
   const [isDark, setIsDark] = useState(false)
-  const initialCredits =
-  Math.max(userProfile.credits_find || 0, 0) + Math.max(userProfile.credits_verify || 0, 0)
+  // Backend now returns the unified spendable total in `available_credits`.
+  // Fall back to summing the legacy split for any cached/stale payloads.
+  const initialCredits = Math.max(
+    Number(userProfile.available_credits ?? ((userProfile.credits_find || 0) + (userProfile.credits_verify || 0))),
+    0
+  )
 
 const [currentProfile, setCurrentProfile] = useState({
   ...userProfile,
@@ -79,7 +84,11 @@ const [currentProfile, setCurrentProfile] = useState({
   // Listen for focus events to refresh profile data when user returns from payment
   useEffect(() => {
     if (queryProfile) {
-      const totalCredits = Math.max(queryProfile.credits_find || 0, 0) + Math.max(queryProfile.credits_verify || 0, 0)
+      const qp = queryProfile as typeof queryProfile & { available_credits?: number }
+      const totalCredits = Math.max(
+        Number(qp.available_credits ?? ((qp.credits_find || 0) + (qp.credits_verify || 0))),
+        0
+      )
       setCurrentProfile({
         full_name: queryProfile.full_name,
         credits: totalCredits,
@@ -122,15 +131,20 @@ const [currentProfile, setCurrentProfile] = useState({
   }
           let findCredits = Math.max(Number(currentProfile.credits_find ?? 0), 0)
           let verifyCredits = Math.max(Number(currentProfile.credits_verify ?? 0), 0)
+          let availableCredits: number | undefined
           try {
             const res = await apiGet<Record<string, unknown>>('/api/user/credits', { useProxy: true })
             if (res.ok && res.data) {
               const d = res.data as Record<string, unknown>
+              if (d['available_credits'] != null) availableCredits = Number(d['available_credits'])
               findCredits = Math.max(Number(d['find'] ?? d['credits_find'] ?? findCredits), 0)
               verifyCredits = Math.max(Number(d['verify'] ?? d['credits_verify'] ?? verifyCredits), 0)
             }
           } catch {}
-          const totalCredits = Math.max(findCredits, 0) + Math.max(verifyCredits, 0)
+          const totalCredits = Math.max(
+            Number(availableCredits ?? (findCredits + verifyCredits)),
+            0
+          )
 
           const fullNameValue = typeof up.full_name === 'string' ? (up.full_name as string) : (currentProfile.full_name || 'User')
           const emailValue = typeof up.email === 'string' ? (up.email as string) : (currentProfile.email || '')
@@ -161,7 +175,9 @@ const [currentProfile, setCurrentProfile] = useState({
             const nameFromLocal = `${userData.firstName || ''} ${userData.lastName || ''}`.trim() || userData.full_name || null
             const findCredits = Math.max(Number(currentProfile.credits_find ?? 0), 0)
             const verifyCredits = Math.max(Number(currentProfile.credits_verify ?? 0), 0)
-            const totalCredits = Math.max(findCredits, 0) + Math.max(verifyCredits, 0)
+            // credits_find/credits_verify echo the same total post-migration,
+            // so taking the larger avoids double-counting if they happen to be equal.
+            const totalCredits = Math.max(findCredits, verifyCredits)
 
             const emailValue = typeof userData.email === 'string' ? userData.email : (currentProfile.email || '')
             const companyValue = typeof userData.company === 'string' ? userData.company : (currentProfile.company ?? null)
@@ -300,12 +316,8 @@ const [currentProfile, setCurrentProfile] = useState({
                       )}
                       <div className="mt-2 space-y-1">
                         <div className="flex justify-between">
-                          <span>Find Credits:</span>
-                          <span className="font-medium">{Math.max(currentProfile.credits_find || 0, 0)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Verify Credits:</span>
-                          <span className="font-medium">{Math.max(currentProfile.credits_verify || 0, 0)}</span>
+                          <span>Credits:</span>
+                          <span className="font-medium">{Math.max(Number(currentProfile.credits || 0), 0)}</span>
                         </div>
                       </div>
                     </div>
@@ -335,7 +347,7 @@ const [currentProfile, setCurrentProfile] = useState({
               </div>
             </div>
             <div className="border border-[var(--primary)] text-foreground bg-transparent px-3 py-1 rounded-full text-sm font-medium">
-              Credits: {Math.max(currentProfile.credits_find || 0, 0) + Math.max(currentProfile.credits_verify || 0, 0)}
+              Credits: {Math.max(Number(currentProfile.credits || 0), 0)}
             </div>
           </div>
         </header>
@@ -357,6 +369,7 @@ const [currentProfile, setCurrentProfile] = useState({
             { href: '/find', label: 'Find Email', icon: 'search' },
             { href: '/bulk-finder', label: 'Bulk Find', icon: 'users' },
             { href: '/verify', label: 'Verify Email', icon: 'check' },
+            { href: '/domain-search', label: 'Domain Search', icon: 'globe' },
             { href: '/api-calls', label: 'API', icon: 'code' },
             { href: '/user', label: 'Account', icon: 'user' },
           ].map((item) => {
@@ -420,6 +433,9 @@ const [currentProfile, setCurrentProfile] = useState({
                       )}
                       {item.icon === 'code' && (
                         <Code2 className="h-5 w-5" />
+                      )}
+                      {item.icon === 'globe' && (
+                        <Globe className="h-5 w-5" />
                       )}
                     </span>
                     <span className="mt-1 text-xs">{item.label}</span>

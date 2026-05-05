@@ -44,11 +44,12 @@ export default async function Layout({
   let fullProfile = null
   let serverFind = 0
   let serverVerify = 0
+  let serverAvailable: number | undefined
   try {
     // Get access token from cookies to make authenticated request
     const cookieStore = await cookies()
     const accessToken = cookieStore.get('access_token')?.value
-    
+
     if (accessToken) {
       console.log('Fetching full profile via proxy API...')
       const profileRes = await apiGet<Record<string, unknown>>('/api/user/profile/getProfile', { useProxy: true })
@@ -62,11 +63,13 @@ export default async function Layout({
       const d = creditsRes.data as Record<string, unknown>
       serverFind = Number(d['credits_find'] ?? d['find'] ?? 0)
       serverVerify = Number(d['credits_verify'] ?? d['verify'] ?? 0)
+      const av = Number(d['available_credits'])
+      if (Number.isFinite(av) && av >= 0) serverAvailable = av
     }
   } catch (error) {
     console.error('Failed to fetch full profile:', error)
   }
-  
+
   // Use the user data from cookies to create the profile
   // Backend returns: { _id, email, firstName, lastName } (your backend format)
   // Frontend expects: { full_name, email, credits, etc. }
@@ -75,13 +78,25 @@ if (!serverFind && !serverVerify) {
   serverVerify = Number(fullProfile?.credits_verify ?? user.credits_verify ?? 0)
 }
 
+  // Prefer the unified `available_credits` from the backend; fall back to the
+  // larger of the two legacy values (NOT the sum — both echo the same total
+  // post-migration, so summing double-counts).
+  const fullProfileAvailable = Number((fullProfile as Record<string, unknown> | null)?.available_credits)
+  const totalCredits =
+    typeof serverAvailable === 'number'
+      ? serverAvailable
+      : Number.isFinite(fullProfileAvailable) && fullProfileAvailable >= 0
+        ? fullProfileAvailable
+        : Math.max(serverFind, serverVerify)
+
   const userProfile = {
     full_name: fullProfile?.full_name || `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.full_name || null,
-    credits: serverFind + serverVerify,
+    credits: totalCredits,
     email: fullProfile?.email || user.email || '',
     company: fullProfile?.company ?? user.company ?? null,
     plan: fullProfile?.plan || user.plan || 'free',
     plan_expiry: fullProfile?.plan_expiry ?? user.plan_expiry ?? null,
+    available_credits: totalCredits,
     credits_find: serverFind,
     credits_verify: serverVerify
   }

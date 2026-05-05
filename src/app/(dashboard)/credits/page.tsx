@@ -778,10 +778,6 @@ if (isPurchaseArray(parsed)) {
                 {profile?.total_credits || 0}
               </p>
               <p className="text-gray-600">Total Available Credits</p>
-              <div className="mt-2 text-sm text-gray-500">
-                <div>Find: {profile?.credits_find || 0} credits</div>
-                <div>Verify: {profile?.credits_verify || 0} credits</div>
-              </div>
             </div>
             <div className="text-right">
               <p className="text-lg font-medium">
@@ -897,15 +893,9 @@ if (isPurchaseArray(parsed)) {
       </div>
       
       <div className="pt-4 border-t">
-        <div className="grid grid-cols-2 gap-4 text-center">
-          <div>
-            <p className="text-2xl font-bold" style={{ color: 'var(--primary)' }}>{profile.credits_find}</p>
-            <p className="text-sm text-gray-600 dark:text-gray-300">Find Credits</p>
-          </div>
-          <div>
-            <p className="text-2xl font-bold text-green-600 dark:text-green-400">{profile.credits_verify}</p>
-            <p className="text-sm text-gray-600 dark:text-gray-300">Verify Credits</p>
-          </div>
+        <div className="text-center">
+          <p className="text-2xl font-bold" style={{ color: 'var(--primary)' }}>{profile.total_credits || 0}</p>
+          <p className="text-sm text-gray-600 dark:text-gray-300">Available Credits</p>
         </div>
       </div>
     </>

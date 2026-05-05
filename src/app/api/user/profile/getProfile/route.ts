@@ -30,6 +30,8 @@ export async function GET(req: NextRequest) {
     if (res.status === 429) {
       const user = await getCurrentUserFromCookies()
       const fullName = user?.full_name || `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || user?.email?.split('@')[0] || 'User'
+      const find = Math.max(Number(user?.credits_find ?? 0), 0)
+      const verify = Math.max(Number(user?.credits_verify ?? 0), 0)
       const profileFallback = {
         id: user?._id || user?.id || 'client-user',
         full_name: fullName,
@@ -37,8 +39,9 @@ export async function GET(req: NextRequest) {
         company: user?.company ?? null,
         plan: user?.plan || 'free',
         plan_expiry: user?.plan_expiry ?? null,
-        credits_find: user?.credits_find ?? 0,
-        credits_verify: user?.credits_verify ?? 0
+        available_credits: Math.max(find, verify),
+        credits_find: find,
+        credits_verify: verify,
       }
       return NextResponse.json(profileFallback, { status: 200 })
     }
@@ -47,6 +50,8 @@ export async function GET(req: NextRequest) {
     try {
       const user = await getCurrentUserFromCookies()
       const fullName = user?.full_name || `${user?.firstName || ''} ${user?.lastName || ''}`.trim() || user?.email?.split('@')[0] || 'User'
+      const find = Math.max(Number(user?.credits_find ?? 0), 0)
+      const verify = Math.max(Number(user?.credits_verify ?? 0), 0)
       const profileFallback = {
         id: user?._id || user?.id || 'client-user',
         full_name: fullName,
@@ -54,8 +59,9 @@ export async function GET(req: NextRequest) {
         company: user?.company ?? null,
         plan: user?.plan || 'free',
         plan_expiry: user?.plan_expiry ?? null,
-        credits_find: Math.max(Number(user?.credits_find ?? 0), 0),
-        credits_verify: Math.max(Number(user?.credits_verify ?? 0), 0)
+        available_credits: Math.max(find, verify),
+        credits_find: find,
+        credits_verify: verify,
       }
       return NextResponse.json(profileFallback, { status: 200 })
     } catch {

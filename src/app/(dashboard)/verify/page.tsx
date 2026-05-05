@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
 import { toast } from 'sonner'
-import { Upload, Download, Play, Shield, AlertCircle, CheckCircle, Clock } from 'lucide-react'
+import { Upload, Download, Play, Shield, AlertCircle, CheckCircle, Clock, AlertTriangle } from 'lucide-react'
 import Papa from 'papaparse'
 import * as XLSX from 'xlsx'
 import type { BulkVerificationJob, EmailData } from './types'
@@ -15,6 +15,7 @@ import { useQueryInvalidation } from '@/lib/query-invalidation'
 import { useRecentVerifyResults } from '@/hooks/useRecentResults'
 import { RecentVerifyResultsTable } from '@/components/recent-results-table'
 import { ActiveJobsBanner } from '@/components/active-jobs-banner'
+import { humanizeApiError, humanizeVerificationReason } from '@/lib/api-error'
 
 interface VerifyRow extends CsvRow {
   id: number
@@ -25,6 +26,8 @@ interface VerifyRow extends CsvRow {
   mx?: string
   reason?: string
   user_name?: string
+  is_catch_all_domain?: boolean
+  notice?: string
 }
 
 interface CsvRow {
@@ -37,8 +40,10 @@ interface CsvRow {
 
 export default function VerifyPage() {
   const [singleEmail, setSingleEmail] = useState('')
-  const [singleResult, setSingleResult] = useState<{ status: string; reason?: string; error?: string } | null>(null)
+  const [singleResult, setSingleResult] = useState<{ status: string; reason?: string; error?: string; isCatchAllDomain?: boolean; notice?: string } | null>(null)
   const [singleRaw, setSingleRaw] = useState<Record<string, unknown> | null>(null)
+  const [bulkCatchAllCount, setBulkCatchAllCount] = useState(0)
+  const [bulkCatchAllNotice, setBulkCatchAllNotice] = useState<string | null>(null)
   const [isVerifyingSingle, setIsVerifyingSingle] = useState(false)
   const [rows, setRows] = useState<VerifyRow[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
@@ -49,7 +54,7 @@ export default function VerifyPage() {
   const [unknownCount, setUnknownCount] = useState(0)
   const [riskyCount, setRiskyCount] = useState(0)
   const [statusText, setStatusText] = useState('')
-  const [results, setResults] = useState<{ email: string; status?: string; catch_all?: boolean; connections?: number; domain?: string; mx?: string; reason?: string; time_exec?: number; user_name?: string }[]>([])
+  const [results, setResults] = useState<{ email: string; status?: string; catch_all?: boolean; connections?: number; domain?: string; mx?: string; reason?: string; time_exec?: number; user_name?: string; is_catch_all_domain?: boolean; notice?: string }[]>([])
   const [currentJob, setCurrentJob] = useState<BulkVerificationJob | null>(null)
   const [originalFileName, setOriginalFileName] = useState<string>('')
   const [originalFileNameWithExt, setOriginalFileNameWithExt] = useState<string>('')
@@ -104,6 +109,7 @@ export default function VerifyPage() {
     if (v === 'valid') return 'Valid'
     if (v === 'invalid') return 'Invalid'
     if (v === 'risky') return 'Risky'
+    if (v === 'catch_all' || v === 'catchall') return 'Catch-All'
     return 'Unknown'
   }
   const statusDescription = (s?: string) => {
@@ -111,6 +117,7 @@ export default function VerifyPage() {
     if (v === 'valid') return 'Email is valid and deliverable.'
     if (v === 'invalid') return 'Email does not exist or cannot receive messages.'
     if (v === 'risky') return 'Email appears risky (catch-all or uncertain).'
+    if (v === 'catch_all' || v === 'catchall') return 'Domain accepts all emails — deliverability cannot be confirmed.'
     if (v === 'error') return 'Unable to verify this email. Please try again later.'
     return 'Verification completed. Status is unknown.'
   }
@@ -148,18 +155,20 @@ export default function VerifyPage() {
       const data = await response.json()
       const details = getVerificationDetails(data)
       if (!response.ok) {
-        throw new Error(
-          getStringValue(details.error) ||
+        const rawErr = getStringValue(details.error) ||
           getStringValue(asRecord(data).error) ||
-          'Failed to verify email'
-        )
+          getStringValue(asRecord(data).message) ||
+          ''
+        throw new Error(humanizeApiError(rawErr, 'Failed to verify email'))
       }
 
       const rawStatus = typeof details.status === 'string' ? details.status.toLowerCase() : 'unknown'
       const rawReason = getStringValue(details.reason) || getStringValue(details.error) || getStringValue(asRecord(data).error) || ''
-      const uiStatus = details.catch_all === true ? 'risky' : rawStatus
+      const isCatchAllDomain = details.is_catch_all_domain === true
+      const noticeText = getStringValue(details.notice)
+      const uiStatus = isCatchAllDomain ? 'catch_all' : (details.catch_all === true ? 'risky' : rawStatus)
       const uiReason = rawReason || undefined
-      setSingleResult({ status: uiStatus, reason: uiReason })
+      setSingleResult({ status: uiStatus, reason: uiReason, isCatchAllDomain, notice: noticeText })
       setSingleRaw(details)
       
       if (uiStatus === 'valid') {
@@ -168,8 +177,10 @@ export default function VerifyPage() {
         toast.error('Email is invalid')
       } else if (uiStatus === 'risky') {
         toast.warning('Email is risky')
+      } else if (uiStatus === 'catch_all') {
+        toast.warning(noticeText || 'Catch-all domain — deliverability cannot be confirmed')
       } else if (uiStatus === 'error') {
-        toast.error(rawReason || 'Failed to verify email')
+        toast.error(humanizeApiError(rawReason, 'Failed to verify email'))
       }
       
       // Invalidate queries for real-time credit updates
@@ -188,7 +199,7 @@ export default function VerifyPage() {
         created_at: new Date().toISOString(),
       })
     } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to verify email'
+      const errorMessage = humanizeApiError(error, 'Failed to verify email')
       toast.error(errorMessage)
     } finally {
       setIsVerifyingSingle(false)
@@ -299,6 +310,8 @@ export default function VerifyPage() {
     setInvalidCount(0)
     setUnknownCount(0)
     setRiskyCount(0)
+    setBulkCatchAllCount(0)
+    setBulkCatchAllNotice(null)
     const localJobId = typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `job-${Date.now()}`
     setCurrentJob({
       jobId: localJobId,
@@ -364,7 +377,8 @@ export default function VerifyPage() {
       if (!resp.ok) {
         let errorData: Record<string, unknown> = {}
         try { errorData = await resp.json() } catch {}
-        throw new Error(typeof errorData.message === 'string' ? errorData.message : 'Failed to submit bulk verify job')
+        const rawMsg = typeof errorData.message === 'string' ? errorData.message : ''
+        throw new Error(humanizeApiError(rawMsg, 'Failed to submit bulk verify job'))
       }
 
       const submitBody = await resp.json()
@@ -412,8 +426,10 @@ export default function VerifyPage() {
 
       // --- Step 3: Process completed results ---
       const resultsArr = Array.isArray(jobResult.results) ? jobResult.results : []
-      const collected: { email: string; status?: string; catch_all?: boolean; connections?: number; domain?: string; mx?: string; reason?: string; time_exec?: number; user_name?: string }[] = []
+      const collected: { email: string; status?: string; catch_all?: boolean; connections?: number; domain?: string; mx?: string; reason?: string; time_exec?: number; user_name?: string; is_catch_all_domain?: boolean; notice?: string }[] = []
       const totals = { valid: 0, invalid: 0, unknown: 0, risky: 0, processed: 0 }
+      let catchAllDomainCount = 0
+      let firstCatchAllNotice: string | null = null
 
       for (const item of resultsArr) {
         const result = asRecord(item)
@@ -421,6 +437,12 @@ export default function VerifyPage() {
         const normalized = normalizeStatus(baseStatus)
         const finalStatus = result.catch_all === true ? 'risky' : normalized
         const rawReason = getStringValue(result.reason)
+        const isCatchAllDomain = result.is_catch_all_domain === true
+        const noticeText = getStringValue(result.notice)
+        if (isCatchAllDomain) {
+          catchAllDomainCount++
+          if (!firstCatchAllNotice && noticeText) firstCatchAllNotice = noticeText
+        }
         const resultItem = {
           email: getStringValue(result.email) || '',
           status: finalStatus,
@@ -430,7 +452,9 @@ export default function VerifyPage() {
           mx: getStringValue(result.mx),
           reason: rawReason,
           time_exec: typeof result.time_exec === 'number' ? result.time_exec : undefined,
-          user_name: getStringValue(result.user_name)
+          user_name: getStringValue(result.user_name),
+          is_catch_all_domain: isCatchAllDomain || undefined,
+          notice: noticeText
         }
         collected.push(resultItem)
         totals.processed++
@@ -439,6 +463,8 @@ export default function VerifyPage() {
         else if (finalStatus === 'invalid') totals.invalid++
         else totals.unknown++
       }
+      setBulkCatchAllCount(catchAllDomainCount)
+      setBulkCatchAllNotice(firstCatchAllNotice)
 
       setResults(collected)
       setValidCount(totals.valid)
@@ -460,7 +486,9 @@ export default function VerifyPage() {
           domain: typeof hit.domain === 'string' ? hit.domain : r.domain,
           mx: typeof hit.mx === 'string' ? hit.mx : r.mx,
           reason: typeof hit.reason === 'string' ? hit.reason : r.reason,
-          user_name: typeof hit.user_name === 'string' ? hit.user_name : r.user_name
+          user_name: typeof hit.user_name === 'string' ? hit.user_name : r.user_name,
+          is_catch_all_domain: typeof hit.is_catch_all_domain === 'boolean' ? hit.is_catch_all_domain : r.is_catch_all_domain,
+          notice: typeof hit.notice === 'string' ? hit.notice : r.notice
         }
       }))
 
@@ -494,7 +522,7 @@ export default function VerifyPage() {
       toast.success('Bulk verification completed')
       invalidateCreditsData()
     } catch (error: unknown) {
-      const msg = error instanceof Error ? error.message : 'Failed to run bulk verification'
+      const msg = humanizeApiError(error, 'Failed to run bulk verification')
       toast.error(msg)
       setCurrentJob(prev => prev ? { ...prev, status: 'failed', errorMessage: msg } : prev)
       setIsProcessing(false)
@@ -504,7 +532,7 @@ export default function VerifyPage() {
 
   const downloadResults = () => {
     try {
-      const cols = ['catch_all', 'connections', 'domain', 'email', 'mx', 'status', 'time_exec', 'user_name']
+      const cols = ['catch_all', 'connections', 'domain', 'email', 'mx', 'status', 'time_exec', 'user_name', 'is_catch_all_domain', 'notice']
       const list = results.length > 0
         ? results.map(it => ({
             catch_all: it.catch_all,
@@ -514,7 +542,9 @@ export default function VerifyPage() {
             mx: it.mx,
             status: it.status,
             time_exec: it.time_exec,
-            user_name: it.user_name
+            user_name: it.user_name,
+            is_catch_all_domain: it.is_catch_all_domain,
+            notice: it.notice
           }))
         : rows.map(r => ({
             catch_all: r.catch_all,
@@ -524,7 +554,9 @@ export default function VerifyPage() {
             mx: r.mx,
             status: r.status,
             time_exec: undefined,
-            user_name: r.user_name
+            user_name: r.user_name,
+            is_catch_all_domain: r.is_catch_all_domain,
+            notice: r.notice
           }))
       const csv = Papa.unparse(list, { columns: cols })
       const blob = new Blob([csv], { type: 'text/csv' })
@@ -597,7 +629,7 @@ export default function VerifyPage() {
             <Card className={`verification-result border-2 dark:text-white ${
               singleResult.status === 'valid' ? 'border-green-200 bg-green-50' :
               singleResult.status === 'invalid' ? 'border-red-200 bg-red-50' :
-              singleResult.status === 'risky' ? 'border-yellow-200 bg-yellow-50' :
+              singleResult.status === 'risky' || singleResult.status === 'catch_all' ? 'border-yellow-200 bg-yellow-50' :
               'border-gray-200 bg-gray-50'
             }`}>
               <CardContent className="pt-6">
@@ -605,19 +637,28 @@ export default function VerifyPage() {
                   {singleResult.status === 'valid' && <CheckCircle className="h-5 w-5 text-green-600" />}
                   {singleResult.status === 'invalid' && <AlertCircle className="h-5 w-5 text-red-600" />}
                   {singleResult.status === 'risky' && <AlertCircle className="h-5 w-5 text-yellow-600" />}
+                  {singleResult.status === 'catch_all' && <AlertTriangle className="h-5 w-5 text-yellow-600" />}
                   <div>
                     <p className="font-medium">
                       Status: <span>{statusLabel(singleResult.status)}</span>
                     </p>
                     <p className="text-sm text-gray-600">
-                      {statusDescription(singleResult.status)}
+                      {singleResult.reason
+                        ? humanizeVerificationReason(singleResult.reason, statusDescription(singleResult.status))
+                        : statusDescription(singleResult.status)}
                     </p>
                   </div>
                 </div>
-                {singleResult.status === 'valid' && singleRaw && (
+                {singleResult.isCatchAllDomain && (
+                  <div className="mt-4 rounded-md border border-yellow-300 bg-yellow-100 dark:bg-yellow-950/20 dark:border-yellow-700 p-3 text-sm text-yellow-800 dark:text-yellow-200 flex gap-2 items-start">
+                    <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                    <span>{singleResult.notice || "This domain accepts any email address, so we can't confirm if this specific address is real. Treat with caution before sending."}</span>
+                  </div>
+                )}
+                {(singleResult.status === 'valid' || singleResult.isCatchAllDomain) && singleRaw && (
                   <div className="mt-4 space-y-1">
                     {Object.entries(singleRaw)
-                      .filter(([key, value]) => key !== 'reason' && key !== 'status' && value !== undefined && value !== null && !(typeof value === 'string' && value.trim() === ''))
+                      .filter(([key, value]) => key !== 'reason' && key !== 'status' && key !== 'notice' && key !== 'is_catch_all_domain' && value !== undefined && value !== null && !(typeof value === 'string' && value.trim() === ''))
                       .map(([key, value]) => (
                         <p key={key} className="text-sm text-gray-800">
                           {formatLabel(key)}: {String(value)}
@@ -716,6 +757,15 @@ export default function VerifyPage() {
                   <span className="text-lg font-medium text-green-600">Verification Complete!</span>
                 </div>
                 <p className="text-sm text-gray-600">Processed {processedCount} emails</p>
+                {bulkCatchAllCount > 0 && (
+                  <div className="mx-auto max-w-2xl flex gap-2 items-start text-left rounded-md border border-yellow-300 bg-yellow-50 dark:bg-yellow-950/20 dark:border-yellow-700 p-3 text-sm text-yellow-800 dark:text-yellow-200">
+                    <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                    <span>
+                      {bulkCatchAllCount} email{bulkCatchAllCount === 1 ? ' is' : 's are'} on catch-all domain{bulkCatchAllCount === 1 ? '' : 's'} where deliverability cannot be confirmed.
+                      {bulkCatchAllNotice ? ` ${bulkCatchAllNotice}` : ''}
+                    </span>
+                  </div>
+                )}
                 <div className={`grid gap-4 ${creditsCharged > 0 ? 'grid-cols-6' : 'grid-cols-5'}`}>
                   <div>
                     <p className="text-2xl font-bold text-green-600">{validCount}</p>
@@ -822,7 +872,7 @@ export default function VerifyPage() {
                          variant="outline"
                          onClick={() => {
                            // Define verification result columns to append
-                           const verificationColumns = ['catch_all', 'connections', 'domain', 'email', 'mx', 'status', 'time_exec', 'user_name']
+                           const verificationColumns = ['catch_all', 'connections', 'domain', 'email', 'mx', 'status', 'time_exec', 'user_name', 'is_catch_all_domain', 'notice']
                            
                            // Use stored original column order if available, otherwise extract from first row
                            let columnsToUse = originalColumnOrder

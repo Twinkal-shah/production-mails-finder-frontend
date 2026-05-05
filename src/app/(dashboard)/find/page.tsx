@@ -8,21 +8,24 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
 import { toast } from 'sonner'
-import { Search, Mail, CheckCircle, ChevronDown, ChevronRight } from 'lucide-react'
+import { Search, Mail, CheckCircle, ChevronDown, ChevronRight, AlertTriangle } from 'lucide-react'
 import { isAuthenticated, saveRedirectUrl } from '@/lib/auth'
 import { useQueryInvalidation } from '@/lib/query-invalidation'
 import { useRecentFindResults } from '@/hooks/useRecentResults'
 import { RecentFindResultsTable } from '@/components/recent-results-table'
 import { ActiveJobsBanner } from '@/components/active-jobs-banner'
+import { humanizeApiError } from '@/lib/api-error'
 
 interface EmailResult {
   email: string | null
   confidence: number
-  status: 'valid' | 'invalid' | 'risky' | 'unknown' | 'error'
+  status: 'valid' | 'invalid' | 'risky' | 'unknown' | 'error' | 'guessed'
   safeToSend?: boolean
   provider?: string
   fullName?: string
   creditsUsed?: number
+  isCatchAllDomain?: boolean
+  notice?: string
 }
 
 interface SearchHistoryItem {
@@ -40,7 +43,7 @@ interface SearchHistoryItem {
     email_provider?: string
     confidence_score?: number
     safe_to_send?: boolean
-    status: 'valid' | 'invalid' | 'risky' | 'unknown' | 'error'
+    status: 'valid' | 'invalid' | 'risky' | 'unknown' | 'error' | 'guessed'
     credits_used?: number
     domain: string
     created_at: string
@@ -106,7 +109,8 @@ export default function FindPage() {
       if (!res.ok) {
         try {
           const errJson = await res.json()
-          const msg = typeof errJson?.message === 'string' ? errJson.message : typeof errJson?.error === 'string' ? errJson.error : 'Failed to find email'
+          const rawMsg = typeof errJson?.message === 'string' ? errJson.message : typeof errJson?.error === 'string' ? errJson.error : ''
+          const msg = humanizeApiError(rawMsg, 'Failed to find email')
           setError(msg)
           toast.error(msg)
         } catch {
@@ -125,10 +129,11 @@ export default function FindPage() {
       const email = typeof payload?.email === 'string' ? (payload.email as string) : null
       const statusRaw = typeof payload?.status === 'string' ? (payload.status as string) : (typeof root?.status === 'string' ? (root.status as string) : undefined)
       const sLower = (statusRaw || '').toLowerCase()
-      const status: 'valid' | 'invalid' | 'risky' | 'unknown' | 'error' =
+      const status: 'valid' | 'invalid' | 'risky' | 'unknown' | 'error' | 'guessed' =
         sLower === 'valid' || sLower === 'found' ? 'valid' :
         sLower === 'invalid' ? 'invalid' :
         sLower === 'risky' ? 'risky' :
+        sLower === 'guessed' ? 'guessed' :
         sLower === 'error' ? 'error' : 'unknown'
       const confidence =
         typeof (payload as Record<string, unknown>)?.confidence_score === 'number'
@@ -148,6 +153,10 @@ export default function FindPage() {
       const creditsUsed = typeof (payload as Record<string, unknown>)?.credits_used === 'number'
         ? ((payload as Record<string, unknown>).credits_used as number)
         : undefined
+      const isCatchAllDomain = (payload as Record<string, unknown>)?.is_catch_all_domain === true
+      const noticeText = typeof (payload as Record<string, unknown>)?.notice === 'string'
+        ? ((payload as Record<string, unknown>).notice as string)
+        : undefined
       const nextResult: EmailResult = {
         email,
         confidence,
@@ -155,7 +164,9 @@ export default function FindPage() {
         safeToSend,
         provider,
         fullName: fullNameResp,
-        creditsUsed
+        creditsUsed,
+        isCatchAllDomain,
+        notice: noticeText
       }
       setResult(nextResult)
       const rawHistory = {
@@ -290,12 +301,17 @@ export default function FindPage() {
               </CardHeader>
               <CardContent>
                 {result ? (
-                  result.status === 'valid' ? (
+                  (result.status === 'valid' || result.status === 'guessed' || (result.email && result.isCatchAllDomain)) ? (
                     <div className="space-y-3">
-                      <div className="flex items-center gap-2 text-green-600">
-                        <CheckCircle className="h-5 w-5" />
-                        <span className="font-medium">Email Found</span>
+                      <div className={`flex items-center gap-2 ${result.isCatchAllDomain ? 'text-yellow-600' : 'text-green-600'}`}>
+                        {result.isCatchAllDomain ? <AlertTriangle className="h-5 w-5" /> : <CheckCircle className="h-5 w-5" />}
+                        <span className="font-medium">{result.isCatchAllDomain ? 'Best Guess (Catch-All Domain)' : 'Email Found'}</span>
                       </div>
+                      {result.isCatchAllDomain && (
+                        <div className="rounded-md border border-yellow-300 bg-yellow-50 dark:bg-yellow-950/20 dark:border-yellow-700 p-3 text-sm text-yellow-800 dark:text-yellow-200">
+                          {result.notice || "This domain accepts any email address, so we can't confirm this is the real one. Treat with caution before sending."}
+                        </div>
+                      )}
                       <div className="bg-gray-50 p-3 rounded-lg">
                         <p className="font-mono text-lg">{result.email}</p>
                       </div>
@@ -309,7 +325,7 @@ export default function FindPage() {
                       <div className="text-sm text-gray-600">
                         {(() => {
                           const s = result.status || 'unknown'
-                          const statusLabel = s === 'valid' ? 'Valid' : s === 'risky' ? 'Risky' : s === 'invalid' ? 'Invalid' : 'Unknown'
+                          const statusLabel = s === 'valid' ? 'Valid' : s === 'risky' ? 'Risky' : s === 'invalid' ? 'Invalid' : s === 'guessed' ? 'Guessed' : 'Unknown'
                           return `Status: ${statusLabel}`
                         })()}
                       </div>
@@ -364,7 +380,7 @@ export default function FindPage() {
                       <div className="flex justify-between items-start">
                         <div>
                           {(() => {
-                            const isValid = item.result.status === 'valid'
+                            const isValid = item.result.status === 'valid' || item.result.status === 'guessed' || (!!item.result.email && item.result.isCatchAllDomain === true)
                             const isExpanded = !!expanded[item.id]
                             return (
                               <>
@@ -393,7 +409,7 @@ export default function FindPage() {
                                       <p className="text-xs text-gray-600">
                                         {(() => {
                                           const s = item.result.status || 'unknown'
-                                          const statusLabel = s === 'valid' ? 'Valid' : s === 'risky' ? 'Risky' : s === 'invalid' ? 'Invalid' : 'Unknown'
+                                          const statusLabel = s === 'valid' ? 'Valid' : s === 'risky' ? 'Risky' : s === 'invalid' ? 'Invalid' : s === 'guessed' ? 'Guessed' : 'Unknown'
                                           return `Status: ${statusLabel}`
                                         })()}
                                       </p>
@@ -410,7 +426,7 @@ export default function FindPage() {
                           })()}
                         </div>
                         <div className="flex items-center gap-2">
-                          {item.result.status === 'valid' ? (
+                          {(item.result.status === 'valid' || item.result.status === 'guessed' || (!!item.result.email && item.result.isCatchAllDomain === true)) ? (
                             <button
                               onClick={() => setExpanded(prev => ({ ...prev, [item.id]: !prev[item.id] }))}
                               aria-label="Toggle details"

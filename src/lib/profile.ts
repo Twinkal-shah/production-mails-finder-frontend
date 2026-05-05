@@ -51,6 +51,10 @@ export type Profile = {
   subscription_status?: SubscriptionStatus
   balances?: ProfileBalances
   caps?: ProfileCaps
+  // Unified spendable total — derived from the four buckets by the backend.
+  // Use this instead of summing credits_find + credits_verify (those are now
+  // both equal to this value, and summing them double-counts).
+  available_credits?: number
   // --- Legacy fields — still populated by the backend and still read by
   // existing UI (navbar badge, user dropdown, credits page). Keep them. ---
   credits?: number

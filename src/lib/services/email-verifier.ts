@@ -13,6 +13,8 @@ interface EmailVerifierResult {
   email_provider?: string
   confidence_score?: number
   safe_to_send?: boolean | 'risky'
+  is_catch_all_domain?: boolean
+  notice?: string
 }
 
 interface EmailVerifierRequest {
@@ -46,7 +48,8 @@ export async function verifyEmailReal(
 
     if (!res.ok) {
       const errorText = await res.text()
-      throw new Error(`API request failed: ${res.status} - ${errorText}`)
+      const { humanizeApiError } = await import('@/lib/api-error')
+      throw new Error(humanizeApiError(errorText, 'Failed to verify email'))
     }
 
     const json = await res.json()
@@ -128,6 +131,11 @@ export async function verifyEmailReal(
       typeof rawSafeToSend === 'boolean' ? rawSafeToSend :
       rawSafeToSend === 'risky' ? 'risky' : undefined
 
+    const rawIsCatchAllDomain = (json?.is_catch_all_domain ?? data?.is_catch_all_domain ?? details?.is_catch_all_domain)
+    const is_catch_all_domain = rawIsCatchAllDomain === true
+    const rawNotice = (json?.notice ?? data?.notice ?? details?.notice)
+    const notice = typeof rawNotice === 'string' ? rawNotice : undefined
+
     // -------------------------------
     // 5️⃣ Final return object
     // -------------------------------
@@ -143,18 +151,18 @@ export async function verifyEmailReal(
       user_name: details?.user_name ?? data?.user_name,
       email_provider,
       confidence_score,
-      safe_to_send
+      safe_to_send,
+      is_catch_all_domain,
+      notice
     }
   } catch (error) {
+    const { humanizeApiError } = await import('@/lib/api-error')
     return {
       email: request.email,
       status: 'error',
       confidence: 0,
       deliverable: false,
-      reason:
-        error instanceof Error
-          ? error.message
-          : 'Failed to verify email'
+      reason: humanizeApiError(error, 'Failed to verify email')
     }
   }
 }

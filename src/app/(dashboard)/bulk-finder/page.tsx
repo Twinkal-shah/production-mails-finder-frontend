@@ -7,13 +7,14 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
 import { toast } from 'sonner'
-import { Upload, Download, Play, Users, CheckCircle } from 'lucide-react'
+import { Upload, Download, Play, Users, CheckCircle, AlertTriangle } from 'lucide-react'
 import Papa from 'papaparse'
 import * as XLSX from 'xlsx'
 // Job endpoints are not available; direct bulk find only
 import { useQueryInvalidation } from '@/lib/query-invalidation'
 import { bulkFind, buildBulkFindPayload } from '@/lib/bulk-find-utils'
 import { ActiveJobsBanner } from '@/components/active-jobs-banner'
+import { humanizeApiError } from '@/lib/api-error'
 
 interface CsvRow {
   'Full Name'?: string
@@ -112,6 +113,8 @@ interface BulkRow extends CsvRow {
   mx?: string
   error?: string
   result_status?: string
+  is_catch_all_domain?: boolean
+  notice?: string
 }
 
 export default function BulkFinderPage() {
@@ -130,6 +133,8 @@ export default function BulkFinderPage() {
   const [isIndeterminate, setIsIndeterminate] = useState(false)
   const [duplicateInfo, setDuplicateInfo] = useState('')
   const [creditsCharged, setCreditsCharged] = useState(0)
+  const [catchAllCount, setCatchAllCount] = useState(0)
+  const [catchAllNotice, setCatchAllNotice] = useState<string | null>(null)
 
   // No job-based endpoints on backend; page runs direct bulk find only
 
@@ -271,6 +276,8 @@ export default function BulkFinderPage() {
     setIsIndeterminate(true)
     setDuplicateInfo('')
     setCreditsCharged(0)
+    setCatchAllCount(0)
+    setCatchAllNotice(null)
     setRows(prev => prev.map(r => ({ ...r, status: 'processing' })))
     try {
 
@@ -374,11 +381,19 @@ export default function BulkFinderPage() {
         }
         return undefined
       }
+      let catchAllDomainTally = 0
+      let firstCatchAllNotice: string | null = null
       for (const it of items) {
         const obj = it as Record<string, unknown>
         const emailVal = typeof obj.email === 'string' ? (obj.email as string) : ''
         const statusVal = typeof obj.status === 'string' ? (obj.status as string) : undefined
         const domainVal = typeof obj.domain === 'string' ? (obj.domain as string) : ''
+        const isCatchAllDomainVal = obj.is_catch_all_domain === true
+        const noticeVal = typeof obj.notice === 'string' ? (obj.notice as string) : undefined
+        if (isCatchAllDomainVal) {
+          catchAllDomainTally++
+          if (!firstCatchAllNotice && noticeVal) firstCatchAllNotice = noticeVal
+        }
         let row: BulkRow | undefined
         if (emailVal) row = tryMatchRowByEmail(emailVal)
         if (!row && domainVal) {
@@ -416,10 +431,14 @@ export default function BulkFinderPage() {
           user_name: userNameVal,
           mx: mxVal,
           error: errorVal,
-          result_status: statusVal
+          result_status: statusVal,
+          is_catch_all_domain: isCatchAllDomainVal || row.is_catch_all_domain,
+          notice: noticeVal || row.notice
         }
         updates.set(row.id, updated)
       }
+      setCatchAllCount(catchAllDomainTally)
+      setCatchAllNotice(firstCatchAllNotice)
       for (const row of validRows) {
         if (!matchedIds.has(row.id)) {
           updates.set(row.id, { ...row, status: 'failed', error: 'Not Found', result_status: 'invalid' })
@@ -440,20 +459,20 @@ export default function BulkFinderPage() {
     } catch (e) {
       setIsProcessingDirect(false)
       setIsIndeterminate(false)
-      const msg = e instanceof Error ? e.message : 'Failed to run bulk find'
+      const msg = humanizeApiError(e, 'Failed to run bulk find')
       toast.error(msg)
       setRows(prev => prev.map(r => r.status === 'processing' ? { ...r, status: 'failed', error: msg } : r))
     }
   }
 
   const downloadDirectResults = () => {
-    const finderResultColumns = ['Email', 'Confidence', 'Status', 'Catch All', 'User Name', 'MX', 'Error']
+    const finderResultColumns = ['Email', 'Confidence', 'Status', 'Catch All', 'Catch-All Domain', 'Notice', 'User Name', 'MX', 'Error']
     const columnsToUse = originalColumnOrder.length > 0
       ? originalColumnOrder
-      : (rows.length > 0 ? Object.keys(rows[0]).filter(key => !['email', 'confidence', 'status', 'catch_all', 'user_name', 'mx', 'error', 'result_status'].includes(key)) : [])
+      : (rows.length > 0 ? Object.keys(rows[0]).filter(key => !['email', 'confidence', 'status', 'catch_all', 'user_name', 'mx', 'error', 'result_status', 'is_catch_all_domain', 'notice'].includes(key)) : [])
     const orderedColumns = Array.from(new Set([...columnsToUse, ...finderResultColumns]))
     const csvData = rows.map(row => {
-      const { fullName, domain, role, email, confidence, result_status, catch_all, user_name, mx, error, ...originalColumns } = row
+      const { fullName, domain, role, email, confidence, result_status, catch_all, user_name, mx, error, is_catch_all_domain, notice, ...originalColumns } = row
       const rowData: Record<string, string | number | boolean | null | undefined> = {}
       columnsToUse.forEach(col => {
         if (col === 'Full Name' || col === 'full_name' || col === 'fullName') {
@@ -470,6 +489,8 @@ export default function BulkFinderPage() {
       rowData['Confidence'] = typeof confidence === 'number' ? confidence : ''
       rowData['Status'] = result_status || ''
       rowData['Catch All'] = catch_all ? 'Yes' : 'No'
+      rowData['Catch-All Domain'] = is_catch_all_domain ? 'Yes' : 'No'
+      rowData['Notice'] = notice || ''
       rowData['User Name'] = user_name || ''
       rowData['MX'] = mx || ''
       rowData['Error'] = error || ''
@@ -588,6 +609,15 @@ export default function BulkFinderPage() {
                   <CheckCircle className="h-6 w-6 text-green-600" />
                   <span className="text-lg font-medium text-green-600">Bulk Find Complete</span>
                 </div>
+                {catchAllCount > 0 && (
+                  <div className="mx-auto max-w-2xl flex gap-2 items-start text-left rounded-md border border-yellow-300 bg-yellow-50 dark:bg-yellow-950/20 dark:border-yellow-700 p-3 text-sm text-yellow-800 dark:text-yellow-200">
+                    <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                    <span>
+                      {catchAllCount} result{catchAllCount === 1 ? ' is' : 's are'} on catch-all domain{catchAllCount === 1 ? '' : 's'} — those email addresses are best guesses and deliverability cannot be confirmed.
+                      {catchAllNotice ? ` ${catchAllNotice}` : ''}
+                    </span>
+                  </div>
+                )}
                 <div className="grid grid-cols-4 gap-4">
                   <div>
                     <p className="text-2xl font-bold text-green-600">{successDirectCount}</p>
