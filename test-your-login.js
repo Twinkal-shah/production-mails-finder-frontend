@@ -23,9 +23,9 @@ async function testYourLogin() {
         
   try {
     console.log('\n--- Testing your login ---');
-          console.log('Backend URL: https://server.mailsfinder.com/api/user/auth/login');
+          console.log('Backend URL: https://api.mailsfinder.com/api/user/auth/login');
           
-          const response = await fetch('https://server.mailsfinder.com/api/user/auth/login', {
+          const response = await fetch('https://api.mailsfinder.com/api/user/auth/login', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

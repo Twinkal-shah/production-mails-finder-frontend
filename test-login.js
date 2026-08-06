@@ -1,6 +1,6 @@
 // Test script to check what your backend returns during login
 async function testLogin() {
-  const backendUrl = process.env.NEXT_PUBLIC_LOCAL_URL || 'https://server.mailsfinder.com';
+  const backendUrl = process.env.NEXT_PUBLIC_LOCAL_URL || 'https://api.mailsfinder.com';
   
   const testCredentials = {
     email: 'test@example.com',

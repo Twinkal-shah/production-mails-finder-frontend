@@ -51,6 +51,10 @@ import {
   DialogClose 
 } from '@/components/ui/dialog'
 
+// Public backend base URL shown in the docs and used for absolute (API-key) calls.
+// Driven by the same env var the rest of the app uses; falls back to production.
+const PUBLIC_API_BASE = (process.env.NEXT_PUBLIC_SERVER_URL || 'https://api.mailsfinder.com').replace(/\/+$/, '')
+
 // Predefined endpoints for testing
 const PREDEFINED_ENDPOINTS: PredefinedEndpoint[] = [
   {
@@ -168,7 +172,7 @@ const PREDEFINED_ENDPOINTS: PredefinedEndpoint[] = [
   {
     name: 'API-Key • List',
     method: 'GET',
-    url: 'https://server.mailsfinder.com/api/api-key/getApiKeys',
+    url: `${PUBLIC_API_BASE}/api/api-key/getApiKeys`,
     description: 'List all API keys (JWT required)',
     headers: [
       { id: '1', key: 'Authorization', value: 'Bearer ACCESS_TOKEN', enabled: true }
@@ -177,7 +181,7 @@ const PREDEFINED_ENDPOINTS: PredefinedEndpoint[] = [
   {
     name: 'API-Key • Create',
     method: 'POST',
-    url: 'https://server.mailsfinder.com/api/api-key/createApiKey',
+    url: `${PUBLIC_API_BASE}/api/api-key/createApiKey`,
     description: 'Create a new API key (JWT required)',
     headers: [
       { id: '1', key: 'Content-Type', value: 'application/json', enabled: true },
@@ -191,7 +195,7 @@ const PREDEFINED_ENDPOINTS: PredefinedEndpoint[] = [
   {
     name: 'API-Key • Deactivate',
     method: 'DELETE',
-    url: 'https://server.mailsfinder.com/api/api-key/deactivateAPIKey/REPLACE_KEY_ID',
+    url: `${PUBLIC_API_BASE}/api/api-key/deactivateAPIKey/REPLACE_KEY_ID`,
     description: 'Deactivate an API key by ID (JWT required)',
     headers: [
       { id: '1', key: 'Authorization', value: 'Bearer ACCESS_TOKEN', enabled: true }
@@ -290,8 +294,8 @@ const API_DOCS: ApiDoc[] = [
     id: 'doc-email-find',
     name: 'Email • Find',
     method: 'POST',
-    url: 'https://server.mailsfinder.com/api/access-key/email/findEmail',
-    displayUrl: 'https://server.mailsfinder.com/api/access-key/email/findEmail',
+    url: `${PUBLIC_API_BASE}/api/access-key/email/findEmail`,
+    displayUrl: `${PUBLIC_API_BASE}/api/access-key/email/findEmail`,
     description: 'Find email by name and domain',
     headers: { 'Authorization': 'Bearer YOUR_API_KEY', 'Content-Type': 'application/json' },
     requestBody: { first_name: 'John', last_name: 'Doe', domain: 'example.com' },
@@ -321,8 +325,8 @@ const API_DOCS: ApiDoc[] = [
     id: 'doc-email-find-bulk',
     name: 'Email • Find Bulk',
     method: 'POST',
-    url: 'https://server.mailsfinder.com/api/access-key/email/findBulkEmail',
-    displayUrl: 'https://server.mailsfinder.com/api/access-key/email/findBulkEmail',
+    url: `${PUBLIC_API_BASE}/api/access-key/email/findBulkEmail`,
+    displayUrl: `${PUBLIC_API_BASE}/api/access-key/email/findBulkEmail`,
     description: 'Find emails in bulk',
     headers: { 'Authorization': 'Bearer YOUR_API_KEY', 'Content-Type': 'application/json' },
     requestBody: [
@@ -354,8 +358,8 @@ const API_DOCS: ApiDoc[] = [
     id: 'doc-email-verify-bulk',
     name: 'Email • Verify Bulk',
     method: 'POST',
-    url: 'https://server.mailsfinder.com/api/access-key/email/verifyBulkEmail',
-    displayUrl: 'https://server.mailsfinder.com/api/access-key/email/verifyBulkEmail',
+    url: `${PUBLIC_API_BASE}/api/access-key/email/verifyBulkEmail`,
+    displayUrl: `${PUBLIC_API_BASE}/api/access-key/email/verifyBulkEmail`,
     description: 'Verify a list of emails',
     headers: { 'Authorization': 'Bearer YOUR_API_KEY', 'Content-Type': 'application/json' },
     requestBody: { emails: ['john.doe@example.com', 'jane.smith@example.com'] },
@@ -385,8 +389,8 @@ const API_DOCS: ApiDoc[] = [
     id: 'doc-email-verify',
     name: 'Email • Verify',
     method: 'POST',
-    url: 'https://server.mailsfinder.com/api/access-key/email/verifyEmail',
-    displayUrl: 'https://server.mailsfinder.com/api/access-key/email/verifyEmail',
+    url: `${PUBLIC_API_BASE}/api/access-key/email/verifyEmail`,
+    displayUrl: `${PUBLIC_API_BASE}/api/access-key/email/verifyEmail`,
     description: 'Verify a single email',
     headers: { 'Authorization': 'Bearer YOUR_API_KEY', 'Content-Type': 'application/json' },
     requestBody: { email: 'john.doe@example.com' },
