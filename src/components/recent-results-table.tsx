@@ -1,8 +1,8 @@
 'use client'
 
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { StatusBadge } from '@/components/ui/status-badge'
 import { useRecentFindResults, useRecentVerifyResults, useClearRecentResults } from '@/hooks/useRecentResults'
 import { Loader2, Trash2, Clock } from 'lucide-react'
 import type { RecentFindResult, RecentVerifyResult } from '@/types/jobs'
@@ -19,23 +19,6 @@ function formatRelativeDate(dateStr: string): string {
   const diffDay = Math.floor(diffHr / 24)
   if (diffDay < 7) return `${diffDay}d ago`
   return date.toLocaleDateString()
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const s = (status || '').toLowerCase()
-  if (s === 'valid' || s === 'found') {
-    return <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 border-green-200 dark:border-green-800">{s === 'found' ? 'Found' : 'Valid'}</Badge>
-  }
-  if (s === 'invalid') {
-    return <Badge variant="destructive">Invalid</Badge>
-  }
-  if (s === 'risky' || s === 'catch_all') {
-    return <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 border-amber-200 dark:border-amber-800">{s === 'catch_all' ? 'Catch-All' : 'Risky'}</Badge>
-  }
-  if (s === 'unknown' || s === 'guessed') {
-    return <Badge variant="secondary">{s === 'guessed' ? 'Guessed' : 'Unknown'}</Badge>
-  }
-  return <Badge variant="outline">{status || 'Unknown'}</Badge>
 }
 
 export function RecentFindResultsTable() {
