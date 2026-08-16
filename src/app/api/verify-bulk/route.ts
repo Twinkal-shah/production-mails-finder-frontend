@@ -13,10 +13,12 @@ export async function POST(req: NextRequest) {
   const token = authHeader ? undefined : await getAccessTokenFromCookies()
 
   try {
-    const incoming = await req.json().catch(async () => {
-      const text = await req.text()
-      try { return JSON.parse(text) } catch { return text }
-    })
+    // Read the body exactly once. A failed req.json() has already drained the
+    // stream, so a follow-up req.text() throws "Body has already been read"
+    // and surfaces as a 500 "Proxy error" instead of the real problem.
+    const rawBody = await req.text()
+    let incoming: unknown
+    try { incoming = JSON.parse(rawBody) } catch { incoming = rawBody }
     const emails = Array.isArray(incoming)
       ? incoming as string[]
       : (typeof incoming === 'object' && Array.isArray((incoming as Record<string, unknown>)?.emails))
