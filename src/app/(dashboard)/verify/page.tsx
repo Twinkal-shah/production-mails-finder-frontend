@@ -3,23 +3,23 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { toast } from 'sonner'
-import { ShieldCheck, Users } from 'lucide-react'
+import { MailCheck, FolderCheck } from 'lucide-react'
 import Papa from 'papaparse'
 import * as XLSX from 'xlsx'
 import type { BulkVerificationJob, EmailData, VerifyResultItem } from './types'
 import { useQueryInvalidation } from '@/lib/query-invalidation'
 import { useRecentVerifyResults } from '@/hooks/useRecentResults'
 import { useUserProfile } from '@/hooks/useCreditsData'
-import { RecentVerifyResultsTable } from '@/components/recent-results-table'
 import { ActiveJobsBanner } from '@/components/active-jobs-banner'
 import { humanizeApiError } from '@/lib/api-error'
 import { VerifyHeader } from './components/verify-header'
+import { VerifyResultPanel } from './components/verify-result-panel'
 import { SingleVerifyPanel } from './components/single-verify-panel'
 import { BulkUploadPanel, type BatchPreview } from './components/bulk-upload-panel'
-import { VerifySidePanel } from './components/verify-side-panel'
 import { VerifyProgressCard, VerifyFailedCard } from './components/verify-state-zone'
 import { VerifyResultsSummary, VerifyResultsTable } from './components/verify-results'
 import { VerifyJobHistory } from './components/verify-job-history'
+import { VerifyRecentLog } from './components/verify-recent-log'
 
 interface VerifyRow extends CsvRow {
   id: number
@@ -672,43 +672,48 @@ export default function VerifyPage() {
   const isFailed = currentJob?.status === 'failed' && !isProcessing
 
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-6 lg:space-y-8">
-      <VerifyHeader credits={profile?.available_credits} />
-
-      {/* Active Jobs Banner */}
-      <ActiveJobsBanner />
-
+    <div className="w-full flex flex-col gap-8">
       <Tabs value={mode} onValueChange={(v) => setMode(v as 'single' | 'bulk')}>
-        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 rounded-xl p-1 sm:inline-flex sm:w-auto">
-          <TabsTrigger
-            value="single"
-            className="gap-2 rounded-lg px-4 py-2 text-sm font-semibold data-[state=active]:bg-[var(--primary)] data-[state=active]:text-white"
-          >
-            <ShieldCheck className="h-4 w-4" />
-            Single email
-          </TabsTrigger>
-          <TabsTrigger
-            value="bulk"
-            className="gap-2 rounded-lg px-4 py-2 text-sm font-semibold data-[state=active]:bg-[var(--primary)] data-[state=active]:text-white"
-          >
-            <Users className="h-4 w-4" />
-            Bulk list
-          </TabsTrigger>
-        </TabsList>
+        <VerifyHeader credits={profile?.available_credits}>
+          <TabsList className="self-start lg:self-auto shrink-0">
+            <TabsTrigger value="single" className="px-3.5 py-1.5">
+              <MailCheck className="h-4 w-4" />
+              Single Email
+            </TabsTrigger>
+            <TabsTrigger value="bulk" className="px-3.5 py-1.5">
+              <FolderCheck className="h-4 w-4" />
+              Bulk Verification
+              <span className="bg-white dark:bg-white/10 border border-gray-200 dark:border-white/10 text-ink-muted text-[10px] font-mono-code px-1.5 rounded-full">
+                CSV
+              </span>
+            </TabsTrigger>
+          </TabsList>
+        </VerifyHeader>
+
+        {/* Active Jobs Banner */}
+        <div className="mt-6">
+          <ActiveJobsBanner />
+        </div>
 
         {/* ---------------- Single ---------------- */}
         <TabsContent value="single" className="mt-6 space-y-6">
-          <div className="grid gap-6 lg:grid-cols-12">
-            <SingleVerifyPanel
-              className="lg:col-span-7"
-              email={singleEmail}
-              onEmailChange={setSingleEmail}
-              onVerify={verifySingle}
-              isVerifying={isVerifyingSingle}
-              result={singleResult}
-              raw={singleRaw}
-            />
-            <VerifySidePanel variant="single" className="lg:col-span-5" />
+          <div className="grid gap-6 lg:grid-cols-12 items-stretch">
+            <div className="lg:col-span-5 flex flex-col gap-5">
+              <SingleVerifyPanel
+                email={singleEmail}
+                onEmailChange={setSingleEmail}
+                onVerify={verifySingle}
+                isVerifying={isVerifyingSingle}
+              />
+            </div>
+            <div className="lg:col-span-7 flex">
+              <VerifyResultPanel
+                email={singleEmail}
+                result={singleResult}
+                raw={singleRaw}
+                isVerifying={isVerifyingSingle}
+              />
+            </div>
           </div>
         </TabsContent>
 
@@ -716,7 +721,7 @@ export default function VerifyPage() {
         <TabsContent value="bulk" className="mt-6 space-y-6">
           <div className="grid gap-6 lg:grid-cols-12">
             <BulkUploadPanel
-              className="lg:col-span-7"
+              className="lg:col-span-12"
               fileInputRef={fileInputRef}
               onFileInputChange={handleFileUpload}
               onFileDropped={processFile}
@@ -729,7 +734,6 @@ export default function VerifyPage() {
               onStart={runBulkVerify}
               onClear={clearBatch}
             />
-            <VerifySidePanel variant="bulk" className="lg:col-span-5" />
           </div>
 
           {isProcessing && (
@@ -768,11 +772,12 @@ export default function VerifyPage() {
               <VerifyResultsTable results={results} />
             </>
           )}
+
         </TabsContent>
       </Tabs>
 
-      {/* Recent Verify Results */}
-      <RecentVerifyResultsTable />
+      {/* Recent Verifications Log — shown on both tabs */}
+      <VerifyRecentLog />
 
       {/* Job History */}
       <VerifyJobHistory jobs={allJobs} onDownload={downloadJobResults} />

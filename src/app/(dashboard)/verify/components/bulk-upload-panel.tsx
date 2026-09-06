@@ -85,16 +85,19 @@ export function BulkUploadPanel({
     typeof creditBalance === 'number' && estimated > 0 && creditBalance < estimated
 
   return (
-    <Card className={cn('shadow-sm', className)}>
+    <Card className={cn(className)}>
       <CardHeader>
-        <CardTitle className="flex items-center gap-3 text-lg">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/60 text-[var(--primary)] dark:bg-white/5">
+        <CardTitle className="flex items-center gap-3">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-light dark:bg-brand/15 border border-brand-border dark:border-brand/30 text-brand">
             <Users className="h-4 w-4" />
           </span>
-          Verify your list
+          <span className="text-xl font-bold text-ink dark:text-white">
+            Upload Bulk Verification List
+          </span>
         </CardTitle>
-        <CardDescription>
+        <CardDescription className="text-[13px]">
           Upload a CSV or Excel file with an <span className="font-medium text-foreground">Email</span> column.
+          Asynchronous multi-node validation with real-time progress.
         </CardDescription>
       </CardHeader>
 
