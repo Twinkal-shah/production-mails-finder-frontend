@@ -1,16 +1,19 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import Link from 'next/link'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { BulkFinderWorkspace } from '@/components/bulk-finder-workspace'
 import { FindResultPanel } from './components/find-result-panel'
 
+/**
+ * Credit cost shown on this page. Display strings only — the actual
+ * deduction is done by the backend and is not affected by these values.
+ */
+const CREDITS_PER_FIND_LABEL = '20 Credits / Find'
+const CREDITS_PER_FIND_TEXT = '20 credits'
+
 import { toast } from 'sonner'
-import { Search, Mail, ChevronDown, ChevronRight, AlertTriangle, UserSearch, UploadCloud, Loader2, Target, Gauge } from 'lucide-react'
+import { Search, Mail, ChevronDown, ChevronRight, AlertTriangle, UserSearch, UploadCloud, Loader2, ShieldCheck, CircleDollarSign, IdCard, Globe, Info, Database } from 'lucide-react'
 import { isAuthenticated, saveRedirectUrl } from '@/lib/auth'
 import { useQueryInvalidation } from '@/lib/query-invalidation'
 import { useRecentFindResults } from '@/hooks/useRecentResults'
@@ -63,9 +66,12 @@ export default function FindPage() {
   const [history, setHistory] = useState<SearchHistoryItem[]>([])
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [hasSearched, setHasSearched] = useState(false)
-  const [fullName, setFullName] = useState('')
-  const [companyDomain, setCompanyDomain] = useState('')
-  const [role, setRole] = useState('')
+  // Optional prefill from the dashboard's quick lookup. Values only populate
+  // the form — no search runs and no credits are spent until Find is pressed.
+  const searchParams = useSearchParams()
+  const [firstName, setFirstName] = useState(() => searchParams.get('first') ?? '')
+  const [lastName, setLastName] = useState(() => searchParams.get('last') ?? '')
+  const [companyDomain, setCompanyDomain] = useState(() => searchParams.get('domain') ?? '')
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
   const { invalidateCreditsData } = useQueryInvalidation()
@@ -86,10 +92,12 @@ export default function FindPage() {
   const handleSubmit = async () => {
     if (isLoading) return
 
-    if (!fullName.trim() || !companyDomain.trim()) {
+    if (!firstName.trim() || !lastName.trim() || !companyDomain.trim()) {
       toast.error('Please fill in all required fields')
       return
     }
+
+    const combinedName = `${firstName.trim()} ${lastName.trim()}`.trim()
 
     setHasSearched(true)
     setIsLoading(true)
@@ -98,12 +106,10 @@ export default function FindPage() {
     setError(null)
 
     try {
-      const cleaned = (fullName || '').trim().replace(/[\/,._\-@#$%]+/g, ' ')
-      const parts = cleaned.split(/\s+/)
-      const firstRaw = parts[0] || ''
-      const lastRaw = parts.slice(1).join(' ') || ''
-      const first_name = firstRaw.toLowerCase().replace(/[^a-z]/g, '')
-      const last_name = lastRaw.toLowerCase().replace(/[^a-z]/g, '')
+      // Same normalisation and same request body as before — the two inputs
+      // simply replace splitting one combined name field.
+      const first_name = firstName.trim().toLowerCase().replace(/[^a-z]/g, '')
+      const last_name = lastName.trim().toLowerCase().replace(/[^a-z]/g, '')
       const res = await fetch('/api/email/findEmail', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -180,7 +186,7 @@ export default function FindPage() {
       setRawResult(payload as Record<string, unknown>)
       const rawHistory = {
         email,
-        full_name: fullNameResp || fullName,
+        full_name: fullNameResp || combinedName,
         email_provider: provider,
         confidence_score: confidence,
         safe_to_send: safeToSend,
@@ -191,7 +197,7 @@ export default function FindPage() {
       }
       const newHistoryItem: SearchHistoryItem = {
         id: Date.now().toString(),
-        payload: { full_name: fullName, company_domain: companyDomain, role },
+        payload: { full_name: combinedName, company_domain: companyDomain },
         result: nextResult,
         created_at: new Date().toISOString(),
         raw: rawHistory
@@ -212,7 +218,7 @@ export default function FindPage() {
           safe_to_send: safeToSend,
           email_provider: provider,
           credits_used: creditsUsed,
-          full_name: fullNameResp || fullName,
+          full_name: fullNameResp || combinedName,
         },
         created_at: new Date().toISOString(),
       })
@@ -243,17 +249,23 @@ export default function FindPage() {
           </p>
         </div>
 
-        {/* Accuracy + usage policy (static display labels) */}
-        <div className="flex items-center gap-2.5 flex-wrap shrink-0">
-          <div className="flex items-center gap-2 h-9 px-3 rounded-lg bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 shadow-2xs">
-            <Gauge className="h-4 w-4 text-[#059669]" />
-            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Accuracy</span>
-            <span className="text-xs font-bold text-ink dark:text-white tabular-nums">99.4%</span>
+        {/* Quick stats strip — static display labels */}
+        <div className="flex items-center gap-3 bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 p-1.5 rounded-xl shadow-card shrink-0">
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-[#F8FAFC] dark:bg-white/5 rounded-lg">
+            <ShieldCheck className="h-[18px] w-[18px] text-brand shrink-0" />
+            <div className="flex flex-col">
+              <span className="text-[11px] text-gray-400 font-medium leading-none">Accuracy</span>
+              <span className="font-mono-code text-xs text-ink dark:text-white font-bold">99.4%</span>
+            </div>
           </div>
-          <div className="flex items-center gap-2 h-9 px-3 rounded-lg bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 shadow-2xs">
-            <Target className="h-4 w-4 text-brand" />
-            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Usage Policy</span>
-            <span className="text-xs font-bold text-ink dark:text-white">20 Credits / Find</span>
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-[#F8FAFC] dark:bg-white/5 rounded-lg">
+            <CircleDollarSign className="h-[18px] w-[18px] text-brand shrink-0" />
+            <div className="flex flex-col">
+              <span className="text-[11px] text-gray-400 font-medium leading-none">Usage Policy</span>
+              <span className="font-mono-code text-xs text-ink dark:text-white font-bold whitespace-nowrap">
+                {CREDITS_PER_FIND_LABEL}
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -296,109 +308,142 @@ export default function FindPage() {
       ) : (
       <>
 
-      <div className={`grid gap-6 items-start ${showRightColumn ? 'lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]' : 'grid-cols-1 max-w-xl'}`}>
-        {/* Search form */}
-        <div className={showRightColumn ? 'lg:sticky lg:top-2 self-start' : ''}>
-          <div className="bg-white dark:bg-[#1a1a1a] rounded-xl border border-gray-200 dark:border-white/10 shadow-card p-6">
-            <div className="flex items-center justify-between gap-3 mb-1">
-              <h2 className="flex items-center gap-2 text-[15px] font-semibold text-ink dark:text-white">
-                <span className="h-8 w-8 rounded-lg bg-brand-light dark:bg-brand/15 text-brand flex items-center justify-center">
-                  <UserSearch className="h-4 w-4" />
+      <div className={`grid gap-6 items-start ${showRightColumn ? 'lg:grid-cols-12' : 'grid-cols-1 max-w-xl'}`}>
+        {/* Search form — Stitch "Prospect Identity" card (5 of 12 cols) */}
+        <div className={showRightColumn ? 'lg:col-span-5 lg:sticky lg:top-2 self-start' : ''}>
+          <div className="bg-white dark:bg-[#1a1a1a] rounded-xl border border-gray-200 dark:border-white/10 shadow-card p-6 flex flex-col gap-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <span className="w-8 h-8 rounded-lg bg-brand-light dark:bg-brand/15 border border-brand-border dark:border-brand/30 text-brand flex items-center justify-center">
+                  <IdCard className="h-[18px] w-[18px]" />
                 </span>
-                Prospect Identity
-              </h2>
-              <span className="text-[10px] font-bold uppercase tracking-wide text-brand bg-brand-light dark:bg-brand/15 border border-brand-border dark:border-brand/30 px-2 py-0.5 rounded">
-                Smart Lookup
+                <h2 className="text-base font-bold text-ink dark:text-white">Prospect Identity</h2>
+              </div>
+              <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-[#F8FAFC] dark:bg-white/5 border border-gray-200 dark:border-white/10 text-ink-muted shrink-0">
+                Direct Lookup
               </span>
             </div>
-            <p className="text-[13px] leading-5 text-gray-500 dark:text-gray-400 mb-5">
-              Provide the name and corporate domain. Credits are only deducted on a successful,
+
+            <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+              Provide full name and corporate domain. Credits are deducted only upon successful
               verified address discovery.
             </p>
 
-            <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }} className="space-y-4">
-              <div>
-                <Label htmlFor="fullName" className="mb-2 text-xs font-semibold text-ink dark:text-gray-200">
-                  Full Name <span className="text-brand">*</span>
-                </Label>
-                <Input
-                  id="fullName"
-                  name="fullName"
-                  placeholder="e.g., John Doe"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  required
-                  disabled={isLoading}
-                />
+            <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }} className="flex flex-col gap-4 mt-1">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <label htmlFor="first-name" className="text-xs font-semibold text-ink dark:text-gray-200">
+                    First Name
+                  </label>
+                  <input
+                    id="first-name"
+                    name="first-name"
+                    type="text"
+                    placeholder="e.g. Marc"
+                    required
+                    disabled={isLoading}
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    className="w-full h-10 px-3 rounded-lg bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 text-sm text-ink dark:text-white placeholder:text-gray-400 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand transition-all disabled:opacity-60"
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label htmlFor="last-name" className="text-xs font-semibold text-ink dark:text-gray-200">
+                    Last Name
+                  </label>
+                  <input
+                    id="last-name"
+                    name="last-name"
+                    type="text"
+                    placeholder="e.g. Benioff"
+                    required
+                    disabled={isLoading}
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    className="w-full h-10 px-3 rounded-lg bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 text-sm text-ink dark:text-white placeholder:text-gray-400 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand transition-all disabled:opacity-60"
+                  />
+                </div>
               </div>
 
-              <div>
-                <Label htmlFor="companyDomain" className="mb-2 text-xs font-semibold text-ink dark:text-gray-200">
-                  Company Domain <span className="text-brand">*</span>
-                </Label>
-                <Input
-                  id="companyDomain"
-                  name="companyDomain"
-                  placeholder="e.g., company.com"
-                  value={companyDomain}
-                  onChange={(e) => setCompanyDomain(e.target.value)}
-                  required
-                  disabled={isLoading}
-                />
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="company-domain" className="text-xs font-semibold text-ink dark:text-gray-200">
+                  Company Domain
+                </label>
+                <div className="relative flex items-center">
+                  <Globe className="absolute left-3 h-[18px] w-[18px] text-gray-400 pointer-events-none" />
+                  <input
+                    id="company-domain"
+                    name="company-domain"
+                    type="text"
+                    placeholder="salesforce.com or stripe.com"
+                    required
+                    disabled={isLoading}
+                    value={companyDomain}
+                    onChange={(e) => setCompanyDomain(e.target.value)}
+                    className="w-full h-10 pl-9 pr-3 rounded-lg bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 text-sm text-ink dark:text-white placeholder:text-gray-400 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand transition-all disabled:opacity-60"
+                  />
+                </div>
               </div>
 
-              <div>
-                <Label htmlFor="role" className="mb-2 text-xs font-semibold text-ink dark:text-gray-200">
-                  Role <span className="font-normal text-gray-400">(Optional)</span>
-                </Label>
-                <Input
-                  id="role"
-                  name="role"
-                  placeholder="e.g., Marketing Manager"
-                  value={role}
-                  onChange={(e) => setRole(e.target.value)}
-                  disabled={isLoading}
-                />
+              {/* Cost explanation notice */}
+              <div className="p-3 rounded-lg bg-[#F8FAFC] dark:bg-white/5 border border-gray-200 dark:border-white/10 flex items-start gap-2.5">
+                <Info className="h-[18px] w-[18px] text-brand mt-0.5 shrink-0" />
+                <div className="flex flex-col text-xs text-gray-500 dark:text-gray-400 leading-snug">
+                  <span>
+                    Charges <strong className="text-ink dark:text-white font-semibold">{CREDITS_PER_FIND_TEXT}</strong>{' '}
+                    only when a deliverable email is confirmed.
+                  </span>
+                  <span className="text-[11px] text-gray-400 mt-0.5">
+                    0 charge on unresolvable names or invalid bounce states.
+                  </span>
+                </div>
               </div>
 
-              <Button
+              <button
                 type="submit"
-                disabled={isLoading || !fullName.trim() || !companyDomain.trim()}
-                className="w-full"
+                disabled={isLoading || !firstName.trim() || !lastName.trim() || !companyDomain.trim()}
+                className="w-full h-10 rounded-lg bg-brand hover:bg-brand-hover text-white font-semibold text-sm flex items-center justify-center gap-2 transition-all shadow-2xs active:scale-[0.99] disabled:opacity-60 disabled:pointer-events-none"
               >
                 {isLoading ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Finding email...
+                    <Loader2 className="h-[18px] w-[18px] animate-spin" />
+                    <span>Finding email...</span>
                   </>
                 ) : (
                   <>
-                    <Search className="mr-2 h-4 w-4" />
-                    Find Email
+                    <Search className="h-[18px] w-[18px]" />
+                    <span>Find Email</span>
                   </>
                 )}
-              </Button>
+              </button>
             </form>
 
-            {/* High-volume prompt */}
-            <div className="mt-5 pt-5 border-t border-gray-100 dark:border-white/10 flex items-center justify-between gap-3">
-              <div>
-                <p className="text-xs font-semibold text-ink dark:text-white">Need high volume?</p>
-                <p className="text-[11px] text-gray-400 mt-0.5">Process spreadsheets in bulk.</p>
+            {/* Mini CSV promo */}
+            <div className="mt-1 p-3.5 rounded-xl bg-[#F8FAFC] dark:bg-white/5 border border-gray-200 dark:border-white/10 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <span className="w-9 h-9 shrink-0 rounded-lg bg-white dark:bg-white/10 border border-gray-200 dark:border-white/10 flex items-center justify-center text-brand shadow-2xs">
+                  <Database className="h-5 w-5" />
+                </span>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-xs font-bold text-ink dark:text-white">Need high volume?</span>
+                  <span className="text-[11px] text-gray-500 dark:text-gray-400 truncate">
+                    Process spreadsheets up to 50k rows.
+                  </span>
+                </div>
               </div>
-              <Link
-                href="/bulk-finder"
-                className="h-8 px-3 shrink-0 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-[11px] font-bold text-ink dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/10 hover:border-gray-300 transition-colors flex items-center gap-1.5"
+              <button
+                type="button"
+                onClick={() => setMode('bulk')}
+                className="px-3 py-1.5 shrink-0 rounded-lg bg-white dark:bg-white/10 border border-gray-200 dark:border-white/10 hover:border-brand/50 text-ink dark:text-white font-semibold text-xs transition-colors shadow-2xs"
               >
-                <UploadCloud className="h-3.5 w-3.5 text-gray-500" />
-                Open bulk
-              </Link>
+                Open CSV
+              </button>
             </div>
           </div>
         </div>
 
         {showRightColumn && (
-          <div className="space-y-6 min-w-0">
+          <div className="lg:col-span-7 space-y-6 min-w-0">
             {/* Result panel */}
             {hasSearched && (
               (() => {
@@ -415,7 +460,7 @@ export default function FindPage() {
                       result={result}
                       raw={rawResult}
                       companyDomain={companyDomain}
-                      enteredName={fullName}
+                      enteredName={`${firstName} ${lastName}`.trim()}
                     />
                   )
                 }
