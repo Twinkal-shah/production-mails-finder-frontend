@@ -24,10 +24,9 @@ const PAGE_LABELS: Record<string, string> = {
   '/bulk-finder': 'Bulk Find',
   '/verify': 'Verify Email',
   '/domain-search': 'Domain Search',
-  '/api-calls': 'API & Webhooks',
+  '/api-calls': 'API',
   '/credits': 'Billing & Quota',
   '/upgrade': 'Upgrade Plan',
-  '/job-history': 'Job History',
   '/user': 'Settings',
   '/video-tutorials': 'Video Tutorials',
 }

@@ -12,7 +12,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // Only guard protected dashboard pages; leave auth and public pages untouched
-  const protectedPaths = ['/find', '/bulk-finder', '/verify', '/credits', '/api-calls', '/video-tutorials', '/job-history']
+  const protectedPaths = ['/find', '/bulk-finder', '/verify', '/credits', '/api-calls', '/video-tutorials']
   const isProtected = protectedPaths.some(p => pathname.startsWith(p))
   const isAuthPage = pathname.startsWith('/auth')
 

@@ -5,13 +5,11 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard,
   UserSearch,
-  Database,
   ShieldCheck,
   Globe,
   Code2,
   CreditCard,
   Zap,
-  History,
   Settings as SettingsIcon,
   LogOut,
   X,
@@ -34,16 +32,14 @@ export interface SidebarProfile {
 const PROSPECTING = [
   { href: '/home', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/find', label: 'Find Email', icon: UserSearch },
-  { href: '/bulk-finder', label: 'Bulk Find', icon: Database },
   { href: '/verify', label: 'Verify Email', icon: ShieldCheck },
   { href: '/domain-search', label: 'Domain Search', icon: Globe },
 ]
 
 const ACCOUNT = [
-  { href: '/api-calls', label: 'API & Webhooks', icon: Code2 },
+  { href: '/api-calls', label: 'API', icon: Code2 },
   { href: '/credits', label: 'Billing & Quota', icon: CreditCard },
   { href: '/upgrade', label: 'Upgrade Plan', icon: Zap, badge: 'Pro' },
-  { href: '/job-history', label: 'Job History', icon: History },
   { href: '/user', label: 'Settings', icon: SettingsIcon },
 ]
 
@@ -217,12 +213,6 @@ export function AppSidebar({
               <Link href="/user">
                 <SettingsIcon className="mr-2 h-4 w-4" />
                 Settings
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link href="/job-history">
-                <History className="mr-2 h-4 w-4" />
-                Job History
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
