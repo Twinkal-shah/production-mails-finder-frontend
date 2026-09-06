@@ -6,9 +6,23 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
-import { Coins, CreditCard, ExternalLink, History, TrendingUp, Calendar, CheckCircle, Plus } from 'lucide-react'
+import Link from 'next/link'
+import {
+  Coins,
+  ShieldCheck,
+  CalendarClock,
+  Check,
+  Download,
+  Receipt,
+  RefreshCw,
+  PlusCircle,
+  Calendar,
+  TrendingUp,
+  Zap,
+  CreditCard as CreditCardIcon,
+} from 'lucide-react'
 import { useCreditsData } from '@/hooks/useCreditsData'
-import { Line } from 'react-chartjs-2'
+import { Bar } from 'react-chartjs-2'
 import { isAuthenticated, saveRedirectUrl } from '@/lib/auth'
 import {
   Chart as ChartJS,
@@ -16,6 +30,7 @@ import {
   LinearScale,
   PointElement,
   LineElement,
+  BarElement,
   Title,
   Tooltip,
   Legend,
@@ -30,7 +45,8 @@ ChartJS.register(
   Title,
   Tooltip,
   Legend,
-  Filler
+  Filler,
+  BarElement
 )
 
 interface CreditTransaction {
@@ -143,6 +159,29 @@ const planKey = (profile?.plan || 'free').toString().trim().toLowerCase() as key
 const currentPlan = PLANS[planKey] || PLANS.free;
 
 // ------------------ Purchase history (fetch from dedicated API) ------------------
+  /* Auto-refill preference. Stored in this browser only — there is no backend
+     endpoint for it yet, so the panel says so rather than implying it is live. */
+  const [autoRefillOn, setAutoRefillOn] = useState(false)
+  const [refillPack, setRefillPack] = useState(100000)
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('autoRefillPref')
+      if (raw) {
+        const v = JSON.parse(raw) as { on?: boolean; pack?: number }
+        if (typeof v.on === 'boolean') setAutoRefillOn(v.on)
+        if (typeof v.pack === 'number') setRefillPack(v.pack)
+      }
+    } catch {}
+  }, [])
+  const saveAutoRefill = () => {
+    try {
+      localStorage.setItem('autoRefillPref', JSON.stringify({ on: autoRefillOn, pack: refillPack }))
+      toast.success('Preference saved on this device. Automatic billing is not active yet.')
+    } catch {
+      toast.error('Could not save preference')
+    }
+  }
+
 const [purchaseHistory, setPurchaseHistory] = useState<PurchaseItem[]>([])
 
 const [isPurchaseLoading, setIsPurchaseLoading] = useState(true)
@@ -213,68 +252,171 @@ if (isPurchaseArray(parsed)) {
   
   
   // Memoize chart data to prevent unnecessary recalculations
-  const filledUsage = useMemo(() => {
-    const days = 30
-    const map = new Map<string, number>()
-    for (const item of creditUsage as Array<{ date: string; totalCreditsUsed?: number }>) {
-      const k = new Date(item.date).toISOString().split('T')[0]
-      const v = Number(item.totalCreditsUsed ?? 0)
-      map.set(k, v)
+  /**
+   * Reads a per-engine value from a usage row.
+   *
+   * The daily-usage endpoint is a pass-through, so the key names vary. This
+   * checks the row itself and any nested breakdown object, matching on a
+   * normalised key (case- and separator-insensitive). Returns null when the
+   * backend genuinely does not report the split — the UI then says so rather
+   * than inventing a number.
+   */
+  const readSplit = (row: Record<string, unknown>, wanted: string[]): number | null => {
+    const norm = (k: string) => k.toLowerCase().replace(/[^a-z]/g, '')
+    const targets = wanted.map(norm)
+    const scan = (obj: Record<string, unknown>): number | null => {
+      for (const [k, v] of Object.entries(obj)) {
+        if (!targets.includes(norm(k))) continue
+        if (typeof v === 'number' && Number.isFinite(v)) return v
+        if (typeof v === 'string' && v.trim() !== '' && Number.isFinite(Number(v))) return Number(v)
+      }
+      return null
     }
-    const out: Array<{ date: string; totalCreditsUsed: number }> = []
+    const direct = scan(row)
+    if (direct !== null) return direct
+    for (const nestedKey of ['breakdown', 'byEngine', 'by_engine', 'engines', 'usage', 'details']) {
+      const nested = row[nestedKey]
+      if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
+        const hit = scan(nested as Record<string, unknown>)
+        if (hit !== null) return hit
+      }
+    }
+    return null
+  }
+
+  const [usagePeriod, setUsagePeriod] = useState<'current' | 'previous'>('current')
+
+  const filledUsage = useMemo(() => {
+    const days = 14
+    const offset = usagePeriod === 'previous' ? 14 : 0
+    type Row = { total: number; find: number | null; verify: number | null }
+    const map = new Map<string, Row>()
+    for (const raw of creditUsage as Array<Record<string, unknown>>) {
+      const k = new Date(String(raw.date)).toISOString().split('T')[0]
+      map.set(k, {
+        total: Number(raw.totalCreditsUsed ?? 0),
+        find: readSplit(raw, [
+          'findCredits', 'find_credits', 'credits_find', 'find', 'finderCredits',
+          'findCreditsUsed', 'find_credits_used', 'creditsFind', 'finder', 'emailFinder', 'search',
+        ]),
+        verify: readSplit(raw, [
+          'verifyCredits', 'verify_credits', 'credits_verify', 'verify', 'verifierCredits',
+          'verifyCreditsUsed', 'verify_credits_used', 'creditsVerify', 'verifier', 'emailVerifier', 'verification',
+        ]),
+      })
+    }
+    const out: Array<{ date: string; totalCreditsUsed: number; find: number | null; verify: number | null }> = []
     const now = new Date()
-    for (let i = days - 1; i >= 0; i--) {
+    for (let i = days - 1 + offset; i >= offset; i--) {
       const d = new Date(now)
       d.setDate(d.getDate() - i)
       const k = d.toISOString().split('T')[0]
-      out.push({ date: k, totalCreditsUsed: map.get(k) ?? 0 })
+      const row = map.get(k)
+      out.push({
+        date: k,
+        totalCreditsUsed: row?.total ?? 0,
+        find: row?.find ?? null,
+        verify: row?.verify ?? null,
+      })
     }
     return out
-  }, [creditUsage])
+  }, [creditUsage, usagePeriod])
 
-  const chartData = useMemo(() => ({
-    labels: filledUsage.map(item => {
-      const date = new Date(item.date)
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-    }),
-    datasets: [
-      {
-        label: 'Credits Used',
-        data: filledUsage.map(item => item.totalCreditsUsed),
-        borderColor: '#b71d40',
-        backgroundColor: 'rgba(183, 29, 64, 0.10)',
-        tension: 0.1,
-        fill: true
-      }
-    ]
-  }), [filledUsage])
+  /** True only when the backend actually reports a per-engine split. */
+  const hasEngineSplit = useMemo(
+    () => filledUsage.some((d) => d.find !== null || d.verify !== null),
+    [filledUsage]
+  )
 
-  // Memoize chart options to prevent unnecessary recalculations
-  const chartOptions = useMemo(() => ({
-    responsive: true,
-    plugins: {
-      legend: {
-        display: false
-      },
-      title: {
-        display: false
-      }
-    },
-    scales: {
-      y: {
-        beginAtZero: true,
-        grid: {
-          color: 'rgba(0, 0, 0, 0.1)'
-        }
-      },
-      x: {
-        grid: {
-          color: 'rgba(0, 0, 0, 0.1)'
-        }
+  /** Totals for whichever period the tabs have selected. */
+  const periodTotals = useMemo(() => {
+    const used = filledUsage.reduce((a, d) => a + d.totalCreditsUsed, 0)
+    const peak = filledUsage.reduce((a, d) => Math.max(a, d.totalCreditsUsed), 0)
+    const activeDays = filledUsage.filter((d) => d.totalCreditsUsed > 0).length
+    return { used, peak, avg: activeDays > 0 ? used / activeDays : 0 }
+  }, [filledUsage])
+
+  const engineTotals = useMemo(() => {
+    const find = filledUsage.reduce((a, d) => a + (d.find ?? 0), 0)
+    const verify = filledUsage.reduce((a, d) => a + (d.verify ?? 0), 0)
+    const sum = find + verify
+    return {
+      find,
+      verify,
+      findPct: sum > 0 ? (find / sum) * 100 : 0,
+      verifyPct: sum > 0 ? (verify / sum) * 100 : 0,
+    }
+  }, [filledUsage])
+
+  const chartData = useMemo(() => {
+    const labels = filledUsage.map((_, i) => String(i + 1).padStart(2, '0'))
+    if (hasEngineSplit) {
+      return {
+        labels,
+        datasets: [
+          {
+            label: 'Email Finder Core',
+            data: filledUsage.map((d) => d.find ?? 0),
+            backgroundColor: '#b71d40',
+            borderRadius: 4,
+            stack: 'usage',
+          },
+          {
+            label: 'Verification Engine',
+            data: filledUsage.map((d) => d.verify ?? 0),
+            backgroundColor: '#94a3b8',
+            borderRadius: 4,
+            stack: 'usage',
+          },
+        ],
       }
     }
-  }), [])
-  
+    return {
+      labels,
+      datasets: [
+        {
+          label: 'Credits Used',
+          data: filledUsage.map((item) => item.totalCreditsUsed),
+          backgroundColor: '#b71d40',
+          borderRadius: 4,
+          stack: 'usage',
+        },
+      ],
+    }
+  }, [filledUsage, hasEngineSplit])
+
+  const chartOptions = useMemo(
+    () => ({
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: true,
+          position: 'bottom' as const,
+          labels: {
+            boxWidth: 8,
+            boxHeight: 8,
+            usePointStyle: true,
+            pointStyle: 'circle' as const,
+            padding: 18,
+            font: { size: 11 },
+          },
+        },
+        title: { display: false },
+      },
+      scales: {
+        y: { stacked: true, beginAtZero: true, display: false, grid: { display: false } },
+        x: {
+          stacked: true,
+          grid: { display: false },
+          border: { display: false },
+          ticks: { font: { size: 10 }, color: '#64748B', maxRotation: 0 },
+        },
+      },
+    }),
+    []
+  )
+
   // If profile is missing, continue rendering without redirect.
   // The UI below guards profile-dependent sections and will show defaults.
   
@@ -752,476 +894,556 @@ if (isPurchaseArray(parsed)) {
     )
   }
 
+  /* --- Real usage stats derived from the daily credit-usage series --- */
+  const usageStats = (() => {
+    const series = Array.isArray(creditUsage)
+      ? (creditUsage as Array<{ date: string; totalCreditsUsed?: number }>)
+      : []
+    const dayMs = 86400000
+    const now = Date.now()
+    let last30 = 0
+    let peak = 0
+    let days = 0
+    for (const d of series) {
+      const used = Number(d?.totalCreditsUsed) || 0
+      const t = new Date(String(d?.date || '').slice(0, 10)).getTime()
+      if (Number.isNaN(t)) continue
+      if (now - t <= 30 * dayMs) {
+        last30 += used
+        days += 1
+        if (used > peak) peak = used
+      }
+    }
+    const avgPerDay = days > 0 ? last30 / days : 0
+    const balance = Math.max(Number(profile?.available_credits ?? 0), 0)
+    const exhaustionDays = avgPerDay > 0 ? Math.floor(balance / avgPerDay) : null
+    return { last30, peak, avgPerDay, exhaustionDays, balance }
+  })()
+
+  const renewalDate = profile?.plan_expiry ? new Date(profile.plan_expiry) : null
+
+  /* Real per-bucket balances and quota caps from the profile API. */
+  const buckets = (profile?.balances ?? {}) as Record<string, { balance?: number } | undefined>
+  const bucketRows = (['monthly', 'lifetime', 'payg', 'free'] as const)
+    .map((k) => ({ key: k, value: Number(buckets?.[k]?.balance ?? 0) }))
+    .filter((b) => b.value > 0)
+  const caps = profile?.caps
+  const msToRenewal = renewalDate ? renewalDate.getTime() - Date.now() : null
+  const daysToRenewal = msToRenewal === null ? null : Math.ceil(msToRenewal / 86400000)
+  const renewalPassed = msToRenewal !== null && msToRenewal <= 0
+
+  const exportInvoicesCsv = () => {
+    if (purchaseHistory.length === 0) {
+      toast.error('No invoices to export yet')
+      return
+    }
+    const header = ['Date', 'Description', 'Amount', 'Payment Status']
+    const lines = purchaseHistory.map((p) =>
+      [
+        formatDate(p.createdAt ?? p.created_at ?? p.date ?? ''),
+        p.product_name ?? p.product ?? 'Purchase',
+        `$${p.amount ?? p.total ?? 0}`,
+        p.status ?? p.payment_status ?? 'completed',
+      ]
+        .map((v) => `"${String(v).replace(/"/g, '""')}"`)
+        .join(',')
+    )
+    const blob = new Blob([[header.join(','), ...lines].join('\n')], {
+      type: 'text/csv;charset=utf-8;',
+    })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'invoices.csv'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
   return (
-    <div className="credits-page max-w-5xl space-y-6">
-      <div>
-        <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">
-          Enterprise Ledger
-        </p>
-        <h1 className="text-2xl font-bold tracking-tight text-ink dark:text-white">Billing &amp; Quota</h1>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          Monitor credit burn rate, subscription status and billing history.
-        </p>
-      </div>
-
-      {/* Current Credits */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Coins className="h-5 w-5" />
-            Current Balance
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-3xl font-bold" style={{ color: 'var(--primary)' }}>
-                {profile?.total_credits || 0}
-              </p>
-              <p className="text-gray-600">Total Available Credits</p>
-            </div>
-            <div className="text-right">
-              <p className="text-lg font-medium">
-                Plan: {profile?.plan || 'Free'}
-              </p>
-              <p className="text-sm text-gray-600">
-                Account: {profile?.full_name || 'User'}
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Current Plan and Daily Credit Usage Sections */}
-      <div className="grid gap-6 md:grid-cols-2">
-        {/* Your Current Plan */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CreditCard className="h-5 w-5" />
-              Your Current Plan
-            </CardTitle>
-          </CardHeader>
-          {/* <CardContent className="space-y-4">
-            {profile && (
-              <>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-xl font-semibold">{PLANS[profile.plan as keyof typeof PLANS]?.name || profile.plan}</h3>
-                    <p className="text-gray-600">
-                      {PLANS[profile.plan as keyof typeof PLANS]?.price} {PLANS[profile.plan as keyof typeof PLANS]?.duration}
-                    </p>
-                  </div>
-                  <Badge className={PLANS[profile.plan as keyof typeof PLANS]?.color || 'bg-gray-100 text-gray-800'}>
-                    {profile.plan.toUpperCase()}
-                  </Badge>
-                </div>
-                
-                {profile.plan === 'free' && (
-                  <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                    <p className="text-sm text-yellow-800">
-                      {isExpired 
-                        ? "⚠️ Your free trial has expired. Please upgrade to continue using the service."
-                        : `⏰ ${daysRemaining} days remaining in your free trial.`
-                      }
-                    </p>
-                  </div>
-                )}
-                
-                <div className="space-y-2">
-                  <h4 className="font-medium">Plan Features:</h4>
-                  <ul className="space-y-1">
-                    {(PLANS[profile.plan as keyof typeof PLANS]?.features || []).map((feature, index) => (
-                      <li key={index} className="flex items-center gap-2 text-sm text-gray-600">
-                        <CheckCircle className="h-4 w-4 text-green-500" />
-                        {feature}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-                
-                <div className="pt-4 border-t">
-                  <div className="grid grid-cols-2 gap-4 text-center">
-                    <div>
-                      <p className="text-2xl font-bold text-blue-600">{profile.credits_find}</p>
-                      <p className="text-sm text-gray-600">Find Credits</p>
-                    </div>
-                    <div>
-                      <p className="text-2xl font-bold text-green-600">{profile.credits_verify}</p>
-                      <p className="text-sm text-gray-600">Verify Credits</p>
-                    </div>
-                  </div>
-                </div>
-              </>
-            )}
-          </CardContent> */}
-
-          <CardContent className="space-y-4">
-  {profile && (
-    <>
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-xl font-semibold dark:text-gray-100">{currentPlan.name}</h3>
-          <p className="text-gray-600 dark:text-gray-300">
-            {currentPlan.price} {currentPlan.duration}
+    <div className="credits-page flex flex-col gap-8">
+      {/* ------------------------------ Header ------------------------------ */}
+      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
+        <div className="min-w-0">
+          <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">
+            <span>Enterprise Quota</span>
+            <span aria-hidden="true">/</span>
+            <span className="capitalize text-brand">{currentPlan.name}</span>
+          </p>
+          <h1 className="text-2xl font-bold tracking-tight text-ink dark:text-white">
+            Billing &amp; Quotas
+          </h1>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400 max-w-2xl">
+            Monitor credit burn-rate velocity, subscription status, and centralized fiscal invoices.
           </p>
         </div>
-        <Badge className="bg-[var(--primary)] text-white">
-          {(profile?.plan ?? 'free').toString().toUpperCase()}
-        </Badge>
-      </div>
-      
-      {profile.plan?.toLowerCase() === 'free' && (
-        <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg dark:bg-yellow-900/20 dark:border-yellow-700/40">
-          <p className="text-sm text-yellow-800 dark:text-yellow-300">
-            {isExpired 
-              ? "⚠️ Your free trial has expired. Please upgrade to continue using the service."
-              : `⏰ ${daysRemaining} days remaining in your free trial.`}
-          </p>
-        </div>
-      )}
-      
-      <div className="space-y-2">
-        <h4 className="font-medium dark:text-gray-100">Plan Features:</h4>
-        <ul className="space-y-1">
-          {(currentPlan.features || []).map((feature, index) => (
-            <li key={index} className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
-              <CheckCircle className="h-4 w-4 text-green-500" />
-              {feature}
-            </li>
-          ))}
-        </ul>
-      </div>
-      
-      <div className="pt-4 border-t">
-        <div className="text-center">
-          <p className="text-2xl font-bold" style={{ color: 'var(--primary)' }}>{profile.total_credits || 0}</p>
-          <p className="text-sm text-gray-600 dark:text-gray-300">Available Credits</p>
+        <div className="flex items-center gap-2.5 flex-wrap shrink-0">
+          <Link
+            href="/upgrade"
+            className="h-9 px-3.5 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 text-gray-700 dark:text-gray-200 font-semibold text-xs rounded-lg hover:bg-gray-50 dark:hover:bg-white/10 hover:border-gray-300 transition-colors flex items-center gap-2 shadow-2xs"
+          >
+            <RefreshCw className="h-4 w-4 text-gray-500" />
+            Change Subscription
+          </Link>
+          <Link
+            href="/upgrade"
+            className="h-9 px-3.5 bg-brand text-white font-bold text-xs rounded-lg hover:bg-brand-hover transition-colors flex items-center gap-1.5 shadow-2xs"
+          >
+            <PlusCircle className="h-4 w-4" />
+            Buy Credit Pack
+          </Link>
         </div>
       </div>
-    </>
-  )}
-</CardContent>
 
-        </Card>
-
-        {/* Daily Credit Usage */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5" />
-              Daily Credit Usage
-            </CardTitle>
-            <CardDescription>
-              Track your daily credit consumption over time
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {creditUsage.length > 0 ? (
-              <div className="h-64">
-                <Line data={chartData} options={chartOptions} />
-              </div>
-            ) : (
-              <div className="h-64 flex items-center justify-center text-gray-500">
-                <div className="text-center">
-                  <TrendingUp className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                  <p>No usage data available yet</p>
-                  <p className="text-sm">Start using the service to see your credit usage</p>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Pricing Plans */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Plus className="h-5 w-5" />
-            Subscription Plans
-          </CardTitle>
-          <CardDescription>
-            Choose a subscription plan that fits your needs.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {pricingPlans.map((plan) => {
-              const isCurrentPlan = profile?.plan?.toLowerCase() === plan.name.toLowerCase()
-              return (
-                <Card 
-                  key={plan.name} 
-                  className={`relative ${
-                    isCurrentPlan 
-                      ? 'border-green-500 border-2 shadow-lg bg-green-50 dark:bg-green-900/25 dark:border-green-400/60' 
-                      : plan.popular 
-                      ? 'border-[var(--primary)] border-2 shadow-lg' 
-                      : ''
-                  }`}
-                >
-                  {isCurrentPlan && (
-                    <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                      <span className="bg-green-500 text-white text-sm px-3 py-1 rounded-full font-medium">
-                        Current Plan
-                      </span>
-                    </div>
-                  )}
-                  {plan.popular && !isCurrentPlan && (
-                    <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                      <span className="text-white text-sm px-3 py-1 rounded-full font-medium" style={{ backgroundColor: 'var(--primary)' }}>
-                        Most Popular
-                      </span>
-                    </div>
-                  )}
-                  <CardContent className="pt-6">
-                    <div className="text-center mb-6">
-                      <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-2">{plan.name}</h3>
-                      <div className="text-3xl font-bold mb-1" style={{ color: 'var(--primary)' }}>
-                        ${plan.price}
-                      </div>
-                      <div className="text-sm text-gray-600 dark:text-gray-300">
-                        {plan.period === 'lifetime' ? 'One-time payment' : `per ${plan.period}`}
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-3 mb-6">
-                      {plan.features.map((feature, index) => (
-                        <div key={index} className="flex items-start gap-2">
-                          <div className="w-1.5 h-1.5 rounded-full mt-2 flex-shrink-0" style={{ backgroundColor: 'var(--primary)' }}></div>
-                          <span className="text-sm text-gray-600 dark:text-gray-300">{feature}</span>
-                        </div>
-                      ))}
-                    </div>
-                    
-                    {isCurrentPlan ? (
-                      <Button 
-                        className="w-full"
-                        onClick={handleCancelSubscription}
-                        disabled={isCreatingPortal}
-                        variant="destructive"
-                        size="lg"
-                      >
-                        <CreditCard className="mr-2 h-4 w-4" />
-                        {isCreatingPortal ? 'Processing...' : 'Cancel Subscription'}
-                      </Button>
-                    ) : (
-                      <Button 
-                        className="w-full"
-                        onClick={() => handleSubscribe(plan.name.toLowerCase() as 'monthly' | 'annual' | 'lifetime')}
-                        disabled={loadingStates[`plan-${plan.name}`]}
-                        variant={plan.popular ? 'default' : 'outline'}
-                        size="lg"
-                      >
-                        <CreditCard className="mr-2 h-4 w-4" />
-                        {loadingStates[`plan-${plan.name}`] ? 'Processing...' : (plan.period === 'lifetime' ? 'Get Lifetime Access' : 'Start Subscription')}
-                      </Button>
-                    )}
-                    
-                    {plan.period !== 'lifetime' && !isCurrentPlan && (
-                      <div className="text-xs text-gray-500 dark:text-gray-400 mt-3 text-center">
-                        Cancel anytime • No setup fees
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              )
-            })}
+      {/* --------------------------- Summary cards --------------------------- */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        {/* Current plan */}
+        <div className="bg-white dark:bg-[#1a1a1a] rounded-xl border border-gray-200 dark:border-white/10 shadow-card p-5 flex flex-col">
+          <div className="flex items-center gap-2 mb-3">
+            <ShieldCheck className="h-[18px] w-[18px] text-brand" />
+            <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400">
+              Current Plan
+            </span>
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Custom Credit Packages */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Coins className="h-5 w-5" />
-            Custom Credit Packages
-          </CardTitle>
-          <CardDescription>
-            One-time credit purchases for immediate use
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {customCreditPackages.map((creditPackage, index) => (
-              <div key={index} className="bg-gray-50 rounded-lg border p-4 hover:shadow-md transition-shadow">
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-gray-900 mb-1">
-                    {creditPackage.credits.toLocaleString()}
-                  </div>
-                  <div className="text-xs text-gray-500 mb-3">Credits</div>
-                  <div className="text-xl font-bold mb-3" style={{ color: 'var(--primary)' }}>
-                    ${creditPackage.price}
-                  </div>
-                  <p className="text-xs text-gray-600 mb-4">
-                    {creditPackage.description}
-                  </p>
-                  <Button
-                    onClick={() => handleBuyCredits(creditPackage)}
-                    disabled={loadingStates[`credits-${creditPackage.credits}`]}
-                    className="w-full"
-                    size="sm"
-                  >
-                    {loadingStates[`credits-${creditPackage.credits}`] ? 'Processing...' : 'Buy Credits'}
-                  </Button>
-                </div>
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <h3 className="text-lg font-bold text-ink dark:text-white">{currentPlan.name}</h3>
+            <span className="inline-flex items-center gap-1.5 h-6 rounded-full border px-2.5 text-[11px] font-semibold bg-[#ECFDF5] text-[#059669] border-[#A7F3D0] dark:bg-[#059669]/15 dark:border-[#059669]/30">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#059669]" />
+              Active
+            </span>
+          </div>
+          <div className="flex items-baseline gap-1.5 mt-2">
+            <span className="text-2xl font-bold text-ink dark:text-white">{currentPlan.price}</span>
+            <span className="text-xs text-gray-400 font-medium">{currentPlan.duration}</span>
+          </div>
+          <div className="mt-4 pt-3 border-t border-gray-100 dark:border-white/10 space-y-1.5">
+            {(currentPlan.features || []).slice(0, 3).map((feature: string) => (
+              <div key={feature} className="flex items-start gap-2">
+                <Check className="h-3.5 w-3.5 text-[#059669] mt-0.5 shrink-0" />
+                <span className="text-[11px] text-gray-500 dark:text-gray-400">{feature}</span>
               </div>
             ))}
           </div>
-        </CardContent>
-      </Card>
+        </div>
 
-      {/* Billing Management */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Billing Management</CardTitle>
-          <CardDescription>
-            Manage your payment methods and billing history.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button 
-            variant="outline"
-            onClick={handleManageBilling}
-            disabled={isCreatingPortal}
-          >
-            <ExternalLink className="mr-2 h-4 w-4" />
-            Manage Billing
-          </Button>
-        </CardContent>
-      </Card>
+        {/* Available balance */}
+        <div className="bg-white dark:bg-[#1a1a1a] rounded-xl border border-gray-200 dark:border-white/10 shadow-card p-5 flex flex-col">
+          <div className="flex items-center gap-2 mb-3">
+            <Coins className="h-[18px] w-[18px] text-brand" />
+            <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400">
+              Available Balance
+            </span>
+          </div>
+          <p className="text-2xl font-bold text-ink dark:text-white tabular-nums">
+            {usageStats.balance.toLocaleString()}{' '}
+            <span className="text-sm font-medium text-gray-400">Credits</span>
+          </p>
+          <div className="mt-4 pt-3 border-t border-gray-100 dark:border-white/10 space-y-2">
+            <div className="flex items-center justify-between text-[11px]">
+              <span className="text-gray-500 dark:text-gray-400">Used (last 30 days)</span>
+              <span className="font-semibold text-ink dark:text-white tabular-nums">
+                {usageStats.last30.toLocaleString()}
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-[11px]">
+              <span className="text-gray-500 dark:text-gray-400">Est. exhaustion</span>
+              <span className="font-semibold text-ink dark:text-white tabular-nums">
+                {usageStats.exhaustionDays === null
+                  ? 'No recent usage'
+                  : `${usageStats.exhaustionDays.toLocaleString()} days`}
+              </span>
+            </div>
+          </div>
+        </div>
 
-      {/* Transaction History */}
-      {/* <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <History className="h-5 w-5" />
-            Recent Transactions
-          </CardTitle>
-          <CardDescription>
-            Your last 10 credit transactions.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {transactions.length === 0 ? (
-            <p className="text-gray-500 text-center py-8">
-              No transactions yet.
+        {/* Billing cycle */}
+        <div className="bg-white dark:bg-[#1a1a1a] rounded-xl border border-gray-200 dark:border-white/10 shadow-card p-5 flex flex-col">
+          <div className="flex items-center gap-2 mb-3">
+            <CalendarClock className="h-[18px] w-[18px] text-brand" />
+            <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400">
+              Billing Cycle
+            </span>
+          </div>
+          <p className="text-lg font-bold text-ink dark:text-white">
+            {renewalDate
+              ? renewalDate.toLocaleDateString(undefined, {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                })
+              : 'No renewal date'}
+          </p>
+          {daysToRenewal !== null && (
+            renewalPassed ? (
+              <span className="mt-2 inline-flex w-fit items-center h-6 rounded-full border border-[#FDE68A] dark:border-[#D97706]/30 bg-[#FFFBEB] dark:bg-[#D97706]/15 px-2.5 text-[11px] font-semibold text-[#D97706]">
+                Renewal date passed
+              </span>
+            ) : (
+              <span className="mt-2 inline-flex w-fit items-center h-6 rounded-full border border-brand-border dark:border-brand/30 bg-brand-light dark:bg-brand/15 px-2.5 text-[11px] font-semibold text-brand">
+                In {daysToRenewal} {daysToRenewal === 1 ? 'day' : 'days'}
+              </span>
+            )
+          )}
+          <div className="mt-4 pt-3 border-t border-gray-100 dark:border-white/10 space-y-2">
+            <div className="flex items-center justify-between text-[11px]">
+              <span className="text-gray-500 dark:text-gray-400">Plan</span>
+              <span className="font-semibold text-ink dark:text-white capitalize">
+                {(profile?.plan || 'free').toString()}
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-[11px]">
+              <span className="text-gray-500 dark:text-gray-400">Billing</span>
+              <span className="font-semibold text-ink dark:text-white">
+                Handled by our payment provider
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ---------------------- Consumption + side rail ---------------------- */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
+      <div className="lg:col-span-2 bg-white dark:bg-[#1a1a1a] rounded-xl border border-gray-200 dark:border-white/10 shadow-card p-6 flex flex-col gap-5">
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+          <div>
+            <h2 className="text-base font-bold text-ink dark:text-white">
+              Credit Consumption Breakdown
+            </h2>
+            <p className="text-xs text-gray-400 mt-0.5">
+              Cumulative monthly distribution across search queries and MX/SMTP verification passes.
             </p>
+          </div>
+          <div className="flex items-center bg-[#F1F5F9] dark:bg-white/5 p-1 rounded-lg shrink-0">
+            {([['current','Current Month'],['previous','Previous']] as const).map(([k,label]) => (
+              <button
+                key={k}
+                type="button"
+                onClick={() => setUsagePeriod(k)}
+                className={`px-3 py-1 text-xs font-semibold rounded-md transition-all whitespace-nowrap ${
+                  usagePeriod === k
+                    ? 'bg-white dark:bg-white/10 text-ink dark:text-white shadow-2xs'
+                    : 'text-gray-500 hover:text-ink dark:hover:text-white'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="rounded-lg border border-gray-200 dark:border-white/10 bg-[#F8FAFC] dark:bg-white/5 p-4">
+            <p className="text-[13px] text-ink-muted dark:text-gray-400">Email Finder Core</p>
+            <p className="mt-1 text-2xl font-bold text-ink dark:text-white tabular-nums">
+              {hasEngineSplit ? engineTotals.find.toLocaleString() : '—'}
+            </p>
+            <p className="text-[13px] font-semibold text-brand mt-1">
+              {hasEngineSplit ? `${engineTotals.findPct.toFixed(1)}% of aggregate` : 'Not reported'}
+            </p>
+          </div>
+
+          <div className="rounded-lg border border-gray-200 dark:border-white/10 bg-[#F8FAFC] dark:bg-white/5 p-4">
+            <p className="text-[13px] text-ink-muted dark:text-gray-400">Email Verifier Engine</p>
+            <p className="mt-1 text-2xl font-bold text-ink dark:text-white tabular-nums">
+              {hasEngineSplit ? engineTotals.verify.toLocaleString() : '—'}
+            </p>
+            <p className="text-[13px] font-medium text-ink-muted mt-1">
+              {hasEngineSplit ? `${engineTotals.verifyPct.toFixed(1)}% of aggregate` : 'Not reported'}
+            </p>
+          </div>
+
+          <div className="rounded-lg border border-gray-200 dark:border-white/10 bg-[#F8FAFC] dark:bg-white/5 p-4">
+            <p className="text-[13px] text-ink-muted dark:text-gray-400">Unit Lead Cost</p>
+            <p className="mt-1 text-2xl font-bold text-ink dark:text-white">1 Credit</p>
+            <p className="text-[13px] font-medium text-emerald-600 mt-1">Per valid returned lead</p>
+          </div>
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-gray-400">
+              Daily Volumetric Velocity (Last 14 Days)
+            </span>
+            <span className="text-[11px] text-gray-400 tabular-nums">
+              Peak: {periodTotals.peak.toLocaleString()} credits/day
+            </span>
+          </div>
+          {creditUsage.length > 0 ? (
+            <div className="h-72 rounded-xl bg-[#F8FAFC] dark:bg-white/5 p-4">
+              <Bar data={chartData} options={chartOptions} />
+            </div>
+          ) : (
+            <div className="h-40 flex flex-col items-center justify-center text-center gap-1.5 rounded-lg bg-[#F8FAFC] dark:bg-white/5 border border-gray-200 dark:border-white/10">
+              <p className="text-sm font-semibold text-ink dark:text-white">No usage recorded yet</p>
+              <p className="text-xs text-gray-400">
+                Run a find or verify and your daily consumption appears here.
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Balance by bucket + quota caps — real values from the profile API */}
+        {(bucketRows.length > 0 || caps) && (
+          <div className="flex flex-col gap-2.5 pt-1">
+            {bucketRows.map((b) => (
+              <div
+                key={b.key}
+                className="flex items-center justify-between gap-3 p-3.5 rounded-lg bg-[#F8FAFC] dark:bg-white/5 border border-gray-200 dark:border-white/10"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="h-9 w-9 shrink-0 rounded-lg bg-white dark:bg-white/10 border border-gray-200 dark:border-white/10 text-brand flex items-center justify-center">
+                    <Coins className="h-4 w-4" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-ink dark:text-white capitalize">
+                      {b.key} credits
+                    </p>
+                    <p className="text-[11px] text-gray-400">Spendable balance in this bucket</p>
+                  </div>
+                </div>
+                <span className="text-sm font-bold text-ink dark:text-white tabular-nums shrink-0">
+                  {b.value.toLocaleString()}
+                </span>
+              </div>
+            ))}
+
+            {caps && typeof caps.enrichment_monthly_cap === 'number' && (
+              <div className="flex items-center justify-between gap-3 p-3.5 rounded-lg bg-[#F8FAFC] dark:bg-white/5 border border-gray-200 dark:border-white/10">
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="h-9 w-9 shrink-0 rounded-lg bg-white dark:bg-white/10 border border-gray-200 dark:border-white/10 text-brand flex items-center justify-center">
+                    <TrendingUp className="h-4 w-4" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-ink dark:text-white">Enrichment calls</p>
+                    <p className="text-[11px] text-gray-400">Monthly allowance</p>
+                  </div>
+                </div>
+                <span className="text-sm font-bold text-ink dark:text-white tabular-nums shrink-0">
+                  {Number(caps.enrichment_used ?? 0).toLocaleString()} /{' '}
+                  {Number(caps.enrichment_monthly_cap).toLocaleString()}
+                </span>
+              </div>
+            )}
+
+            {caps && typeof caps.signals_monthly_cap === 'number' && (
+              <div className="flex items-center justify-between gap-3 p-3.5 rounded-lg bg-[#F8FAFC] dark:bg-white/5 border border-gray-200 dark:border-white/10">
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="h-9 w-9 shrink-0 rounded-lg bg-white dark:bg-white/10 border border-gray-200 dark:border-white/10 text-brand flex items-center justify-center">
+                    <Calendar className="h-4 w-4" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-ink dark:text-white">Signals</p>
+                    <p className="text-[11px] text-gray-400">Monthly allowance</p>
+                  </div>
+                </div>
+                <span className="text-sm font-bold text-ink dark:text-white tabular-nums shrink-0">
+                  {Number(caps.signals_used ?? 0).toLocaleString()} /{' '}
+                  {Number(caps.signals_monthly_cap).toLocaleString()}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* --------------------------- Right rail --------------------------- */}
+      <div className="flex flex-col gap-5">
+        {/* Auto-Recharge */}
+        <div className="bg-white dark:bg-[#1a1a1a] rounded-xl border border-gray-200 dark:border-white/10 shadow-card p-5 flex flex-col gap-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <Zap className="h-[18px] w-[18px] text-brand" />
+              <span className="text-sm font-bold text-ink dark:text-white">Auto-Recharge</span>
+            </div>
+            <span className="inline-flex items-center gap-1.5 h-6 rounded-full border px-2.5 text-[11px] font-semibold bg-[#FFFBEB] text-[#D97706] border-[#FDE68A] dark:bg-[#D97706]/15 dark:border-[#D97706]/30 shrink-0">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#D97706]" />
+              Not active yet
+            </span>
+          </div>
+
+          <p className="text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+            Prevent API disruptions by loading credits before exhaustion.
+          </p>
+
+          <div className="flex items-center justify-between gap-3 p-3 rounded-lg bg-[#F8FAFC] dark:bg-white/5 border border-gray-200 dark:border-white/10">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-ink dark:text-white">Auto Refill Guard</p>
+              <p className="text-[11px] text-gray-400">Trigger when balance is low</p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={autoRefillOn}
+              onClick={() => setAutoRefillOn((v) => !v)}
+              className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${
+                autoRefillOn ? 'bg-brand' : 'bg-gray-300 dark:bg-white/20'
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${
+                  autoRefillOn ? 'translate-x-4' : 'translate-x-0.5'
+                }`}
+              />
+            </button>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="refill-pack" className="text-[11px] font-bold uppercase tracking-wider text-gray-400">
+              Refill Increment
+            </label>
+            <select
+              id="refill-pack"
+              value={refillPack}
+              onChange={(e) => setRefillPack(Number(e.target.value))}
+              className="h-10 w-full px-3 rounded-lg bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 text-sm text-ink dark:text-white outline-none focus:border-brand focus:ring-1 focus:ring-brand"
+            >
+              {customCreditPackages.map((pkg) => (
+                <option key={pkg.credits} value={pkg.credits}>
+                  Add {pkg.credits.toLocaleString()} credits for ${pkg.price}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <p className="text-[11px] text-gray-400 leading-relaxed">
+            Saved on this device. Automatic charging is not enabled yet — top up manually from
+            Upgrade Plan.
+          </p>
+
+          <button
+            type="button"
+            onClick={saveAutoRefill}
+            className="w-full h-10 rounded-lg bg-[#F8FAFC] dark:bg-white/5 border border-gray-200 dark:border-white/10 text-ink dark:text-white font-semibold text-xs hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
+          >
+            Save Auto-Refill Settings
+          </button>
+        </div>
+
+        {/* Payment Method */}
+        <div className="bg-white dark:bg-[#1a1a1a] rounded-xl border border-gray-200 dark:border-white/10 shadow-card p-5 flex flex-col gap-4">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sm font-bold text-ink dark:text-white">Payment Method</span>
+            <button
+              type="button"
+              onClick={handleManageBilling}
+              disabled={isCreatingPortal}
+              className="text-[11px] font-bold text-brand hover:underline shrink-0 disabled:opacity-60"
+            >
+              {isCreatingPortal ? 'Opening…' : 'Update Card'}
+            </button>
+          </div>
+
+          <div className="rounded-xl bg-ink text-white p-4 flex flex-col gap-4">
+            <div className="flex items-start justify-between">
+              <CreditCardIcon className="h-6 w-6 text-white/70" />
+              <span className="text-[10px] font-bold uppercase tracking-wider bg-white/10 border border-white/20 px-2 py-0.5 rounded">
+                On file
+              </span>
+            </div>
+            <p className="font-mono-code text-sm text-white/90 tracking-widest">
+              •••• •••• •••• ••••
+            </p>
+            <div className="flex items-center justify-between text-[11px] text-white/60">
+              <span className="truncate">{profile?.full_name || 'Cardholder'}</span>
+              <span>Managed securely</span>
+            </div>
+          </div>
+
+          <p className="text-[11px] text-gray-400 leading-relaxed">
+            Card details are held by our payment provider and are not stored here. Use Update Card to
+            manage them in the billing portal.
+          </p>
+        </div>
+      </div>
+      </div>
+
+      {/* ------------------------ Invoices & history ------------------------ */}
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h2 className="text-base font-bold text-ink dark:text-white">
+              Invoices &amp; Billing History
+            </h2>
+            <p className="text-xs text-gray-400 mt-0.5">
+              Billing receipts, download records and reconciliation trail.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={exportInvoicesCsv}
+            className="h-8 px-3 rounded-lg bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 hover:bg-[#F8FAFC] dark:hover:bg-white/10 text-ink dark:text-white text-xs font-medium flex items-center gap-1.5 transition-colors shadow-2xs shrink-0 w-fit"
+          >
+            <Download className="h-4 w-4" />
+            Export All (CSV)
+          </button>
+        </div>
+
+        <div className="bg-white dark:bg-[#1a1a1a] rounded-xl border border-gray-200 dark:border-white/10 shadow-card overflow-hidden">
+          {isPurchaseLoading ? (
+            <p className="text-gray-400 text-center text-xs py-10">Loading billing history…</p>
+          ) : purchaseHistory.length === 0 ? (
+            <div className="p-12 flex flex-col items-center justify-center text-center gap-2">
+              <span className="h-10 w-10 rounded-full bg-[#F1F5F9] dark:bg-white/5 text-gray-400 flex items-center justify-center">
+                <Receipt className="h-5 w-5" />
+              </span>
+              <p className="text-sm font-semibold text-ink dark:text-white">No invoices yet</p>
+              <p className="text-xs text-gray-400 max-w-xs">
+                Purchases and subscription payments will appear here.
+              </p>
+            </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="w-full text-left min-w-[720px]">
                 <thead>
-                  <tr className="border-b">
-                    <th className="text-left p-2 font-medium">Date</th>
-                    <th className="text-left p-2 font-medium">Operation</th>
-                    <th className="text-left p-2 font-medium">Amount</th>
-                    <th className="text-left p-2 font-medium">Details</th>
+                  <tr className="bg-[#F8FAFC] dark:bg-white/5 border-b border-gray-200 dark:border-white/10 text-gray-400 text-[11px] font-semibold uppercase tracking-wider">
+                    <th className="py-3 px-5">Date</th>
+                    <th className="py-3 px-5">Description</th>
+                    <th className="py-3 px-5">Amount</th>
+                    <th className="py-3 px-5">Payment Status</th>
                   </tr>
                 </thead>
-                <tbody>
-                  {transactions.map((transaction) => (
-                    <tr key={transaction.id} className="border-b">
-                      <td className="p-2 text-sm">
-                        {formatDate(transaction.created_at)}
-                      </td>
-                      <td className="p-2">
-                        <span className="text-sm font-medium">
-                          {getOperationLabel(transaction)}
-                        </span>
-                      </td>
-                      <td className="p-2">
-                        <span className={`text-sm font-medium ${
-                          transaction.amount > 0 
-                            ? 'text-green-600' 
-                            : 'text-red-600'
-                        }`}>
-                          {transaction.amount > 0 ? '+' : ''}${transaction.amount}
-                        </span>
-                      </td>
-                      <td className="p-2 text-sm text-gray-600">
-                        <div className="space-y-1">
-                          <div>{transaction.product_name}</div>
-                          {transaction.credits_find_added > 0 && (
-                            <div className="text-xs text-green-600">
-                              +{transaction.credits_find_added} Find Credits
-                            </div>
-                          )}
-                          {transaction.credits_verify_added > 0 && (
-                            <div className="text-xs text-green-600">
-                              +{transaction.credits_verify_added} Verify Credits
-                            </div>
-                          )}
-                          <div className="text-xs text-gray-500">
-                            Status: {transaction.status}
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                <tbody className="divide-y divide-gray-200 dark:divide-white/10 text-xs">
+                  {purchaseHistory.map((p) => {
+                    const paid = String(p.status ?? p.payment_status ?? 'completed').toLowerCase()
+                    const isPaid = paid === 'completed' || paid === 'paid' || paid === 'success'
+                    return (
+                      <tr
+                        key={p._id ?? p.id ?? JSON.stringify(p)}
+                        className="hover:bg-[#F8FAFC] dark:hover:bg-white/5 transition-colors"
+                      >
+                        <td className="py-3.5 px-5 text-ink-muted whitespace-nowrap">
+                          {formatDate(p.createdAt ?? p.created_at ?? p.date ?? '')}
+                        </td>
+                        <td className="py-3.5 px-5 font-medium text-ink dark:text-white">
+                          {p.product_name ?? p.product ?? 'Purchase'}
+                        </td>
+                        <td className="py-3.5 px-5 font-mono-code font-semibold text-ink dark:text-white tabular-nums">
+                          ${p.amount ?? p.total ?? 0}
+                        </td>
+                        <td className="py-3.5 px-5">
+                          <span
+                            className={`inline-flex items-center gap-1.5 h-6 rounded-full border px-2.5 text-[11px] font-semibold capitalize ${
+                              isPaid
+                                ? 'bg-[#ECFDF5] text-[#059669] border-[#A7F3D0] dark:bg-[#059669]/15 dark:border-[#059669]/30'
+                                : 'bg-[#FFFBEB] text-[#D97706] border-[#FDE68A] dark:bg-[#D97706]/15 dark:border-[#D97706]/30'
+                            }`}
+                          >
+                            <span
+                              className={`h-1.5 w-1.5 rounded-full ${isPaid ? 'bg-[#059669]' : 'bg-[#D97706]'}`}
+                            />
+                            {isPaid ? 'Paid' : paid}
+                          </span>
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
           )}
-        </CardContent>
-      </Card> */}
-
-      {/* Payment History (sourced from purchase API) */}
-<Card>
-  <CardHeader>
-    <CardTitle className="flex items-center gap-2">
-      <History className="h-5 w-5" />
-      Payment History
-    </CardTitle>
-    <CardDescription>
-      See your previous purchases & subscription payments.
-    </CardDescription>
-  </CardHeader>
-
-  <CardContent>
-    {isPurchaseLoading ? (
-      <p className="text-gray-500 text-center py-8">Loading purchase history...</p>
-    ) : purchaseHistory.length === 0 ? (
-      <p className="text-gray-500 text-center py-8">No payments found.</p>
-    ) : (
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b">
-              <th className="text-left p-2 font-medium">Date</th>
-              <th className="text-left p-2 font-medium">Product</th>
-              <th className="text-left p-2 font-medium">Amount</th>
-              <th className="text-left p-2 font-medium">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {purchaseHistory.map((p) => (
-              <tr key={p._id ?? p.id ?? JSON.stringify(p)} className="border-b">
-                <td className="p-2 text-sm">
-                  {formatDate(p.createdAt ?? p.created_at ?? p.date ?? '')}
-                </td>
-
-                <td className="p-2 text-sm">{p.product_name ?? p.product ?? 'Purchase'}
-</td>
-
-                <td className="p-2">
-                  <span className="text-sm font-medium text-green-600">
-                    ${p.amount ?? p.total ?? 0}
-                  </span>
-                </td>
-
-                <td className="p-2 text-sm text-gray-600">
-                  {p.status ?? p.payment_status ?? 'completed'}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        </div>
       </div>
-    )}
-  </CardContent>
-</Card>
-
     </div>
   )
 }

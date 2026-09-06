@@ -37,6 +37,9 @@ export function useUserProfile() {
           email: p.email || '',
           full_name: (p.full_name as string) || 'User',
           plan: (p.plan as string) || 'free',
+          // Already returned by the profile API — surfaced so the billing page
+          // can show the renewal date.
+          plan_expiry: p.plan_expiry ?? null,
           available_credits: availableCredits,
           // Legacy credit fields — still used by navbar / dropdown / credits page.
           credits_find: Math.max(findCredits, 0),
@@ -55,6 +58,7 @@ export function useUserProfile() {
         email: 'Please log in',
         full_name: 'Guest User',
         plan: 'free',
+        plan_expiry: null,
         available_credits: 0,
         credits_find: 0,
         credits_verify: 0,
