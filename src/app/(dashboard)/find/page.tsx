@@ -6,10 +6,11 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { StatusBadge } from '@/components/ui/status-badge'
+import { BulkFinderWorkspace } from '@/components/bulk-finder-workspace'
+import { FindResultPanel } from './components/find-result-panel'
 
 import { toast } from 'sonner'
-import { Search, Mail, ChevronDown, ChevronRight, AlertTriangle, UserSearch, UploadCloud, Copy, Loader2 } from 'lucide-react'
+import { Search, Mail, ChevronDown, ChevronRight, AlertTriangle, UserSearch, UploadCloud, Loader2, Target, Gauge } from 'lucide-react'
 import { isAuthenticated, saveRedirectUrl } from '@/lib/auth'
 import { useQueryInvalidation } from '@/lib/query-invalidation'
 import { useRecentFindResults } from '@/hooks/useRecentResults'
@@ -54,6 +55,11 @@ interface SearchHistoryItem {
 export default function FindPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [result, setResult] = useState<EmailResult | null>(null)
+  // Full backend payload, kept so the result panel can surface fields the
+  // typed EmailResult does not model. Same request — nothing extra is fetched.
+  const [rawResult, setRawResult] = useState<Record<string, unknown> | null>(null)
+  // Which workspace is shown. Bulk renders inline; it is not a separate route.
+  const [mode, setMode] = useState<'single' | 'bulk'>('single')
   const [history, setHistory] = useState<SearchHistoryItem[]>([])
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [hasSearched, setHasSearched] = useState(false)
@@ -88,6 +94,7 @@ export default function FindPage() {
     setHasSearched(true)
     setIsLoading(true)
     setResult(null)
+    setRawResult(null)
     setError(null)
 
     try {
@@ -170,6 +177,7 @@ export default function FindPage() {
         notice: noticeText
       }
       setResult(nextResult)
+      setRawResult(payload as Record<string, unknown>)
       const rawHistory = {
         email,
         full_name: fullNameResp || fullName,
@@ -229,22 +237,56 @@ export default function FindPage() {
             Enter a person&apos;s name and company domain to discover their verified email address.
           </p>
         </div>
+
+        {/* Accuracy + usage policy (static display labels) */}
+        <div className="flex items-center gap-2.5 flex-wrap shrink-0">
+          <div className="flex items-center gap-2 h-9 px-3 rounded-lg bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 shadow-2xs">
+            <Gauge className="h-4 w-4 text-[#059669]" />
+            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Accuracy</span>
+            <span className="text-xs font-bold text-ink dark:text-white tabular-nums">99.4%</span>
+          </div>
+          <div className="flex items-center gap-2 h-9 px-3 rounded-lg bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 shadow-2xs">
+            <Target className="h-4 w-4 text-brand" />
+            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Usage Policy</span>
+            <span className="text-xs font-bold text-ink dark:text-white">20 Credits / Find</span>
+          </div>
+        </div>
       </div>
 
-      {/* Mode selector — Bulk routes to the existing bulk finder page */}
+      {/* Mode selector — both modes live in this page; bulk is not a route */}
       <div className="flex items-center gap-1 bg-[#F8FAFC] dark:bg-white/5 border border-gray-200 dark:border-white/10 p-1 rounded-xl w-fit">
-        <span className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold bg-white dark:bg-white/10 text-brand dark:text-white shadow-2xs">
+        <button
+          type="button"
+          onClick={() => setMode('single')}
+          aria-pressed={mode === 'single'}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs transition-all ${
+            mode === 'single'
+              ? 'font-bold bg-white dark:bg-white/10 text-brand dark:text-white shadow-2xs'
+              : 'font-semibold text-ink-muted hover:text-ink dark:hover:text-white'
+          }`}
+        >
           <UserSearch className="h-[17px] w-[17px]" />
           Single Email Search
-        </span>
-        <Link
-          href="/bulk-finder"
-          className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold text-ink-muted hover:text-ink dark:hover:text-white transition-all"
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode('bulk')}
+          aria-pressed={mode === 'bulk'}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs transition-all ${
+            mode === 'bulk'
+              ? 'font-bold bg-white dark:bg-white/10 text-brand dark:text-white shadow-2xs'
+              : 'font-semibold text-ink-muted hover:text-ink dark:hover:text-white'
+          }`}
         >
           <UploadCloud className="h-[17px] w-[17px]" />
           Bulk File Upload (CSV)
-        </Link>
+        </button>
       </div>
+
+      {mode === 'bulk' ? (
+        <BulkFinderWorkspace showHeader={false} />
+      ) : (
+      <>
 
       <div className={`grid gap-6 items-start ${showRightColumn ? 'lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]' : 'grid-cols-1 max-w-xl'}`}>
         {/* Search form */}
@@ -351,127 +393,58 @@ export default function FindPage() {
           <div className="space-y-6 min-w-0">
             {/* Result panel */}
             {hasSearched && (
-              <div className="bg-white dark:bg-[#1a1a1a] rounded-xl border border-gray-200 dark:border-white/10 shadow-card overflow-hidden">
-                {isLoading ? (
-                  <div className="p-10 flex flex-col items-center justify-center text-center gap-3">
-                    <Loader2 className="h-6 w-6 animate-spin text-brand" />
-                    <p className="text-sm font-medium text-ink dark:text-white">Searching mail servers…</p>
-                    <p className="text-xs text-gray-400">Running pattern discovery and SMTP checks.</p>
-                  </div>
-                ) : error ? (
-                  <div className="p-6 flex items-start gap-3">
-                    <span className="h-8 w-8 shrink-0 rounded-lg bg-[#FEF2F2] dark:bg-[#DC2626]/15 text-[#DC2626] flex items-center justify-center">
-                      <AlertTriangle className="h-4 w-4" />
-                    </span>
-                    <div>
-                      <p className="text-sm font-semibold text-ink dark:text-white">Search failed</p>
-                      <p className="text-[13px] text-gray-500 dark:text-gray-400 mt-1">{error}</p>
-                    </div>
-                  </div>
-                ) : result ? (
-                  (result.status === 'valid' || result.status === 'guessed' || (result.email && result.isCatchAllDomain)) ? (
-                    <>
-                      {/* Header row */}
-                      <div className="p-5 flex items-start justify-between gap-4 border-b border-gray-100 dark:border-white/10">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <span className="h-10 w-10 shrink-0 rounded-full bg-brand-light dark:bg-brand/15 text-brand border border-brand-border dark:border-brand/30 flex items-center justify-center text-sm font-bold">
-                            {(result.fullName || fullName || '?').trim().charAt(0).toUpperCase()}
-                          </span>
-                          <div className="min-w-0">
-                            <p className="text-[15px] font-semibold text-ink dark:text-white truncate">
-                              {result.fullName || fullName || 'Prospect'}
-                            </p>
-                            <p className="text-xs text-gray-400 truncate">{companyDomain}</p>
-                          </div>
-                        </div>
-                        <StatusBadge status={result.isCatchAllDomain ? 'catch_all' : result.status} />
-                      </div>
+              (() => {
+                const isFound =
+                  !!result &&
+                  (result.status === 'valid' ||
+                    result.status === 'guessed' ||
+                    (!!result.email && !!result.isCatchAllDomain))
 
-                      {/* Catch-all notice */}
-                      {result.isCatchAllDomain && (
-                        <div className="mx-5 mt-5 rounded-lg border border-[#FDE68A] bg-[#FFFBEB] dark:bg-[#D97706]/10 dark:border-[#D97706]/30 p-3 flex gap-2.5">
-                          <AlertTriangle className="h-4 w-4 shrink-0 text-[#D97706] mt-0.5" />
-                          <p className="text-[13px] leading-5 text-[#92400E] dark:text-[#FBBF24]">
-                            {result.notice || "This domain accepts any email address, so we can't confirm this is the real one. Treat with caution before sending."}
-                          </p>
-                        </div>
-                      )}
-
-                      {/* Discovered address */}
-                      <div className="p-5">
-                        <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2">
-                          Discovered Email Address
-                        </p>
-                        <div className="rounded-lg bg-[#F8FAFC] dark:bg-white/5 border border-gray-200 dark:border-white/10 p-4 flex items-center justify-between gap-3 flex-wrap">
-                          <p className="font-mono-code text-base sm:text-lg font-medium text-brand break-all">
-                            {result.email}
-                          </p>
-                          {result.email && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                navigator.clipboard?.writeText(result.email as string)
-                                toast.success('Email copied to clipboard')
-                              }}
-                              className="h-8 px-3 shrink-0 bg-brand text-white rounded-lg text-xs font-bold hover:bg-brand-hover transition-colors flex items-center gap-1.5 shadow-2xs"
-                            >
-                              <Copy className="h-3.5 w-3.5" />
-                              Copy Email
-                            </button>
-                          )}
-                        </div>
-
-                        {/* Detail tiles */}
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
-                          <div className="rounded-lg border border-gray-200 dark:border-white/10 p-3">
-                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                              Confidence
-                            </p>
-                            <p className="mt-1.5 text-sm font-semibold text-ink dark:text-white tabular-nums">
-                              {(() => {
-                                const c = Number(result.confidence || 0)
-                                return `${c <= 1 ? Math.round(c * 100) : Math.round(c)}%`
-                              })()}
-                            </p>
-                          </div>
-                          <div className="rounded-lg border border-gray-200 dark:border-white/10 p-3">
-                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                              Mailbox Status
-                            </p>
-                            <p className="mt-1.5 text-sm font-semibold text-ink dark:text-white">
-                              {result.safeToSend === true ? 'Safe to send' : result.safeToSend === false ? 'Not safe' : 'Unknown'}
-                            </p>
-                          </div>
-                          <div className="rounded-lg border border-gray-200 dark:border-white/10 p-3">
-                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                              Provider
-                            </p>
-                            <p className="mt-1.5 text-sm font-semibold text-ink dark:text-white truncate">
-                              {result.provider || '—'}
-                            </p>
-                          </div>
-                        </div>
-
-                        {typeof result.creditsUsed === 'number' && (
-                          <p className="mt-4 text-[11px] text-gray-400">
-                            Credits used: <span className="font-semibold text-ink dark:text-gray-200 tabular-nums">{result.creditsUsed}</span>
-                          </p>
-                        )}
-                      </div>
-                    </>
-                  ) : (
-                    <div className="p-10 flex flex-col items-center justify-center text-center gap-2">
-                      <span className="h-10 w-10 rounded-full bg-[#F1F5F9] dark:bg-white/5 text-gray-400 flex items-center justify-center">
-                        <Mail className="h-5 w-5" />
-                      </span>
-                      <p className="text-sm font-semibold text-ink dark:text-white">No email found</p>
-                      <p className="text-xs text-gray-400 max-w-xs">
-                        We couldn&apos;t discover a deliverable address for this name and domain.
-                      </p>
-                    </div>
+                // Successful find renders the full Stitch result panel.
+                if (!isLoading && !error && isFound && result) {
+                  return (
+                    <FindResultPanel
+                      result={result}
+                      raw={rawResult}
+                      companyDomain={companyDomain}
+                      enteredName={fullName}
+                    />
                   )
-                ) : null}
-              </div>
+                }
+
+                // Loading / error / not-found share a single state card.
+                return (
+                  <div className="bg-white dark:bg-[#1a1a1a] rounded-xl border border-gray-200 dark:border-white/10 shadow-card overflow-hidden">
+                    {isLoading ? (
+                      <div className="p-10 flex flex-col items-center justify-center text-center gap-3">
+                        <Loader2 className="h-6 w-6 animate-spin text-brand" />
+                        <p className="text-sm font-medium text-ink dark:text-white">Searching mail servers…</p>
+                        <p className="text-xs text-gray-400">Running pattern discovery and SMTP checks.</p>
+                      </div>
+                    ) : error ? (
+                      <div className="p-6 flex items-start gap-3">
+                        <span className="h-8 w-8 shrink-0 rounded-lg bg-[#FEF2F2] dark:bg-[#DC2626]/15 text-[#DC2626] flex items-center justify-center">
+                          <AlertTriangle className="h-4 w-4" />
+                        </span>
+                        <div>
+                          <p className="text-sm font-semibold text-ink dark:text-white">Search failed</p>
+                          <p className="text-[13px] text-gray-500 dark:text-gray-400 mt-1">{error}</p>
+                        </div>
+                      </div>
+                    ) : result ? (
+                      <div className="p-10 flex flex-col items-center justify-center text-center gap-2">
+                        <span className="h-10 w-10 rounded-full bg-[#F1F5F9] dark:bg-white/5 text-gray-400 flex items-center justify-center">
+                          <Mail className="h-5 w-5" />
+                        </span>
+                        <p className="text-sm font-semibold text-ink dark:text-white">No email found</p>
+                        <p className="text-xs text-gray-400 max-w-xs">
+                          We couldn&apos;t discover a deliverable address for this name and domain.
+                        </p>
+                      </div>
+                    ) : null}
+                  </div>
+                )
+              })()
             )}
 
             {/* Active Jobs */}
@@ -557,6 +530,8 @@ export default function FindPage() {
           </div>
         )}
       </div>
+      </>
+      )}
     </div>
   )
 }
