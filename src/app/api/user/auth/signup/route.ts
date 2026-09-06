@@ -8,13 +8,20 @@ export async function POST(req: NextRequest) {
   try {
     const inboundType = req.headers.get('content-type') || ''
     let outBody: string
-    
+
+    // Read the request body exactly once. A stream can only be consumed a
+    // single time, so parsing must happen on the buffered text — calling
+    // req.json() and then req.text() throws "Body has already been read".
+    const inboundText = await req.text()
+
     // Normalize payload to support different backend expectations
     if (inboundType.includes('application/json')) {
-      const json = await req.json().catch(async () => {
-        const txt = await req.text()
-        try { return JSON.parse(txt) } catch { return {} }
-      }) as Record<string, unknown>
+      let json: Record<string, unknown> = {}
+      try {
+        json = JSON.parse(inboundText) as Record<string, unknown>
+      } catch {
+        json = {}
+      }
       const email = typeof json.email === 'string' ? json.email.trim() : ''
       const password = typeof json.password === 'string' ? json.password : ''
       const fullNameRaw = typeof json.full_name === 'string' ? json.full_name : ''
@@ -38,13 +45,18 @@ export async function POST(req: NextRequest) {
       outBody = JSON.stringify(payload)
     } else {
       // Fallback: forward as-is
-      const txt = await req.text()
-      outBody = txt
+      outBody = inboundText
     }
-    
-    // Debug: Log what we're sending to backend
-    console.log('Signup proxy - Sending to backend:', outBody)
-    
+
+    // Debug log — never log the password.
+    try {
+      const preview = { ...(JSON.parse(outBody) as Record<string, unknown>) }
+      if ('password' in preview) preview.password = '[redacted]'
+      console.log('Signup proxy - Sending to backend:', JSON.stringify(preview))
+    } catch {
+      console.log('Signup proxy - Sending to backend: [unparseable body]')
+    }
+
     let res = await fetch(url, {
       method: 'POST',
       headers: {
@@ -54,12 +66,15 @@ export async function POST(req: NextRequest) {
       body: outBody,
     })
     
+    // The response body is also a single-use stream. Buffer it here and reuse
+    // that text below, so a 400 that we do NOT retry can still be returned.
+    let responseText = await res.text()
+
     // If backend rejects due to additional properties, retry with minimal payload
     if (res.status === 400) {
-      const firstText = await res.text()
       let firstJson: Record<string, unknown> | null = null
-      try { firstJson = JSON.parse(firstText) as Record<string, unknown> } catch {}
-      const msg = typeof firstJson?.message === 'string' ? (firstJson?.message as string) : firstText
+      try { firstJson = JSON.parse(responseText) as Record<string, unknown> } catch {}
+      const msg = typeof firstJson?.message === 'string' ? (firstJson?.message as string) : responseText
       if (msg && msg.toLowerCase().includes('additional properties')) {
         try {
           const parsed = JSON.parse(outBody) as Record<string, unknown>
@@ -75,7 +90,7 @@ export async function POST(req: NextRequest) {
           const minimalPayload: Record<string, string> = { email: emailRetry, password: passwordRetry }
           if (fullNameRetry) minimalPayload.full_name = fullNameRetry
           const minimal = JSON.stringify(minimalPayload)
-          console.log('Signup proxy - Retrying with minimal payload:', minimal)
+          console.log('Signup proxy - Retrying with minimal payload for:', emailRetry)
           res = await fetch(url, {
             method: 'POST',
             headers: {
@@ -84,12 +99,12 @@ export async function POST(req: NextRequest) {
             },
             body: minimal,
           })
+          // New response, so refresh the buffered text.
+          responseText = await res.text()
         } catch {}
       }
     }
-    
-    // Debug: Log backend response
-    const responseText = await res.text()
+
     console.log('Signup proxy - Backend response:', res.status, responseText)
     
     const contentType = res.headers.get('content-type') || 'application/json'
