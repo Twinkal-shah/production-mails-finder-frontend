@@ -1,10 +1,35 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
 import { apiGet } from '@/lib/api'
-import { User, Mail, Calendar, Crown, Coins } from 'lucide-react'
+import { User as UserIcon, Mail, Calendar, Crown, Coins, ChevronRight } from 'lucide-react'
+
+/** Stitch settings field: label above a bordered, read-only value row. */
+function Field({
+  label,
+  icon: Icon,
+  value,
+  mono,
+}: {
+  label: string
+  icon: React.ComponentType<{ className?: string }>
+  value: string
+  mono?: boolean
+}) {
+  return (
+    <div>
+      <label className="block text-xs font-semibold text-ink dark:text-gray-200 mb-2">{label}</label>
+      <div className="flex items-center gap-2.5 h-10 px-3 rounded-lg border border-gray-200 dark:border-white/10 bg-[#F8FAFC] dark:bg-white/5">
+        <Icon className="h-4 w-4 shrink-0 text-gray-400" />
+        <span className={`text-sm text-ink dark:text-white truncate ${mono ? 'font-mono-code text-[13px]' : ''}`}>
+          {value}
+        </span>
+      </div>
+    </div>
+  )
+}
 
 type UserDetails = {
   full_name: string
@@ -72,86 +97,124 @@ export default function UserDetailsPage() {
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>User Details</CardTitle>
-            <CardDescription>Loading your information...</CardDescription>
-          </CardHeader>
-        </Card>
+      <div className="flex flex-col gap-6 user-details">
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">
+            Workspace Configuration
+          </p>
+          <h1 className="text-2xl font-bold tracking-tight text-ink dark:text-white">Account Settings</h1>
+        </div>
+        <div className="bg-white dark:bg-[#1a1a1a] rounded-xl border border-gray-200 dark:border-white/10 shadow-card p-6">
+          <div className="animate-pulse space-y-3">
+            <div className="h-3 w-32 rounded bg-gray-200 dark:bg-white/10" />
+            <div className="h-10 w-full rounded-lg bg-gray-100 dark:bg-white/5" />
+            <div className="h-10 w-full rounded-lg bg-gray-100 dark:bg-white/5" />
+          </div>
+          <p className="mt-4 text-xs text-gray-400">Loading your information…</p>
+        </div>
       </div>
     )
   }
 
   const createdStr = data?.created_at ? new Date(data.created_at).toLocaleDateString() : 'N/A'
-  const planName = (data?.plan || 'free').toString().trim().toLowerCase()
-  const planColor = planName === 'payg' ? 'bg-purple-100 text-purple-800' : planName === 'lifetime' ? 'bg-green-100 text-green-800' : planName === 'monthly' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'
   const expiryStr = data?.plan_expiry ? new Date(data.plan_expiry).toLocaleDateString() : 'N/A'
+  const planName = (data?.plan || 'free').toString()
 
   return (
-    <div className="mx-auto max-w-6xl space-y-8 user-details">
-      <div className="flex items-center justify-between">
+    <div className="flex flex-col gap-6 user-details">
+      {/* Page header */}
+      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold dark:text-white">User Details</h1>
-          <p className="text-sm text-gray-500 dark:text-[#e2bebf]">Essential information about your account</p>
+          <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">
+            Workspace Configuration
+          </p>
+          <h1 className="text-2xl font-bold tracking-tight text-ink dark:text-white">Account Settings</h1>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            Essential information about your account and current plan.
+          </p>
+        </div>
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <Link
+            href="/credits"
+            className="h-9 px-3.5 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 text-gray-700 dark:text-gray-200 font-semibold text-xs rounded-lg hover:bg-gray-50 dark:hover:bg-white/10 hover:border-gray-300 transition-colors flex items-center gap-2 shadow-2xs"
+          >
+            <Coins className="h-4 w-4 text-gray-500" />
+            Billing &amp; Quota
+          </Link>
+          <Link
+            href="/upgrade"
+            className="h-9 px-3.5 bg-brand text-white font-bold text-xs rounded-lg hover:bg-brand-hover transition-colors flex items-center gap-1.5 shadow-2xs"
+          >
+            <Crown className="h-4 w-4" />
+            Upgrade Plan
+          </Link>
         </div>
       </div>
 
-      <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Identity</CardTitle>
-            <CardDescription>Basic profile information</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <User className="h-5 w-5 text-gray-400" />
-                <span className="font-medium">{data?.full_name || 'User'}</span>
-              </div>
-            </div>
-            <div className="flex items-center space-x-3">
-              <Mail className="h-5 w-5 text-gray-400" />
-              <span className="text-gray-700">{data?.email || ''}</span>
-            </div>
-            <div className="flex items-center space-x-3">
-              <Calendar className="h-5 w-5 text-gray-400" />
-              <span className="text-gray-700">Joined {createdStr}</span>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,240px)_minmax(0,1fr)] items-start">
+        {/* Section rail */}
+        <nav className="bg-white dark:bg-[#1a1a1a] rounded-xl border border-gray-200 dark:border-white/10 shadow-card p-2 lg:sticky lg:top-2">
+          <span
+            aria-current="page"
+            className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg text-sm font-semibold bg-brand-light text-brand border border-brand-border/60 dark:bg-brand/15 dark:border-brand/30"
+          >
+            <span className="flex items-center gap-3">
+              <UserIcon className="h-[18px] w-[18px]" />
+              General
+            </span>
+            <ChevronRight className="h-4 w-4" />
+          </span>
+        </nav>
 
-        <Card className="border-l-[3px]" style={{ borderLeftColor: 'var(--primary)' }}>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Plan & Credits</CardTitle>
-            <CardDescription>Current subscription and available credits</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <Crown className="h-5 w-5 text-gray-400" />
-                <span className="font-medium capitalize">{data?.plan || 'free'}</span>
+        {/* Content */}
+        <div className="space-y-6 min-w-0">
+          {/* Profile */}
+          <section className="bg-white dark:bg-[#1a1a1a] rounded-xl border border-gray-200 dark:border-white/10 shadow-card p-6">
+            <h2 className="text-[15px] font-semibold text-ink dark:text-white">Profile</h2>
+            <p className="text-[13px] text-gray-500 dark:text-gray-400 mt-0.5 mb-5">
+              Basic profile information for your Mailsfinder account.
+            </p>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Full Name" icon={UserIcon} value={data?.full_name || 'User'} />
+              <Field label="Email Address" icon={Mail} value={data?.email || '—'} mono />
+              <Field label="Member Since" icon={Calendar} value={createdStr} />
+              <Field label="Plan Expires" icon={Calendar} value={expiryStr} />
+            </div>
+          </section>
+
+          {/* Plan & credits */}
+          <section className="bg-white dark:bg-[#1a1a1a] rounded-xl border border-gray-200 dark:border-white/10 shadow-card p-6">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-[15px] font-semibold text-ink dark:text-white">Plan &amp; Credits</h2>
+                <p className="text-[13px] text-gray-500 dark:text-gray-400 mt-0.5">
+                  Current subscription and available credits.
+                </p>
               </div>
-              <Badge className="bg-[var(--primary)] text-white">{(data?.plan || 'Free').toString()}</Badge>
+              <Badge className="capitalize shrink-0">{planName}</Badge>
             </div>
-            <div className="flex items-center space-x-3">
-              <Calendar className="h-5 w-5 text-gray-400" />
-              <span className="text-gray-700">Expires {expiryStr}</span>
+
+            <div className="grid gap-4 sm:grid-cols-2 mt-5">
+              <div className="rounded-lg border border-gray-200 dark:border-white/10 p-4">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                  Find Credits
+                </p>
+                <p className="mt-1.5 text-xl font-bold text-ink dark:text-white tabular-nums">
+                  {Math.max(data?.credits_find || 0, 0).toLocaleString()}
+                </p>
+              </div>
+              <div className="rounded-lg border border-gray-200 dark:border-white/10 p-4">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                  Verify Credits
+                </p>
+                <p className="mt-1.5 text-xl font-bold text-ink dark:text-white tabular-nums">
+                  {Math.max(data?.credits_verify || 0, 0).toLocaleString()}
+                </p>
+              </div>
             </div>
-            <div className="flex items-center space-x-3">
-              <Coins className="h-5 w-5 text-gray-400" />
-              <span className="text-gray-700">
-                Find: <span style={{ color: 'var(--primary)' }}>{Math.max(data?.credits_find || 0, 0)}</span>
-              </span>
-            </div>
-            <div className="flex items-center space-x-3">
-              <Coins className="h-5 w-5 text-gray-400" />
-              <span className="text-gray-700">
-                Verify: <span style={{ color: 'var(--primary)' }}>{Math.max(data?.credits_verify || 0, 0)}</span>
-              </span>
-            </div>
-          </CardContent>
-        </Card>
+          </section>
+        </div>
       </div>
     </div>
   )

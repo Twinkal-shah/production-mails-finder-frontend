@@ -2,13 +2,14 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { StatusBadge } from '@/components/ui/status-badge'
 
 import { toast } from 'sonner'
-import { Search, Mail, CheckCircle, ChevronDown, ChevronRight, AlertTriangle } from 'lucide-react'
+import { Search, Mail, ChevronDown, ChevronRight, AlertTriangle, UserSearch, UploadCloud, Copy, Loader2 } from 'lucide-react'
 import { isAuthenticated, saveRedirectUrl } from '@/lib/auth'
 import { useQueryInvalidation } from '@/lib/query-invalidation'
 import { useRecentFindResults } from '@/hooks/useRecentResults'
@@ -216,237 +217,344 @@ export default function FindPage() {
   }
 
   return (
-    <div className={`mx-auto h-full flex flex-col items-center transition-all duration-700 ease-in-out ${showRightColumn
-  ? 'max-w-6xl mt-6'
-  : 'max-w-lg min-h-[calc(100vh-140px)] flex items-center justify-center'
-}`}>
-      <div className={`grid gap-8 w-full transition-all duration-700 ease-in-out ${showRightColumn ? 'lg:grid-cols-2' : 'grid-cols-1'}`}>
-        {/* Search Form */}
-        <div className={`w-full transition-all duration-700 ease-in-out ${showRightColumn ? 'lg:sticky top-6 self-start' : 'mb-12'}`}>
-          <Card className="shadow-lg border-gray-200 dark:border-white/10">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Search className="h-5 w-5" />
-                Email Finder
-              </CardTitle>
-              <CardDescription>
-                Enter the person&apos;s details to find their email address.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }} className="space-y-4">
-                <div className="mb-5">
-                  <Label htmlFor="fullName" className="mb-2">Full Name *</Label>
-                  <Input
-                    id="fullName"
-                    name="fullName"
-                    placeholder="e.g., John Doe"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    required
-                    disabled={isLoading}
-                    className="text-[#1b1c1b] dark:text-white placeholder-[#5a4042]/50 dark:placeholder-[#e2bebf]/50"
-                  />
-                </div>
+    <div className="flex flex-col gap-6">
+      {/* Page header */}
+      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+        <div>
+          <p className="text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1">
+            Prospecting Engine
+          </p>
+          <h1 className="text-2xl font-bold tracking-tight text-ink dark:text-white">Find Email</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            Enter a person&apos;s name and company domain to discover their verified email address.
+          </p>
+        </div>
+      </div>
 
-                <div className="mb-5">
-                  <Label htmlFor="companyDomain" className="mb-2">Company Domain *</Label>
-                  <Input
-                    id="companyDomain"
-                    name="companyDomain"
-                    placeholder="e.g., company.com"
-                    value={companyDomain}
-                    onChange={(e) => setCompanyDomain(e.target.value)}
-                    required
-                    disabled={isLoading}
-                    className="text-[#1b1c1b] dark:text-white placeholder-[#5a4042]/50 dark:placeholder-[#e2bebf]/50"
-                  />
-                </div>
+      {/* Mode selector — Bulk routes to the existing bulk finder page */}
+      <div className="flex items-center gap-1 bg-[#F8FAFC] dark:bg-white/5 border border-gray-200 dark:border-white/10 p-1 rounded-xl w-fit">
+        <span className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold bg-white dark:bg-white/10 text-brand dark:text-white shadow-2xs">
+          <UserSearch className="h-[17px] w-[17px]" />
+          Single Email Search
+        </span>
+        <Link
+          href="/bulk-finder"
+          className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold text-ink-muted hover:text-ink dark:hover:text-white transition-all"
+        >
+          <UploadCloud className="h-[17px] w-[17px]" />
+          Bulk File Upload (CSV)
+        </Link>
+      </div>
 
-                <div className="mb-5">
-                  <Label htmlFor="role" className="mb-2">Role (Optional)</Label>
-                  <Input
-                    id="role"
-                    name="role"
-                    placeholder="e.g., Marketing Manager"
-                    value={role}
-                    onChange={(e) => setRole(e.target.value)}
-                    disabled={isLoading}
-                    className="text-[#1b1c1b] dark:text-white placeholder-[#5a4042]/50 dark:placeholder-[#e2bebf]/50"
-                  />
-                </div>
+      <div className={`grid gap-6 items-start ${showRightColumn ? 'lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)]' : 'grid-cols-1 max-w-xl'}`}>
+        {/* Search form */}
+        <div className={showRightColumn ? 'lg:sticky lg:top-2 self-start' : ''}>
+          <div className="bg-white dark:bg-[#1a1a1a] rounded-xl border border-gray-200 dark:border-white/10 shadow-card p-6">
+            <div className="flex items-center justify-between gap-3 mb-1">
+              <h2 className="flex items-center gap-2 text-[15px] font-semibold text-ink dark:text-white">
+                <span className="h-8 w-8 rounded-lg bg-brand-light dark:bg-brand/15 text-brand flex items-center justify-center">
+                  <UserSearch className="h-4 w-4" />
+                </span>
+                Prospect Identity
+              </h2>
+              <span className="text-[10px] font-bold uppercase tracking-wide text-brand bg-brand-light dark:bg-brand/15 border border-brand-border dark:border-brand/30 px-2 py-0.5 rounded">
+                Smart Lookup
+              </span>
+            </div>
+            <p className="text-[13px] leading-5 text-gray-500 dark:text-gray-400 mb-5">
+              Provide the name and corporate domain. Credits are only deducted on a successful,
+              verified address discovery.
+            </p>
 
-                <Button type="submit"
-                  disabled={isLoading || !fullName.trim() || !companyDomain.trim()}
-                  className="w-full">
+            <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }} className="space-y-4">
+              <div>
+                <Label htmlFor="fullName" className="mb-2 text-xs font-semibold text-ink dark:text-gray-200">
+                  Full Name <span className="text-brand">*</span>
+                </Label>
+                <Input
+                  id="fullName"
+                  name="fullName"
+                  placeholder="e.g., John Doe"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  required
+                  disabled={isLoading}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="companyDomain" className="mb-2 text-xs font-semibold text-ink dark:text-gray-200">
+                  Company Domain <span className="text-brand">*</span>
+                </Label>
+                <Input
+                  id="companyDomain"
+                  name="companyDomain"
+                  placeholder="e.g., company.com"
+                  value={companyDomain}
+                  onChange={(e) => setCompanyDomain(e.target.value)}
+                  required
+                  disabled={isLoading}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="role" className="mb-2 text-xs font-semibold text-ink dark:text-gray-200">
+                  Role <span className="font-normal text-gray-400">(Optional)</span>
+                </Label>
+                <Input
+                  id="role"
+                  name="role"
+                  placeholder="e.g., Marketing Manager"
+                  value={role}
+                  onChange={(e) => setRole(e.target.value)}
+                  disabled={isLoading}
+                />
+              </div>
+
+              <Button
+                type="submit"
+                disabled={isLoading || !fullName.trim() || !companyDomain.trim()}
+                className="w-full"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Finding email...
+                  </>
+                ) : (
                   <>
                     <Search className="mr-2 h-4 w-4" />
                     Find Email
                   </>
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
+                )}
+              </Button>
+            </form>
+
+            {/* High-volume prompt */}
+            <div className="mt-5 pt-5 border-t border-gray-100 dark:border-white/10 flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold text-ink dark:text-white">Need high volume?</p>
+                <p className="text-[11px] text-gray-400 mt-0.5">Process spreadsheets in bulk.</p>
+              </div>
+              <Link
+                href="/bulk-finder"
+                className="h-8 px-3 shrink-0 rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-[11px] font-bold text-ink dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-white/10 hover:border-gray-300 transition-colors flex items-center gap-1.5"
+              >
+                <UploadCloud className="h-3.5 w-3.5 text-gray-500" />
+                Open bulk
+              </Link>
+            </div>
+          </div>
         </div>
 
         {showRightColumn && (
-        <div className="space-y-6 lg:max-h-[calc(100vh-10rem)] lg:overflow-y-auto pb-10 pr-4">
-          {hasSearched && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Mail className="h-5 w-5" />
-                  Search Result
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {result ? (
+          <div className="space-y-6 min-w-0">
+            {/* Result panel */}
+            {hasSearched && (
+              <div className="bg-white dark:bg-[#1a1a1a] rounded-xl border border-gray-200 dark:border-white/10 shadow-card overflow-hidden">
+                {isLoading ? (
+                  <div className="p-10 flex flex-col items-center justify-center text-center gap-3">
+                    <Loader2 className="h-6 w-6 animate-spin text-brand" />
+                    <p className="text-sm font-medium text-ink dark:text-white">Searching mail servers…</p>
+                    <p className="text-xs text-gray-400">Running pattern discovery and SMTP checks.</p>
+                  </div>
+                ) : error ? (
+                  <div className="p-6 flex items-start gap-3">
+                    <span className="h-8 w-8 shrink-0 rounded-lg bg-[#FEF2F2] dark:bg-[#DC2626]/15 text-[#DC2626] flex items-center justify-center">
+                      <AlertTriangle className="h-4 w-4" />
+                    </span>
+                    <div>
+                      <p className="text-sm font-semibold text-ink dark:text-white">Search failed</p>
+                      <p className="text-[13px] text-gray-500 dark:text-gray-400 mt-1">{error}</p>
+                    </div>
+                  </div>
+                ) : result ? (
                   (result.status === 'valid' || result.status === 'guessed' || (result.email && result.isCatchAllDomain)) ? (
-                    <div className="space-y-3">
-                      <div className={`flex items-center gap-2 ${result.isCatchAllDomain ? 'text-yellow-600' : 'text-green-600'}`}>
-                        {result.isCatchAllDomain ? <AlertTriangle className="h-5 w-5" /> : <CheckCircle className="h-5 w-5" />}
-                        <span className="font-medium">{result.isCatchAllDomain ? 'Best Guess (Catch-All Domain)' : 'Email Found'}</span>
+                    <>
+                      {/* Header row */}
+                      <div className="p-5 flex items-start justify-between gap-4 border-b border-gray-100 dark:border-white/10">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <span className="h-10 w-10 shrink-0 rounded-full bg-brand-light dark:bg-brand/15 text-brand border border-brand-border dark:border-brand/30 flex items-center justify-center text-sm font-bold">
+                            {(result.fullName || fullName || '?').trim().charAt(0).toUpperCase()}
+                          </span>
+                          <div className="min-w-0">
+                            <p className="text-[15px] font-semibold text-ink dark:text-white truncate">
+                              {result.fullName || fullName || 'Prospect'}
+                            </p>
+                            <p className="text-xs text-gray-400 truncate">{companyDomain}</p>
+                          </div>
+                        </div>
+                        <StatusBadge status={result.isCatchAllDomain ? 'catch_all' : result.status} />
                       </div>
+
+                      {/* Catch-all notice */}
                       {result.isCatchAllDomain && (
-                        <div className="rounded-md border border-yellow-300 bg-yellow-50 dark:bg-yellow-950/20 dark:border-yellow-700 p-3 text-sm text-yellow-800 dark:text-yellow-200">
-                          {result.notice || "This domain accepts any email address, so we can't confirm this is the real one. Treat with caution before sending."}
+                        <div className="mx-5 mt-5 rounded-lg border border-[#FDE68A] bg-[#FFFBEB] dark:bg-[#D97706]/10 dark:border-[#D97706]/30 p-3 flex gap-2.5">
+                          <AlertTriangle className="h-4 w-4 shrink-0 text-[#D97706] mt-0.5" />
+                          <p className="text-[13px] leading-5 text-[#92400E] dark:text-[#FBBF24]">
+                            {result.notice || "This domain accepts any email address, so we can't confirm this is the real one. Treat with caution before sending."}
+                          </p>
                         </div>
                       )}
-                      <div className="bg-gray-50 p-3 rounded-lg">
-                        <p className="font-mono text-lg">{result.email}</p>
-                      </div>
-                      <div className="text-sm text-gray-600">
-                        {(() => {
-                          const c = Number(result.confidence || 0)
-                          const pct = c <= 1 ? Math.round(c * 100) : Math.round(c)
-                          return `Confidence: ${pct}%`
-                        })()}
-                      </div>
-                      <div className="text-sm text-gray-600">
-                        {(() => {
-                          const s = result.status || 'unknown'
-                          const statusLabel = s === 'valid' ? 'Valid' : s === 'risky' ? 'Risky' : s === 'invalid' ? 'Invalid' : s === 'guessed' ? 'Guessed' : 'Unknown'
-                          return `Status: ${statusLabel}`
-                        })()}
-                      </div>
-                      <div className="text-sm text-gray-600">
-                        {`Safe to Send: ${result.safeToSend === true ? 'Yes' : result.safeToSend === false ? 'No' : 'Unknown'}`}
-                      </div>
-                      {result.provider ? (
-                        <div className="text-sm text-gray-600">
-                          {`Provider: ${result.provider}`}
+
+                      {/* Discovered address */}
+                      <div className="p-5">
+                        <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2">
+                          Discovered Email Address
+                        </p>
+                        <div className="rounded-lg bg-[#F8FAFC] dark:bg-white/5 border border-gray-200 dark:border-white/10 p-4 flex items-center justify-between gap-3 flex-wrap">
+                          <p className="font-mono-code text-base sm:text-lg font-medium text-brand break-all">
+                            {result.email}
+                          </p>
+                          {result.email && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard?.writeText(result.email as string)
+                                toast.success('Email copied to clipboard')
+                              }}
+                              className="h-8 px-3 shrink-0 bg-brand text-white rounded-lg text-xs font-bold hover:bg-brand-hover transition-colors flex items-center gap-1.5 shadow-2xs"
+                            >
+                              <Copy className="h-3.5 w-3.5" />
+                              Copy Email
+                            </button>
+                          )}
                         </div>
-                      ) : null}
-                      {result.fullName ? (
-                        <div className="text-sm text-gray-600">
-                          {`Full Name: ${result.fullName}`}
+
+                        {/* Detail tiles */}
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
+                          <div className="rounded-lg border border-gray-200 dark:border-white/10 p-3">
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                              Confidence
+                            </p>
+                            <p className="mt-1.5 text-sm font-semibold text-ink dark:text-white tabular-nums">
+                              {(() => {
+                                const c = Number(result.confidence || 0)
+                                return `${c <= 1 ? Math.round(c * 100) : Math.round(c)}%`
+                              })()}
+                            </p>
+                          </div>
+                          <div className="rounded-lg border border-gray-200 dark:border-white/10 p-3">
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                              Mailbox Status
+                            </p>
+                            <p className="mt-1.5 text-sm font-semibold text-ink dark:text-white">
+                              {result.safeToSend === true ? 'Safe to send' : result.safeToSend === false ? 'Not safe' : 'Unknown'}
+                            </p>
+                          </div>
+                          <div className="rounded-lg border border-gray-200 dark:border-white/10 p-3">
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                              Provider
+                            </p>
+                            <p className="mt-1.5 text-sm font-semibold text-ink dark:text-white truncate">
+                              {result.provider || '—'}
+                            </p>
+                          </div>
                         </div>
-                      ) : null}
-                      {typeof result.creditsUsed === 'number' ? (
-                        <div className="text-sm text-gray-600">
-                          {`Credits Used: ${result.creditsUsed}`}
-                        </div>
-                      ) : null}
-                    </div>
+
+                        {typeof result.creditsUsed === 'number' && (
+                          <p className="mt-4 text-[11px] text-gray-400">
+                            Credits used: <span className="font-semibold text-ink dark:text-gray-200 tabular-nums">{result.creditsUsed}</span>
+                          </p>
+                        )}
+                      </div>
+                    </>
                   ) : (
-                    <div className="text-center py-4">
-                      <p className="text-gray-600">No email found</p>
+                    <div className="p-10 flex flex-col items-center justify-center text-center gap-2">
+                      <span className="h-10 w-10 rounded-full bg-[#F1F5F9] dark:bg-white/5 text-gray-400 flex items-center justify-center">
+                        <Mail className="h-5 w-5" />
+                      </span>
+                      <p className="text-sm font-semibold text-ink dark:text-white">No email found</p>
+                      <p className="text-xs text-gray-400 max-w-xs">
+                        We couldn&apos;t discover a deliverable address for this name and domain.
+                      </p>
                     </div>
                   )
                 ) : null}
-              </CardContent>
-            </Card>
-          )}
+              </div>
+            )}
 
-          {/* Active Jobs */}
-          <ActiveJobsBanner />
+            {/* Active Jobs */}
+            <ActiveJobsBanner />
 
-          {/* Recent Results from API */}
-          <RecentFindResultsTable />
+            {/* Recent Results from API */}
+            <RecentFindResultsTable />
 
-          {/* Search History (current session) */}
-          {history.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Recent Searches</CardTitle>
-                <CardDescription>
+            {/* Search History (current session) */}
+            {history.length > 0 && (
+              <div className="bg-white dark:bg-[#1a1a1a] rounded-xl border border-gray-200 dark:border-white/10 shadow-card p-6">
+                <h3 className="text-[15px] font-semibold text-ink dark:text-white">Recent Searches</h3>
+                <p className="text-[13px] text-gray-500 dark:text-gray-400 mt-0.5 mb-4">
                   Your last {Math.min(history.length, 10)} email searches.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {history.map((item) => (
-                    <div key={item.id} className="border-l-4 pl-4 py-2" style={{ borderLeftColor: 'rgba(226,190,191,0.5)' }}>
-                      <div className="flex justify-between items-start">
-                        <div>
-                          {(() => {
-                            const isValid = item.result.status === 'valid' || item.result.status === 'guessed' || (!!item.result.email && item.result.isCatchAllDomain === true)
-                            const isExpanded = !!expanded[item.id]
-                            return (
-                              <>
-                                <p className="font-medium text-sm">
-                                  {isValid ? (item.result.email || '') : `${item.payload.full_name} @ ${item.payload.company_domain}`}
-                                </p>
-                                {isValid ? (
-                                  isExpanded ? (
-                                    <div className="space-y-1 mt-1">
-                                      {item.result.fullName ? (
-                                        <p className="text-xs text-gray-600">{`Full Name: ${item.result.fullName}`}</p>
-                                      ) : null}
-                                      {item.result.provider ? (
-                                        <p className="text-xs text-gray-600">{`Provider: ${item.result.provider}`}</p>
-                                      ) : null}
-                                      <p className="text-xs text-gray-600">
-                                        {(() => {
-                                          const c = Number(item.result.confidence || 0)
-                                          const pct = c <= 1 ? Math.round(c * 100) : Math.round(c)
-                                          return `Confidence: ${pct}%`
-                                        })()}
-                                      </p>
-                                      <p className="text-xs text-gray-600">
-                                        {`Safe to Send: ${item.result.safeToSend === true ? 'Yes' : item.result.safeToSend === false ? 'No' : 'Unknown'}`}
-                                      </p>
-                                      <p className="text-xs text-gray-600">
-                                        {(() => {
-                                          const s = item.result.status || 'unknown'
-                                          const statusLabel = s === 'valid' ? 'Valid' : s === 'risky' ? 'Risky' : s === 'invalid' ? 'Invalid' : s === 'guessed' ? 'Guessed' : 'Unknown'
-                                          return `Status: ${statusLabel}`
-                                        })()}
-                                      </p>
-                                      {typeof item.result.creditsUsed === 'number' ? (
-                                        <p className="text-xs text-gray-600">{`Credits Used: ${item.result.creditsUsed}`}</p>
-                                      ) : null}
-                                    </div>
-                                  ) : null
-                                ) : (
-                                  <p className="text-sm text-gray-500">No email found</p>
-                                )}
-                              </>
-                            )
-                          })()}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {(item.result.status === 'valid' || item.result.status === 'guessed' || (!!item.result.email && item.result.isCatchAllDomain === true)) ? (
-                            <button
-                              onClick={() => setExpanded(prev => ({ ...prev, [item.id]: !prev[item.id] }))}
-                              aria-label="Toggle details"
-                              className="text-gray-500"
-                            >
-                              {expanded[item.id] ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                            </button>
-                          ) : null}
-                          <span className="text-xs text-gray-400">
-                            {new Date(item.created_at).toLocaleDateString()}
-                          </span>
+                </p>
+                <div className="divide-y divide-gray-100 dark:divide-white/10">
+                  {history.map((item) => {
+                    const isValid = item.result.status === 'valid' || item.result.status === 'guessed' || (!!item.result.email && item.result.isCatchAllDomain === true)
+                    const isExpanded = !!expanded[item.id]
+                    return (
+                      <div key={item.id} className="py-3 first:pt-0 last:pb-0">
+                        <div className="flex justify-between items-start gap-3">
+                          <div className="min-w-0">
+                            <p className={`text-sm font-medium truncate ${isValid ? 'font-mono-code text-ink dark:text-white' : 'text-ink dark:text-white'}`}>
+                              {isValid ? (item.result.email || '') : `${item.payload.full_name} @ ${item.payload.company_domain}`}
+                            </p>
+                            {isValid ? (
+                              isExpanded ? (
+                                <div className="space-y-1 mt-2">
+                                  {item.result.fullName ? (
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">{`Full Name: ${item.result.fullName}`}</p>
+                                  ) : null}
+                                  {item.result.provider ? (
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">{`Provider: ${item.result.provider}`}</p>
+                                  ) : null}
+                                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                                    {(() => {
+                                      const c = Number(item.result.confidence || 0)
+                                      const pct = c <= 1 ? Math.round(c * 100) : Math.round(c)
+                                      return `Confidence: ${pct}%`
+                                    })()}
+                                  </p>
+                                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                                    {`Safe to Send: ${item.result.safeToSend === true ? 'Yes' : item.result.safeToSend === false ? 'No' : 'Unknown'}`}
+                                  </p>
+                                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                                    {(() => {
+                                      const s = item.result.status || 'unknown'
+                                      const statusLabel = s === 'valid' ? 'Valid' : s === 'risky' ? 'Risky' : s === 'invalid' ? 'Invalid' : s === 'guessed' ? 'Guessed' : 'Unknown'
+                                      return `Status: ${statusLabel}`
+                                    })()}
+                                  </p>
+                                  {typeof item.result.creditsUsed === 'number' ? (
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">{`Credits Used: ${item.result.creditsUsed}`}</p>
+                                  ) : null}
+                                </div>
+                              ) : null
+                            ) : (
+                              <p className="text-xs text-gray-400 mt-0.5">No email found</p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            {isValid ? (
+                              <button
+                                onClick={() => setExpanded(prev => ({ ...prev, [item.id]: !prev[item.id] }))}
+                                aria-label="Toggle details"
+                                className="text-gray-400 hover:text-ink dark:hover:text-white transition-colors"
+                              >
+                                {expanded[item.id] ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                              </button>
+                            ) : null}
+                            <span className="text-[11px] text-gray-400">
+                              {new Date(item.created_at).toLocaleDateString()}
+                            </span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
-              </CardContent>
-            </Card>
-          )}
-        </div>
+              </div>
+            )}
+          </div>
         )}
       </div>
     </div>

@@ -57,29 +57,30 @@ const statusDescription = (s?: string) => {
 
 /* ---------- result panel styling ---------- */
 
+/** Semantic tints from the Stitch status-badge spec. */
 function resultTone(status: string) {
   const v = (status || '').toLowerCase()
   if (v === 'valid') {
     return {
-      wrapper: 'border-l-green-500 bg-green-50 dark:bg-green-950/20',
-      icon: <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />,
+      wrapper: 'border-l-[#059669] bg-[#ECFDF5] dark:bg-[#059669]/10',
+      icon: <CheckCircle2 className="h-5 w-5 text-[#059669] dark:text-[#34D399]" />,
     }
   }
   if (v === 'invalid') {
     return {
-      wrapper: 'border-l-red-500 bg-red-50 dark:bg-red-950/20',
-      icon: <XCircle className="h-5 w-5 text-red-600 dark:text-red-400" />,
+      wrapper: 'border-l-[#DC2626] bg-[#FEF2F2] dark:bg-[#DC2626]/10',
+      icon: <XCircle className="h-5 w-5 text-[#DC2626] dark:text-[#F87171]" />,
     }
   }
   if (v === 'risky' || v === 'catch_all' || v === 'catchall') {
     return {
-      wrapper: 'border-l-amber-500 bg-amber-50 dark:bg-amber-950/20',
-      icon: <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />,
+      wrapper: 'border-l-[#D97706] bg-[#FFFBEB] dark:bg-[#D97706]/10',
+      icon: <AlertTriangle className="h-5 w-5 text-[#D97706] dark:text-[#FBBF24]" />,
     }
   }
   return {
-    wrapper: 'border-l-gray-400 bg-muted/50 dark:border-l-gray-500 dark:bg-white/[0.04]',
-    icon: <HelpCircle className="h-5 w-5 text-muted-foreground" />,
+    wrapper: 'border-l-[#94A3B8] bg-[#F8FAFC] dark:bg-white/[0.04]',
+    icon: <HelpCircle className="h-5 w-5 text-ink-muted" />,
   }
 }
 
@@ -137,15 +138,20 @@ export function SingleVerifyPanel({
   const tone = result ? resultTone(result.status) : null
 
   return (
-    <Card className={cn('shadow-sm', className)}>
+    <Card className={cn(className)}>
       <CardHeader>
-        <CardTitle className="flex items-center gap-3 text-lg">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/60 text-[var(--primary)] dark:bg-white/5">
-            <ShieldCheck className="h-4 w-4" />
+        <CardTitle className="flex items-center justify-between gap-3">
+          <span className="flex items-center gap-3 text-[15px] font-semibold text-ink dark:text-white">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-light text-brand dark:bg-brand/15">
+              <ShieldCheck className="h-4 w-4" />
+            </span>
+            Target Mailbox
           </span>
-          Verify one address
+          <span className="text-[10px] font-bold uppercase tracking-wide text-brand bg-brand-light dark:bg-brand/15 border border-brand-border dark:border-brand/30 px-2 py-0.5 rounded shrink-0">
+            1 credit / lookup
+          </span>
         </CardTitle>
-        <CardDescription>
+        <CardDescription className="text-[13px]">
           Check a single email address for deliverability.
         </CardDescription>
       </CardHeader>
@@ -171,7 +177,7 @@ export function SingleVerifyPanel({
                 value={email}
                 onChange={(e) => onEmailChange(e.target.value)}
                 disabled={isVerifying}
-                className="h-11 pl-10 text-[#1b1c1b] placeholder-[#5a4042]/50 dark:text-white dark:placeholder-[#e2bebf]/50"
+                className="h-11 pl-10"
               />
             </div>
             <Button

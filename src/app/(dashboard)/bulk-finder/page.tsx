@@ -515,10 +515,13 @@ export default function BulkFinderPage() {
   // No job-based status
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8">
+    <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Bulk Email Finder</h1>
-        <p className="text-gray-600 mt-2">
+        <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">
+          Prospecting Engine
+        </p>
+        <h1 className="text-2xl font-bold tracking-tight text-ink dark:text-white">Bulk Email Finder</h1>
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
           Expected columns: Full Name and Domain. Optional: Role.
         </p>
       </div>

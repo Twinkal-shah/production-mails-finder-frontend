@@ -14,7 +14,8 @@ const TabsList = React.forwardRef<
   <TabsPrimitive.List
     ref={ref}
     className={cn(
-      "inline-flex h-9 items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground",
+      // Stitch segmented control: tinted track, 1px hairline, 12px radius.
+      "inline-flex items-center justify-center gap-1 rounded-xl bg-[#F8FAFC] dark:bg-white/5 border border-gray-200 dark:border-white/10 p-1 text-ink-muted w-fit",
       className
     )}
     {...props}
@@ -29,7 +30,8 @@ const TabsTrigger = React.forwardRef<
   <TabsPrimitive.Trigger
     ref={ref}
     className={cn(
-      "inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow",
+      // Active tab lifts to a white surface with brand text, per Stitch.
+      "inline-flex items-center gap-2 justify-center whitespace-nowrap rounded-lg px-4 py-2 text-xs font-semibold transition-all outline-none focus-visible:ring-[3px] focus-visible:ring-brand/15 disabled:pointer-events-none disabled:opacity-50 text-ink-muted hover:text-ink dark:hover:text-white data-[state=active]:bg-white dark:data-[state=active]:bg-white/10 data-[state=active]:text-brand dark:data-[state=active]:text-white data-[state=active]:font-bold data-[state=active]:shadow-2xs",
       className
     )}
     {...props}

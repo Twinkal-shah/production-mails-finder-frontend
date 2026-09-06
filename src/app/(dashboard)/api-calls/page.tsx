@@ -1059,8 +1059,19 @@ export default function ApiCallsPage() {
   }
 
   return (
-    <div className="w-full bg-background text-foreground">
-    <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 space-y-10 relative">
+    <div className="w-full text-foreground">
+    <div className="space-y-6 relative">
+      <div>
+        <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">
+          Developer Platform
+        </p>
+        <h1 className="text-2xl font-bold tracking-tight text-ink dark:text-white">
+          API Keys &amp; Webhooks
+        </h1>
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+          Programmatic access to the finder and verifier, plus key management.
+        </p>
+      </div>
       {restricted && (
         <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/70 backdrop-blur-sm">
           <Card className="w-full max-w-md">
@@ -1244,10 +1255,14 @@ export default function ApiCallsPage() {
         {/* Main Area: API Docs only */}
         <div className="lg:col-span-3 space-y-6">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <div className="w-full my-10 flex items-center justify-center">
-              <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight">
+            <div className="flex items-center justify-between gap-4 mt-8 mb-3">
+              <h2 className="flex items-center gap-2 text-[11px] font-bold text-ink dark:text-white uppercase tracking-wider">
+                <span className="h-1.5 w-1.5 rounded-full bg-brand" aria-hidden="true" />
                 API Docs
               </h2>
+              <span className="text-[11px] text-gray-400 hidden sm:block">
+                Endpoint reference and code samples
+              </span>
             </div>
 
             <TabsContent value="docs" className="space-y-6">
