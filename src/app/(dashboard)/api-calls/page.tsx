@@ -23,8 +23,13 @@ import {
   EyeOff,
   Copy,
   ChevronDown,
-  PlugZap
+  PlugZap,
+  KeyRound,
+  TerminalSquare,
+  Lock,
+  ShieldAlert,
 } from 'lucide-react'
+import Link from 'next/link'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import type { 
@@ -537,6 +542,10 @@ export default function ApiCallsPage() {
       last_used_at
     }
   }, [])
+
+  // Interactive Endpoint Quickstart: selected endpoint + code language.
+  const [selectedDocId, setSelectedDocId] = useState<string>(API_DOCS[0]?.id ?? '')
+  const [codeLang, setCodeLang] = useState<'curl' | 'node' | 'python'>('curl')
 
   const [apiKeys, setApiKeys] = useState<ApiKeyRecord[]>([])
   const [keysLoading, setKeysLoading] = useState(false)
@@ -1061,16 +1070,25 @@ export default function ApiCallsPage() {
   return (
     <div className="w-full text-foreground">
     <div className="space-y-6 relative">
-      <div>
-        <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">
-          Developer Platform
-        </p>
-        <h1 className="text-2xl font-bold tracking-tight text-ink dark:text-white">
-          API Keys &amp; Webhooks
-        </h1>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          Programmatic access to the finder and verifier, plus key management.
-        </p>
+      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
+        <div className="min-w-0">
+          <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">
+            <span>Developer Portal</span>
+            <span aria-hidden="true">/</span>
+            <span className="text-brand">Infrastructure</span>
+          </p>
+          <h1 className="text-2xl font-bold tracking-tight text-ink dark:text-white">API Keys</h1>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400 max-w-2xl">
+            Programmatic access to high-accuracy email extraction, single verification, and
+            asynchronous bulk dispatch workflows.
+          </p>
+        </div>
+        <div className="flex items-center gap-2.5 flex-wrap shrink-0">
+          <span className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 text-[11px] font-semibold text-ink dark:text-white shadow-2xs">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            Live REST API
+          </span>
+        </div>
       </div>
       {restricted && (
         <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/70 backdrop-blur-sm">
@@ -1120,10 +1138,24 @@ export default function ApiCallsPage() {
 
       
 
-      <Card className="rounded-xl border shadow-sm">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-stretch">
+      <Card className="lg:col-span-2 h-full rounded-xl border shadow-sm">
         <CardHeader>
-          <CardTitle className="text-xl font-semibold">API Keys</CardTitle>
-          <CardDescription>Manage your API keys for authenticated requests</CardDescription>
+          <CardTitle className="flex items-center gap-2.5 text-base font-bold text-ink dark:text-white">
+            <span className="h-8 w-8 rounded-lg bg-brand-light dark:bg-brand/15 border border-brand-border dark:border-brand/30 text-brand flex items-center justify-center">
+              <KeyRound className="h-4 w-4" />
+            </span>
+            Authentication Credentials
+            <span className="ml-auto text-xs text-[#059669] bg-[#ECFDF5] border border-emerald-200 px-2.5 py-1 rounded-full font-bold dark:bg-[#059669]/15 dark:border-[#059669]/30 shrink-0">
+              {apiKeys.filter((k) => k.is_active).length} Active {apiKeys.filter((k) => k.is_active).length === 1 ? 'Key' : 'Keys'}
+            </span>
+          </CardTitle>
+          <CardDescription className="text-[13px]">
+            Bearer tokens pass via{' '}
+            <code className="font-mono-code text-[12px] text-ink dark:text-gray-200">
+              Authorization: Bearer &lt;key&gt;
+            </code>
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="flex items-end gap-2">
@@ -1168,31 +1200,55 @@ export default function ApiCallsPage() {
                   const statusText = k.is_active ? 'Active' : 'Inactive'
                   const rate = typeof k.rate_limit_per_minute === 'number' ? k.rate_limit_per_minute : undefined
                   return (
-                    <div key={k.id} className="p-3 rounded-lg border flex items-center justify-between">
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className={cn('text-xs', k.is_active ? 'text-green-600 border-green-600' : 'text-red-600 border-red-600')}>{statusText}</Badge>
+                    <div key={k.id} className="bg-gray-50 dark:bg-white/5 rounded-xl p-4 border border-gray-200 dark:border-white/10 flex flex-col gap-2.5">
+                      <div className="flex items-center justify-between gap-3 flex-wrap">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-xs font-bold text-ink dark:text-white truncate">
+                            {k.key_name || 'API Key'}
+                          </span>
+                          <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', k.is_active ? 'bg-[#059669]' : 'bg-[#DC2626]')} />
+                          <span className={cn('text-[11px] font-semibold shrink-0', k.is_active ? 'text-[#059669]' : 'text-[#DC2626]')}>
+                            {statusText}
+                          </span>
                           {typeof rate === 'number' && (
-                            <Badge variant="secondary" className="text-xs">{rate}/min</Badge>
+                            <span className="text-[11px] font-mono-code text-ink-muted bg-white dark:bg-white/10 border border-gray-200 dark:border-white/10 px-1.5 py-0.5 rounded shrink-0">
+                              {rate}/min
+                            </span>
                           )}
                         </div>
-                        <p className="text-sm font-medium">{k.key_name || 'API Key'}</p>
-                        <p className="text-xs text-muted-foreground">{displayed}</p>
+                        {k.created_at && (
+                          <span className="text-xs text-gray-400 shrink-0">
+                            Created {new Date(k.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+                          </span>
+                        )}
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Button variant="outline" size="sm" onClick={() => setRevealed(prev => ({ ...prev, [k.id]: !isRevealed }))}>
-                          {isRevealed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
+                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 bg-white dark:bg-[#111] px-3 py-2 rounded-lg border border-gray-200 dark:border-white/10">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Lock className="h-[18px] w-[18px] text-gray-400 shrink-0" />
+                          <span className="font-mono-code text-xs text-ink dark:text-gray-200 tracking-wider truncate">
+                            {displayed}
+                          </span>
+                        </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => setRevealed(prev => ({ ...prev, [k.id]: !isRevealed }))}
+                          className="px-2.5 py-1 text-gray-600 dark:text-gray-300 hover:text-ink dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/10 rounded-md transition-colors text-xs font-medium flex items-center gap-1 border border-gray-200 dark:border-white/10"
+                        >
+                          {isRevealed ? <EyeOff className="h-[15px] w-[15px]" /> : <Eye className="h-[15px] w-[15px]" />}
+                          <span>{isRevealed ? 'Hide' : 'Reveal'}</span>
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => {
                             const valueToCopy = isRevealed ? (k.api_key || '') : (k.api_key ? maskKey(k.api_key) : (k.key_prefix || ''))
                             navigator.clipboard.writeText(valueToCopy).then(() => toast.success('Copied'))
                           }}
+                          className="px-2.5 py-1 text-gray-600 dark:text-gray-300 hover:text-ink dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/10 rounded-md transition-colors text-xs font-medium flex items-center gap-1 border border-gray-200 dark:border-white/10"
                         >
-                          <Copy className="h-4 w-4" />
-                        </Button>
+                          <Copy className="h-[15px] w-[15px]" />
+                          <span>Copy</span>
+                        </button>
                         <Dialog>
                           <DialogTrigger asChild>
                             <Button
@@ -1242,588 +1298,207 @@ export default function ApiCallsPage() {
                           </DialogContent>
                         </Dialog>
                       </div>
+                      </div>
                     </div>
                   )
                 })}
               </div>
             )}
           </div>
+
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-3 border-t border-gray-200 dark:border-white/10 text-xs text-gray-500 dark:text-gray-400">
+            <span className="flex items-center gap-1.5">
+              <ShieldAlert className="h-4 w-4 text-gray-400 shrink-0" />
+              Keep production secret tokens out of client-side code and public repositories.
+            </span>
+          </div>
         </CardContent>
       </Card>
+
+      {/* Daily Quota Meter */}
+      <div className="h-full bg-white dark:bg-[#1a1a1a] rounded-xl p-6 border border-gray-200 dark:border-white/10 shadow-card flex flex-col justify-between gap-5">
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-base font-bold text-ink dark:text-white">Daily Quota Meter</span>
+            <span className="px-2.5 py-0.5 rounded-full bg-brand-light dark:bg-brand/15 border border-brand-border dark:border-brand/30 text-brand font-mono-code text-xs font-bold capitalize shrink-0">
+              {(profile?.plan || 'free').toString()}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-center py-2">
+            <div className="relative w-36 h-36 flex items-center justify-center">
+              <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+                <circle className="text-gray-100 dark:text-white/10" cx="50" cy="50" r="40" fill="transparent" stroke="currentColor" strokeWidth="8" />
+                <circle className="text-brand" cx="50" cy="50" r="40" fill="transparent" stroke="currentColor" strokeWidth="8" strokeLinecap="round" strokeDasharray="251.2" strokeDashoffset="251.2" />
+              </svg>
+              <div className="absolute flex flex-col items-center justify-center text-center">
+                <span className="text-2xl font-bold text-ink dark:text-white tracking-tight">&mdash;</span>
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Consumed</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2 bg-gray-50 dark:bg-white/5 p-3.5 rounded-xl border border-gray-200 dark:border-white/10">
+            <div className="flex justify-between items-center text-xs font-semibold text-ink dark:text-white gap-2">
+              <span>Requests Today</span>
+              <span className="font-mono-code font-bold text-gray-400">Not reported</span>
+            </div>
+            <div className="w-full bg-gray-200 dark:bg-white/10 h-2 rounded-full overflow-hidden">
+              <div className="bg-brand h-full rounded-full" style={{ width: '0%' }} />
+            </div>
+            <div className="flex justify-between items-center text-[11px] text-gray-500 dark:text-gray-400 font-medium gap-2">
+              <span>
+                {(() => {
+                  const rates = apiKeys
+                    .map((k) => k.rate_limit_per_minute)
+                    .filter((r): r is number => typeof r === 'number')
+                  return rates.length > 0
+                    ? `Rate limit: ${Math.max(...rates).toLocaleString()} req/min`
+                    : 'Rate limit: not reported'
+                })()}
+              </span>
+              <span>Resets daily</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between gap-2 pt-2 border-t border-gray-200 dark:border-white/10 text-xs text-gray-500 dark:text-gray-400">
+          <span>Per-day request counter not yet available.</span>
+          <Link href="/upgrade" className="text-brand font-bold hover:underline shrink-0">
+            Upgrade
+          </Link>
+        </div>
+      </div>
+      </div>
 
       <div className="grid grid-cols-1 gap-10">
         {/* Main Area: API Docs only */}
         <div className="lg:col-span-3 space-y-6">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <div className="flex items-center justify-between gap-4 mt-8 mb-3">
-              <h2 className="flex items-center gap-2 text-[11px] font-bold text-ink dark:text-white uppercase tracking-wider">
-                <span className="h-1.5 w-1.5 rounded-full bg-brand" aria-hidden="true" />
-                API Docs
+              <h2 className="flex items-center gap-2.5 text-base font-bold text-ink dark:text-white">
+                <span className="h-8 w-8 rounded-lg bg-brand-light dark:bg-brand/15 border border-brand-border dark:border-brand/30 text-brand flex items-center justify-center">
+                  <TerminalSquare className="h-4 w-4" />
+                </span>
+                Interactive Endpoint Quickstart
               </h2>
-              <span className="text-[11px] text-gray-400 hidden sm:block">
-                Endpoint reference and code samples
-              </span>
+              <div className="flex items-center bg-gray-100 dark:bg-white/5 p-1 rounded-lg border border-gray-200 dark:border-white/10 gap-1 shrink-0">
+                {([['curl', 'cURL'], ['node', 'Node.js'], ['python', 'Python']] as const).map(([k, label]) => (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => setCodeLang(k)}
+                    className={`px-3 py-1 rounded-md text-xs transition-all ${
+                      codeLang === k
+                        ? 'text-white bg-brand font-bold shadow-2xs'
+                        : 'text-gray-600 dark:text-gray-300 hover:text-ink dark:hover:text-white font-medium'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            <TabsContent value="docs" className="space-y-6">
-              {API_DOCS.map((doc) => {
+            <TabsContent value="docs" className="space-y-5">
+              {(() => {
+                const doc = API_DOCS.find((d) => d.id === selectedDocId) ?? API_DOCS[0]
+                if (!doc) return null
                 const url = doc.displayUrl || doc.url
-                const curl = buildCurl(doc.method, url, doc.headers, doc.requestBody)
-                const js = buildJs(doc.method, url, doc.headers, doc.requestBody)
-                const py = buildPy(doc.method, url, doc.headers, doc.requestBody)
-                const isExpanded = openDocId === doc.id
-                const tabValue = docTabs[doc.id] || 'overview'
+                const snippet =
+                  codeLang === 'node'
+                    ? buildJs(doc.method, url, doc.headers, doc.requestBody)
+                    : codeLang === 'python'
+                      ? buildPy(doc.method, url, doc.headers, doc.requestBody)
+                      : buildCurl(doc.method, url, doc.headers, doc.requestBody)
+                const ext = codeLang === 'node' ? 'js' : codeLang === 'python' ? 'py' : 'sh'
+                const fileName = `${doc.id.replace(/^doc-/, '').replace(/-/g, '_')}.${ext}`
                 return (
-                  <Card key={doc.id} className="rounded-xl border shadow-sm transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-md">
-                    <CardHeader className="p-4 sm:p-6 cursor-pointer" onClick={() => toggleDoc(doc.id)} role="button" aria-expanded={isExpanded}>
-                      <div className="flex items-center justify-between">
-                        <div className="flex flex-col sm:flex-row sm:items-center sm:gap-3">
-                          <div className="flex items-center gap-2">
-                            <Badge variant="outline" className={cn('text-xs', doc.method === 'POST' ? 'bg-[var(--primary)] text-white border-transparent' : '')}>{doc.method}</Badge>
-                            <CardTitle className="text-lg">{doc.name}</CardTitle>
+                  <>
+                    {/* Method pills */}
+                    <div className="flex flex-wrap gap-2 items-center">
+                      <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mr-1">
+                        Available Methods:
+                      </span>
+                      {API_DOCS.map((d) => {
+                        const active = d.id === doc.id
+                        return (
+                          <button
+                            key={d.id}
+                            type="button"
+                            onClick={() => setSelectedDocId(d.id)}
+                            className={`font-mono-code text-xs px-2.5 py-1 rounded-md border flex items-center gap-1.5 transition-colors ${
+                              active
+                                ? 'bg-brand-light dark:bg-brand/15 border-brand-border dark:border-brand/30 text-brand font-bold'
+                                : 'bg-gray-100 dark:bg-white/5 border-gray-200 dark:border-white/10 text-ink-muted hover:text-ink dark:hover:text-white'
+                            }`}
+                          >
+                            <span className={active ? 'text-brand font-bold' : 'text-gray-500 font-bold'}>
+                              {d.method}
+                            </span>
+                            {new URL(url.startsWith('http') ? (d.displayUrl || d.url) : 'http://x' + (d.displayUrl || d.url)).pathname}
+                          </button>
+                        )
+                      })}
+                    </div>
+
+                    {/* Code + response */}
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                      {/* Request snippet */}
+                      <div className="lg:col-span-7 bg-ink text-gray-100 rounded-xl p-4 flex flex-col justify-between border border-gray-800 shadow-2xs overflow-hidden">
+                        <div className="flex items-center justify-between pb-3 border-b border-gray-800 mb-2 gap-3">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="w-3 h-3 rounded-full bg-red-500/80 shrink-0" />
+                            <span className="w-3 h-3 rounded-full bg-amber-500/80 shrink-0" />
+                            <span className="w-3 h-3 rounded-full bg-emerald-500/80 shrink-0" />
+                            <span className="font-mono-code text-xs text-gray-400 ml-2 truncate">{fileName}</span>
                           </div>
-                          <CardDescription>{doc.description}</CardDescription>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard?.writeText(snippet)
+                              toast.success('Snippet copied')
+                            }}
+                            className="text-gray-400 hover:text-white transition-colors flex items-center gap-1 text-xs font-medium shrink-0"
+                          >
+                            <Copy className="h-4 w-4" />
+                            <span className="hidden sm:inline">Copy snippet</span>
+                          </button>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          aria-expanded={isExpanded}
-                          aria-controls={`${doc.id}-content`}
-                          onClick={() => toggleDoc(doc.id)}
-                          className="flex items-center gap-2 hover:bg-transparent"
-                        >
-                          <ChevronDown className={`h-4 w-4 transition-transform ${isExpanded ? 'rotate-0' : '-rotate-90'}`} />
-                        </Button>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="p-0">
-                      <div
-                        id={`${doc.id}-content`}
-                        className={cn(
-                          'transition-all duration-300 ease-out overflow-hidden',
-                          isExpanded ? 'max-h-[3000px] opacity-100 translate-y-0' : 'max-h-0 opacity-0 -translate-y-1'
-                        )}
-                        aria-hidden={!isExpanded}
-                      >
-                        <div className="p-4 sm:p-6">
-                          <Tabs value={tabValue} onValueChange={(v) => setDocTab(doc.id, v as DocTabKey)}>
-                            <TabsList className="grid w-full grid-cols-3">
-                              <TabsTrigger value="overview">Overview</TabsTrigger>
-                              <TabsTrigger value="request">Request</TabsTrigger>
-                              <TabsTrigger value="response">Response</TabsTrigger>
-                            </TabsList>
-
-                            <TabsContent value="overview" className="space-y-6 pt-4">
-                              <div className="space-y-2">
-                                <div className="text-sm font-medium">What this API does</div>
-                                <p className="text-sm text-muted-foreground">{doc.description}</p>
-                              </div>
-                              <div className="space-y-2">
-                                <div className="text-sm font-medium">Required fields</div>
-                                <div className="rounded-lg border overflow-hidden">
-                                  <div className="grid grid-cols-3 gap-2 p-3 bg-muted text-sm font-medium">
-                                    <div>Field</div>
-                                    <div>Required</div>
-                                    <div>Description</div>
-                                  </div>
-                                  {(REQUIRED_FIELDS[doc.id] || []).map((f) => (
-                                    <div key={f.field} className="grid grid-cols-3 gap-2 p-3 border-t text-sm">
-                                      <div className="font-mono">{f.field}</div>
-                                      <div className={cn('font-medium', f.required ? 'text-emerald-400' : 'text-muted-foreground')}>{f.required ? 'Yes' : 'No'}</div>
-                                      <div className="text-muted-foreground">{f.description}</div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                              <div className="grid sm:grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                  <div className="text-sm font-medium">Endpoint</div>
-                                  <div className="text-sm font-mono">{url}</div>
-                                </div>
-                                <div className="space-y-1">
-                                  <div className="text-sm font-medium">Auth</div>
-                                  <div className="text-sm">API key</div>
-                                </div>
-                              </div>
-                              <div className="space-y-2">
-                                <div className="text-sm font-medium">Status Codes</div>
-                                {doc.statusCodes ? (
-                                  <div className="space-y-2">
-                                    {Object.entries(doc.statusCodes).map(([code, desc]) => (
-                                      <div key={code} className="flex items-center gap-3">
-                                        <Badge variant="outline" className="rounded-full font-mono text-[11px] px-2 py-1">
-                                          {code}
-                                        </Badge>
-                                        <div className="text-xs text-muted-foreground">
-                                          {desc}
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                ) : (
-                                  <div className="text-xs text-muted-foreground">No status codes documented yet</div>
-                                )}
-                              </div>
-                            </TabsContent>
-
-                            <TabsContent value="request" className="space-y-6 pt-4">
-                              <Tabs defaultValue="curl">
-                                <TabsList className="grid w-full grid-cols-3">
-                                  <TabsTrigger value="curl">Curl</TabsTrigger>
-                                  <TabsTrigger value="javascript">JavaScript</TabsTrigger>
-                                  <TabsTrigger value="python">Python</TabsTrigger>
-                                </TabsList>
-                                <TabsContent value="curl">
-                                  <div className="bg-muted rounded-lg border p-4 overflow-x-auto">
-                                    <pre className="text-xs sm:text-sm font-mono whitespace-pre leading-6">{curl}</pre>
-                                  </div>
-                                </TabsContent>
-                                <TabsContent value="javascript">
-                                  <div className="bg-muted rounded-lg border p-4 overflow-x-auto">
-                                    <pre className="text-xs sm:text-sm font-mono whitespace-pre leading-6">{js}</pre>
-                                  </div>
-                                </TabsContent>
-                                <TabsContent value="python">
-                                  <div className="bg-muted rounded-lg border p-4 overflow-x-auto">
-                                    <pre className="text-xs sm:text-sm font-mono whitespace-pre leading-6">{py}</pre>
-                                  </div>
-                                </TabsContent>
-                              </Tabs>
-
-                              <div className="grid md:grid-cols-2 gap-4">
-                                <div className="space-y-3">
-                                  {doc.id === 'doc-email-find' && (
-                                    <>
-                                      <div className="grid grid-cols-2 gap-3">
-                                        <div>
-                                          <Label className="text-sm font-medium">First name</Label>
-                                          <Input value={tryFindFirst} onChange={(e) => setTryFindFirst(e.target.value)} placeholder="John" className="rounded-lg" />
-                                        </div>
-                                        <div>
-                                          <Label className="text-sm font-medium">Last name</Label>
-                                          <Input value={tryFindLast} onChange={(e) => setTryFindLast(e.target.value)} placeholder="Doe" className="rounded-lg" />
-                                        </div>
-                                      </div>
-                                      <div>
-                                        <Label className="text-sm font-medium">Domain</Label>
-                                        <Input value={tryFindDomain} onChange={(e) => setTryFindDomain(e.target.value)} placeholder="example.com" className="rounded-lg" />
-                                      </div>
-                                      <Button onClick={runTryFind} disabled={tryFindLoading} className="rounded-lg px-6">
-                                        {tryFindLoading ? 'Running...' : 'Run API'}
-                                      </Button>
-                                    </>
-                                  )}
-                                  {doc.id === 'doc-email-verify' && (
-                                    <>
-                                      <div>
-                                        <Label className="text-sm font-medium">Email</Label>
-                                        <Input value={tryVerifyEmail} onChange={(e) => setTryVerifyEmail(e.target.value)} placeholder="john@example.com" className="rounded-lg" />
-                                      </div>
-                                      <Button onClick={runTryVerify} disabled={tryVerifyLoading} className="rounded-lg px-6">
-                                        {tryVerifyLoading ? 'Running...' : 'Run API'}
-                                      </Button>
-                                    </>
-                                  )}
-                                  {doc.id === 'doc-email-find-bulk' && (
-                                    <>
-                                      <div>
-                                        <Label className="text-sm font-medium">Items (one per line: first,last,domain)</Label>
-                                        <textarea value={tryFindBulkText} onChange={(e) => setTryFindBulkText(e.target.value)} placeholder="John,Doe,example.com\nJane,Smith,example.com" className="w-full rounded-lg border p-2 text-sm h-28" />
-                                      </div>
-                                      <Button onClick={runTryFindBulk} disabled={tryFindBulkLoading} className="rounded-lg px-6">
-                                        {tryFindBulkLoading ? 'Running...' : 'Run API'}
-                                      </Button>
-                                    </>
-                                  )}
-                                  {doc.id === 'doc-email-verify-bulk' && (
-                                    <>
-                                      <div>
-                                        <Label className="text-sm font-medium">Emails (one per line)</Label>
-                                        <textarea value={tryVerifyBulkText} onChange={(e) => setTryVerifyBulkText(e.target.value)} placeholder="john@example.com\njane@example.com" className="w-full rounded-lg border p-2 text-sm h-28" />
-                                      </div>
-                                      <Button onClick={runTryVerifyBulk} disabled={tryVerifyBulkLoading} className="rounded-lg px-6">
-                                        {tryVerifyBulkLoading ? 'Running...' : 'Run API'}
-                                      </Button>
-                                    </>
-                                  )}
-                                </div>
-                                <div className="space-y-3">
-                                  <div className="text-sm font-medium">Results</div>
-                                  <div className="bg-muted rounded-lg border p-4 space-y-3">
-                                    {doc.id === 'doc-email-find' && (
-                                      (() => {
-                                        const payload = unwrapData<Record<string, unknown>>(tryFindResult)
-                                        const email = getStr(payload, 'email') || null
-                                        const status = getStr(payload, 'status')
-                                        const confidence = getNum(payload, 'confidence')
-                                        const domain = getStr(payload, 'domain') || tryFindDomain || ''
-                                        const cls = statusBadgeClass(status)
-                                        return (
-                                          <div className="space-y-2">
-                                            <div className="flex items-center gap-2">
-                                              <div className="text-sm">Email:</div>
-                                              <div className="text-sm font-medium">{email || '-'}</div>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                              <div className="text-sm">Status:</div>
-                                              <Badge variant="outline" className={cn('text-xs border', cls)}>{statusLabel(status)}</Badge>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                              <div className="text-sm">Confidence:</div>
-                                              <div className="text-sm font-medium">{payload && typeof payload === 'object' && 'confidence' in payload ? `${Math.round(getNum(payload, 'confidence') * 100)}%` : '-'}</div>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                              <div className="text-sm">Domain:</div>
-                                              <div className="text-sm font-medium">{domain || '-'}</div>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                              <div className="text-sm">Time:</div>
-                                              <div className="text-sm font-medium">{tryFindDuration != null ? `${tryFindDuration}ms` : '-'}</div>
-                                            </div>
-                                          </div>
-                                        )
-                                      })()
-                                    )}
-                                    {doc.id === 'doc-email-verify' && (
-                                      (() => {
-                                        const payload = unwrapData<Record<string, unknown>>(tryVerifyResult)
-                                        const email = getStr(payload, 'email') || tryVerifyEmail || null
-                                        const status = getStr(payload, 'status')
-                                        const domain = getStr(payload, 'domain') || (((email || tryVerifyEmail || '').split('@')[1]) || '')
-                                        const cls = statusBadgeClass(status)
-                                        return (
-                                          <div className="space-y-2">
-                                            <div className="flex items-center gap-2">
-                                              <div className="text-sm">Email:</div>
-                                              <div className="text-sm font-medium">{email || '-'}</div>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                              <div className="text-sm">Status:</div>
-                                              <Badge variant="outline" className={cn('text-xs border', cls)}>{statusLabel(status)}</Badge>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                              <div className="text-sm">Domain:</div>
-                                              <div className="text-sm font-medium">{domain || '-'}</div>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                              <div className="text-sm">Time:</div>
-                                              <div className="text-sm font-medium">{tryVerifyDuration != null ? `${tryVerifyDuration}ms` : '-'}</div>
-                                            </div>
-                                          </div>
-                                        )
-                                      })()
-                                    )}
-                                    {doc.id === 'doc-email-find-bulk' && (
-                                      (() => {
-                                        const payloadObj = unwrapData<Record<string, unknown>>(tryFindBulkResult)
-                                        const resultsRaw = payloadObj ? (payloadObj['results'] as unknown) : undefined
-                                        const results = Array.isArray(resultsRaw) ? (resultsRaw as Array<Record<string, unknown>>) : []
-                                        return (
-                                          <div className="space-y-2">
-                                            <div className="flex items-center gap-2">
-                                              <div className="text-sm">Processed:</div>
-                                              <div className="text-sm font-medium">{results.length}</div>
-                                            </div>
-                                            <div className="flex flex-wrap gap-2">
-                                              {results.slice(0, 5).map((r: Record<string, unknown>, i: number) => (
-                                                <Badge
-                                                  key={i}
-                                                  variant="outline"
-                                                  className={cn('text-xs border', statusBadgeClass(getStr(r, 'status')))}
-                                                >
-                                                  {getStr(r, 'email') || getStr(r, 'first_name')}: {statusLabel(getStr(r, 'status'))}
-                                                </Badge>
-                                              ))}
-                                            </div>
-                                            <div className="space-y-2">
-                                              {results.slice(0, 5).map((r: Record<string, unknown>, i: number) => (
-                                                <div key={`details-${i}`} className="grid sm:grid-cols-2 gap-2 p-2 rounded border">
-                                                  <div className="flex items-center gap-2">
-                                                    <div className="text-sm">Email:</div>
-                                                    <div className="text-sm font-medium">{getStr(r, 'email') || '-'}</div>
-                                                  </div>
-                                                  <div className="flex items-center gap-2">
-                                                    <div className="text-sm">Status:</div>
-                                                    <Badge variant="outline" className={cn('text-xs border', statusBadgeClass(getStr(r, 'status')))}>{statusLabel(getStr(r, 'status'))}</Badge>
-                                                  </div>
-                                                  <div className="flex items-center gap-2">
-                                                    <div className="text-sm">Confidence:</div>
-                                                    <div className="text-sm font-medium">{r && typeof r === 'object' && 'confidence' in r ? `${Math.round(getNum(r, 'confidence') * 100)}%` : '-'}</div>
-                                                  </div>
-                                                  <div className="flex items-center gap-2">
-                                                    <div className="text-sm">Domain:</div>
-                                                    <div className="text-sm font-medium">{getStr(r, 'domain') || (((getStr(r, 'email') || '').split('@')[1]) || '-')}</div>
-                                                  </div>
-                                                </div>
-                                              ))}
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                              <div className="text-sm">Time:</div>
-                                              <div className="text-sm font-medium">{tryFindBulkDuration != null ? `${tryFindBulkDuration}ms` : '-'}</div>
-                                            </div>
-                                          </div>
-                                        )
-                                      })()
-                                    )}
-                                    {doc.id === 'doc-email-verify-bulk' && (
-                                      (() => {
-                                        const payloadObj = unwrapData<Record<string, unknown>>(tryVerifyBulkResult)
-                                        const resultsRaw = payloadObj ? (payloadObj['results'] as unknown) : undefined
-                                        const results = Array.isArray(resultsRaw) ? (resultsRaw as Array<Record<string, unknown>>) : []
-                                        return (
-                                          <div className="space-y-2">
-                                            <div className="flex items-center gap-2">
-                                              <div className="text-sm">Processed:</div>
-                                              <div className="text-sm font-medium">{results.length}</div>
-                                            </div>
-                                            <div className="flex flex-wrap gap-2">
-                                              {results.slice(0, 5).map((r: Record<string, unknown>, i: number) => (
-                                                <Badge
-                                                  key={i}
-                                                  variant="outline"
-                                                  className={cn('text-xs border', statusBadgeClass(getStr(r, 'status')))}
-                                                >
-                                                  {getStr(r, 'email')}: {statusLabel(getStr(r, 'status'))}
-                                                </Badge>
-                                              ))}
-                                            </div>
-                                            <div className="space-y-2">
-                                              {results.slice(0, 5).map((r: Record<string, unknown>, i: number) => (
-                                                <div key={`v-details-${i}`} className="grid sm:grid-cols-2 gap-2 p-2 rounded border">
-                                                  <div className="flex items-center gap-2">
-                                                    <div className="text-sm">Email:</div>
-                                                    <div className="text-sm font-medium">{getStr(r, 'email') || '-'}</div>
-                                                  </div>
-                                                  <div className="flex items-center gap-2">
-                                                    <div className="text-sm">Status:</div>
-                                                    <Badge variant="outline" className={cn('text-xs border', statusBadgeClass(getStr(r, 'status')))}>{statusLabel(getStr(r, 'status'))}</Badge>
-                                                  </div>
-                                                  <div className="flex items-center gap-2">
-                                                    <div className="text-sm">Confidence:</div>
-                                                    <div className="text-sm font-medium">{r && typeof r === 'object' && 'confidence' in r ? `${Math.round(getNum(r, 'confidence') * 100)}%` : '-'}</div>
-                                                  </div>
-                                                  <div className="flex items-center gap-2">
-                                                    <div className="text-sm">Domain:</div>
-                                                    <div className="text-sm font-medium">{getStr(r, 'domain') || (((getStr(r, 'email') || '').split('@')[1]) || '-')}</div>
-                                                  </div>
-                                                </div>
-                                              ))}
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                              <div className="text-sm">Time:</div>
-                                              <div className="text-sm font-medium">{tryVerifyBulkDuration != null ? `${tryVerifyBulkDuration}ms` : '-'}</div>
-                                            </div>
-                                          </div>
-                                        )
-                                      })()
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            </TabsContent>
-
-                            <TabsContent value="response" className="space-y-6 pt-4">
-                              <div className="rounded-xl border p-4 sm:p-6 shadow-sm">
-                                {doc.id === 'doc-email-find' && (
-                                  (() => {
-                                    const payload = unwrapData<Record<string, unknown>>(tryFindResult)
-                                    const email = getStr(payload, 'email') || null
-                                    const status = getStr(payload, 'status')
-                                    const confidence = getNum(payload, 'confidence')
-                                    const domain = getStr(payload, 'domain') || tryFindDomain || ''
-                                    const cls = statusBadgeClass(status)
-                                    return (
-                                      <div className="space-y-3">
-                                        <div className="text-lg font-semibold">Result</div>
-                                        <div className="grid sm:grid-cols-2 gap-3">
-                                          <div className="space-y-1">
-                                            <div className="text-sm font-medium">Email</div>
-                                            <div className="text-sm">{email || '-'}</div>
-                                          </div>
-                                          <div className="space-y-1">
-                                            <div className="text-sm font-medium">Status</div>
-                                            <Badge variant="outline" className={cn('text-xs border', cls)}>{statusLabel(status)}</Badge>
-                                          </div>
-                                          <div className="space-y-1">
-                                            <div className="text-sm font-medium">Confidence</div>
-                                            <div className="text-sm">{payload && typeof payload === 'object' && 'confidence' in payload ? `${Math.round(getNum(payload, 'confidence') * 100)}%` : '-'}</div>
-                                          </div>
-                                          <div className="space-y-1">
-                                            <div className="text-sm font-medium">Domain</div>
-                                            <div className="text-sm">{domain || '-'}</div>
-                                          </div>
-                                          <div className="space-y-1">
-                                            <div className="text-sm font-medium">Time</div>
-                                            <div className="text-sm">{tryFindDuration != null ? `${tryFindDuration}ms` : '-'}</div>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    )
-                                  })()
-                                )}
-                                {doc.id === 'doc-email-verify' && (
-                                  (() => {
-                                    const payload = unwrapData<Record<string, unknown>>(tryVerifyResult)
-                                    const email = getStr(payload, 'email') || tryVerifyEmail || null
-                                    const status = getStr(payload, 'status')
-                                    const domain = getStr(payload, 'domain') || (((email || tryVerifyEmail || '').split('@')[1]) || '')
-                                    const cls = statusBadgeClass(status)
-                                    return (
-                                      <div className="space-y-3">
-                                        <div className="text-lg font-semibold">Result</div>
-                                        <div className="grid sm:grid-cols-2 gap-3">
-                                          <div className="space-y-1">
-                                            <div className="text-sm font-medium">Email</div>
-                                            <div className="text-sm">{email || '-'}</div>
-                                          </div>
-                                          <div className="space-y-1">
-                                            <div className="text-sm font-medium">Status</div>
-                                            <Badge variant="outline" className={cn('text-xs border', cls)}>{statusLabel(status)}</Badge>
-                                          </div>
-                                          <div className="space-y-1">
-                                            <div className="text-sm font-medium">Domain</div>
-                                            <div className="text-sm">{domain || '-'}</div>
-                                          </div>
-                                          <div className="space-y-1">
-                                            <div className="text-sm font-medium">Time</div>
-                                            <div className="text-sm">{tryVerifyDuration != null ? `${tryVerifyDuration}ms` : '-'}</div>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    )
-                                  })()
-                                )}
-                                {doc.id === 'doc-email-find-bulk' && (
-                                  (() => {
-                                    const payloadObj = unwrapData<Record<string, unknown>>(tryFindBulkResult)
-                                    const resultsRaw = payloadObj ? (payloadObj['results'] as unknown) : undefined
-                                    const results = Array.isArray(resultsRaw) ? (resultsRaw as Array<Record<string, unknown>>) : []
-                                    return (
-                                      <div className="space-y-3">
-                                        <div className="text-lg font-semibold">Results</div>
-                                        <div className="space-y-2">
-                                          <div className="text-sm">Processed {results.length}</div>
-                                          <div className="flex flex-wrap gap-2">
-                                            {results.slice(0, 10).map((r: Record<string, unknown>, i: number) => (
-                                              <Badge
-                                                key={i}
-                                                variant="outline"
-                                                className={cn('text-xs border', statusBadgeClass(getStr(r, 'status')))}
-                                              >
-                                                {getStr(r, 'email') || getStr(r, 'first_name')}: {statusLabel(getStr(r, 'status'))}
-                                              </Badge>
-                                            ))}
-                                          </div>
-                                          <div className="space-y-2">
-                                            {results.slice(0, 10).map((r: Record<string, unknown>, i: number) => (
-                                              <div key={`resp-details-${i}`} className="grid sm:grid-cols-2 gap-2 p-2 rounded border">
-                                                <div className="flex items-center gap-2">
-                                                  <div className="text-sm">Email:</div>
-                                                  <div className="text-sm font-medium">{getStr(r, 'email') || '-'}</div>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                  <div className="text-sm">Status:</div>
-                                                  <Badge variant="outline" className={cn('text-xs border', statusBadgeClass(getStr(r, 'status')))}>{statusLabel(getStr(r, 'status'))}</Badge>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                  <div className="text-sm">Confidence:</div>
-                                                  <div className="text-sm font-medium">{r && typeof r === 'object' && 'confidence' in r ? `${Math.round(getNum(r, 'confidence') * 100)}%` : '-'}</div>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                  <div className="text-sm">Domain:</div>
-                                                  <div className="text-sm font-medium">{getStr(r, 'domain') || (((getStr(r, 'email') || '').split('@')[1]) || '-')}</div>
-                                                </div>
-                                              </div>
-                                            ))}
-                                          </div>
-                                          <div className="text-sm">Time {tryFindBulkDuration != null ? `${tryFindBulkDuration}ms` : '-'}</div>
-                                        </div>
-                                      </div>
-                                    )
-                                  })()
-                                )}
-                                {doc.id === 'doc-email-verify-bulk' && (
-                                  (() => {
-                                    const payloadObj = unwrapData<Record<string, unknown>>(tryVerifyBulkResult)
-                                    const resultsRaw = payloadObj ? (payloadObj['results'] as unknown) : undefined
-                                    const results = Array.isArray(resultsRaw) ? (resultsRaw as Array<Record<string, unknown>>) : []
-                                    return (
-                                      <div className="space-y-3">
-                                        <div className="text-lg font-semibold">Results</div>
-                                        <div className="space-y-2">
-                                          <div className="text-sm">Processed {results.length}</div>
-                                          <div className="flex flex-wrap gap-2">
-                                            {results.slice(0, 10).map((r: Record<string, unknown>, i: number) => (
-                                              <Badge
-                                                key={i}
-                                                variant="outline"
-                                                className={cn('text-xs border', statusBadgeClass(getStr(r, 'status')))}
-                                              >
-                                                {getStr(r, 'email')}: {statusLabel(getStr(r, 'status'))}
-                                              </Badge>
-                                            ))}
-                                          </div>
-                                          <div className="space-y-2">
-                                            {results.slice(0, 10).map((r: Record<string, unknown>, i: number) => (
-                                              <div key={`v-resp-details-${i}`} className="grid sm:grid-cols-2 gap-2 p-2 rounded border">
-                                                <div className="flex items-center gap-2">
-                                                  <div className="text-sm">Email:</div>
-                                                  <div className="text-sm font-medium">{getStr(r, 'email') || '-'}</div>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                  <div className="text-sm">Status:</div>
-                                                  <Badge variant="outline" className={cn('text-xs border', statusBadgeClass(getStr(r, 'status')))}>{statusLabel(getStr(r, 'status'))}</Badge>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                  <div className="text-sm">Confidence:</div>
-                                                  <div className="text-sm font-medium">{r && typeof r === 'object' && 'confidence' in r ? `${Math.round(getNum(r, 'confidence') * 100)}%` : '-'}</div>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                  <div className="text-sm">Domain:</div>
-                                                  <div className="text-sm font-medium">{getStr(r, 'domain') || (((getStr(r, 'email') || '').split('@')[1]) || '-')}</div>
-                                                </div>
-                                              </div>
-                                            ))}
-                                          </div>
-                                          <div className="text-sm">Time {tryVerifyBulkDuration != null ? `${tryVerifyBulkDuration}ms` : '-'}</div>
-                                        </div>
-                                      </div>
-                                    )
-                                  })()
-                                )}
-                              </div>
-                              <div className="space-y-2">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => setShowRawJson(prev => ({ ...prev, [doc.id]: !prev[doc.id] }))}
-                                  className="rounded-lg"
-                                >
-                                  {showRawJson[doc.id] ? 'Hide Raw JSON' : 'View Raw JSON'}
-                                </Button>
-                                {showRawJson[doc.id] && (
-                                  <div className="bg-muted rounded-lg border p-4 overflow-x-auto">
-                                    <pre className="text-xs sm:text-sm font-mono whitespace-pre leading-6">
-                                      {(() => {
-                                        const value =
-                                          doc.id === 'doc-email-find' ? tryFindResult :
-                                          doc.id === 'doc-email-verify' ? tryVerifyResult :
-                                          doc.id === 'doc-email-find-bulk' ? tryFindBulkResult :
-                                          tryVerifyBulkResult
-                                        return stringifyJson(value as unknown)
-                                      })()}
-                                    </pre>
-                                  </div>
-                                )}
-                              </div>
-                            </TabsContent>
-                          </Tabs>
+                        <pre className="font-mono-code text-xs overflow-x-auto text-pink-200/90 py-2 leading-relaxed">
+                          <code>{snippet}</code>
+                        </pre>
+                        <div className="flex items-center justify-between pt-3 border-t border-gray-800 text-[11px] text-gray-400 gap-3">
+                          <span className="flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                            HTTPS encrypted
+                          </span>
+                          <span className="truncate">{doc.name}</span>
                         </div>
                       </div>
-                    </CardContent>
-                  </Card>
+
+                      {/* Sample response */}
+                      <div className="lg:col-span-5 bg-gray-50 dark:bg-white/5 rounded-xl p-4 flex flex-col justify-between border border-gray-200 dark:border-white/10 shadow-2xs">
+                        <div className="flex items-center justify-between pb-2 gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-ink dark:text-white">Sample Response</span>
+                            <span className="px-2 py-0.5 rounded bg-[#ECFDF5] border border-emerald-200 text-[#059669] font-mono-code text-[11px] font-bold dark:bg-[#059669]/15 dark:border-[#059669]/30">
+                              200 OK
+                            </span>
+                          </div>
+                        </div>
+                        <pre className="font-mono-code text-xs overflow-x-auto text-ink dark:text-gray-200 bg-white dark:bg-[#111] p-3.5 rounded-lg border border-gray-200 dark:border-white/10 leading-snug max-h-72">
+                          {stringifyJson(doc.success)}
+                        </pre>
+                        <div className="flex items-center justify-between pt-2 text-xs text-gray-500 gap-2">
+                          <span className="truncate">{doc.description}</span>
+                          <span className="font-mono-code text-[11px] text-gray-400 shrink-0">Format: JSON</span>
+                        </div>
+                      </div>
+                    </div>
+                  </>
                 )
-              })}
+              })()}
             </TabsContent>
           </Tabs>
         </div>
