@@ -229,8 +229,13 @@ export default function FindPage() {
       {/* Page header */}
       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
         <div>
-          <p className="text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1">
+          <p className="flex items-center gap-2 text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1">
             Prospecting Engine
+            <span aria-hidden="true">•</span>
+            <span className="flex items-center gap-1.5 text-[#059669] normal-case tracking-normal font-mono-code font-medium">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#059669]" />
+              SMTP Engine Online
+            </span>
           </p>
           <h1 className="text-2xl font-bold tracking-tight text-ink dark:text-white">Find Email</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
@@ -280,6 +285,9 @@ export default function FindPage() {
         >
           <UploadCloud className="h-[17px] w-[17px]" />
           Bulk File Upload (CSV)
+          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-white dark:bg-white/10 border border-gray-200 dark:border-white/10 text-ink-muted">
+            Up to 50k
+          </span>
         </button>
       </div>
 

@@ -2,12 +2,11 @@
 
 import { useState, useRef } from 'react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
+import { Card, CardContent } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
 import { toast } from 'sonner'
-import { Upload, Download, Play, Users, CheckCircle, AlertTriangle } from 'lucide-react'
+import { Upload, Download, Play, CheckCircle, AlertTriangle, UploadCloud, FileText } from 'lucide-react'
 import Papa from 'papaparse'
 import * as XLSX from 'xlsx'
 // Job endpoints are not available; direct bulk find only
@@ -131,6 +130,7 @@ export function BulkFinderWorkspace({ showHeader = true }: { showHeader?: boolea
   const [originalFileNameWithExt, setOriginalFileNameWithExt] = useState<string | null>(null)
   const [originalColumnOrder, setOriginalColumnOrder] = useState<string[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [isDragging, setIsDragging] = useState(false)
   const { invalidateCreditsData } = useQueryInvalidation()
   const [isProcessingDirect, setIsProcessingDirect] = useState(false)
   const [progressDirect, setProgressDirect] = useState(0)
@@ -146,10 +146,35 @@ export function BulkFinderWorkspace({ showHeader = true }: { showHeader?: boolea
 
   // No job-based endpoints on backend; page runs direct bulk find only
 
+  /**
+   * Client-side sample CSV. Columns match what findColumnMapping already
+   * accepts, so a downloaded template always imports cleanly. No network call.
+   */
+  const downloadSampleTemplate = () => {
+    const csv = [
+      'first_name,last_name,domain,role',
+      'Marc,Benioff,salesforce.com,CEO',
+      'Satya,Nadella,microsoft.com,',
+    ].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'mailsfinder-bulk-find-template.csv'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
+    processFile(file)
+  }
 
+  /** Parses a chosen file. Shared by the file picker and the drop zone. */
+  const processFile = (file: File) => {
     // Store the original filename (without extension for later use)
     const fileName = file.name.replace(/\.[^/.]+$/, '') // Remove extension
     setOriginalFileName(fileName)
@@ -539,59 +564,125 @@ export function BulkFinderWorkspace({ showHeader = true }: { showHeader?: boolea
       {/* Active Jobs Banner (top) */}
       <ActiveJobsBanner />
 
-      {/* Upload and Actions */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Users className="h-5 w-5" />
-            Bulk Operations
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-4">
-            <div>
-              <Label htmlFor="file-upload" className="sr-only">
-                Upload CSV/XLSX
-              </Label>
-              <Input
-                id="file-upload"
-                type="file"
-                accept=".csv,.xlsx,.xls"
-                onChange={handleFileUpload}
-                ref={fileInputRef}
-                className="hidden"
-              />
-              <Button
-                variant="outline"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isProcessingDirect}
-              >
-                <Upload className="mr-2 h-4 w-4" />
-                Upload CSV/XLSX
-              </Button>
-            </div>
-            
+      {/* Upload zone — Stitch "Bulk File Upload (CSV)" design */}
+      <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 p-8 sm:p-12 rounded-xl shadow-card flex flex-col items-center justify-center text-center">
+        <div className="w-16 h-16 rounded-2xl bg-brand-light dark:bg-brand/15 border border-brand-border dark:border-brand/30 text-brand flex items-center justify-center mb-4">
+          <UploadCloud className="h-8 w-8" />
+        </div>
+        <h3 className="text-xl font-bold text-ink dark:text-white mb-1">
+          Upload CSV for bulk email finding
+        </h3>
+        <p className="text-sm text-gray-500 dark:text-gray-400 max-w-lg mb-6 leading-relaxed">
+          Drag &amp; drop your formatted CSV list. Ensure your columns contain{' '}
+          <code className="font-mono-code text-[13px] text-ink dark:text-gray-200">first_name</code>,{' '}
+          <code className="font-mono-code text-[13px] text-ink dark:text-gray-200">last_name</code>, and{' '}
+          <code className="font-mono-code text-[13px] text-ink dark:text-gray-200">domain</code>.
+        </p>
 
-            
-            {/* Submit job removed */}
-            <Button
-              onClick={runDirectFind}
-              disabled={rows.length === 0 || isProcessingDirect}
-            >
-              <Play className="mr-2 h-4 w-4" />
-              {isProcessingDirect ? 'Processing...' : 'Start Direct Bulk Find'}
-            </Button>
-            <Button
-              variant="outline"
-              onClick={downloadDirectResults}
-              disabled={rows.length === 0 || isProcessingDirect}
-            >
-              <Download className="mr-2 h-4 w-4" />
-              Download Results
-            </Button>
+        <Label htmlFor="file-upload" className="sr-only">
+          Upload CSV/XLSX
+        </Label>
+        <input
+          id="file-upload"
+          type="file"
+          accept=".csv,.xlsx,.xls"
+          onChange={handleFileUpload}
+          ref={fileInputRef}
+          className="hidden"
+        />
+
+        {/* Drag & drop zone */}
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => !isProcessingDirect && fileInputRef.current?.click()}
+          onKeyDown={(e) => {
+            if ((e.key === 'Enter' || e.key === ' ') && !isProcessingDirect) {
+              e.preventDefault()
+              fileInputRef.current?.click()
+            }
+          }}
+          onDragOver={(e) => {
+            e.preventDefault()
+            if (!isProcessingDirect) setIsDragging(true)
+          }}
+          onDragLeave={() => setIsDragging(false)}
+          onDrop={(e) => {
+            e.preventDefault()
+            setIsDragging(false)
+            if (isProcessingDirect) return
+            const dropped = e.dataTransfer.files?.[0]
+            if (dropped) processFile(dropped)
+          }}
+          className={`w-full max-w-xl p-8 rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-3 transition-all group outline-none focus-visible:ring-[3px] focus-visible:ring-brand/15 ${
+            isProcessingDirect
+              ? 'cursor-not-allowed opacity-60 bg-[#F8FAFC] dark:bg-white/5 border-gray-200 dark:border-white/10'
+              : isDragging
+                ? 'cursor-pointer border-brand bg-brand-light/40 dark:bg-brand/10'
+                : 'cursor-pointer bg-[#F8FAFC] dark:bg-white/5 border-gray-200 dark:border-white/10 hover:border-brand/50 hover:bg-brand-light/20 dark:hover:bg-brand/5'
+          }`}
+        >
+          <FileText className="h-10 w-10 text-gray-400 group-hover:text-brand transition-colors" />
+          <div className="flex flex-col items-center">
+            <span className="text-sm font-bold text-ink dark:text-white">
+              Select CSV file or drop here
+            </span>
+            <span className="text-xs text-gray-400 mt-1">
+              UTF-8 .csv files up to 25MB (up to 50,000 leads)
+            </span>
           </div>
-        </CardContent>
-      </Card>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              fileInputRef.current?.click()
+            }}
+            disabled={isProcessingDirect}
+            className="mt-2 px-4 py-2 rounded-lg bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 text-brand font-semibold text-xs shadow-2xs hover:border-brand transition-colors disabled:opacity-60"
+          >
+            Browse Computer
+          </button>
+        </div>
+
+        <div className="flex items-center gap-4 mt-6 text-xs text-gray-500 dark:text-gray-400 font-medium">
+          <button
+            type="button"
+            onClick={downloadSampleTemplate}
+            className="flex items-center gap-1 text-brand hover:underline"
+          >
+            <Download className="h-[15px] w-[15px]" />
+            Download sample CSV template
+          </button>
+          <span aria-hidden="true">•</span>
+          <span>Automatic column mapping included</span>
+        </div>
+      </div>
+
+      {/* Actions — unchanged behaviour, shown once a file is loaded */}
+      {rows.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3">
+          <Button onClick={runDirectFind} disabled={rows.length === 0 || isProcessingDirect}>
+            <Play className="mr-2 h-4 w-4" />
+            {isProcessingDirect ? 'Processing...' : 'Start Direct Bulk Find'}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={downloadDirectResults}
+            disabled={rows.length === 0 || isProcessingDirect}
+          >
+            <Download className="mr-2 h-4 w-4" />
+            Download Results
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isProcessingDirect}
+          >
+            <Upload className="mr-2 h-4 w-4" />
+            Replace file
+          </Button>
+        </div>
+      )}
 
 
 
