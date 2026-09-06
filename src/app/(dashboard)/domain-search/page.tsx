@@ -285,14 +285,19 @@ export default function DomainSearchPage() {
 
   return (
     <div className="max-w-5xl mx-auto space-y-8">
-      <div className="text-center space-y-2">
-        <div className="inline-flex items-center justify-center h-12 w-12 rounded-2xl bg-[var(--primary)]/10 text-[var(--primary)]">
-          <MailSearch className="h-6 w-6" />
+      <div className="flex items-start gap-3">
+        <span className="inline-flex items-center justify-center h-10 w-10 shrink-0 rounded-lg bg-brand-light dark:bg-brand/15 text-brand">
+          <MailSearch className="h-5 w-5" />
+        </span>
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">
+            Prospecting Engine
+          </p>
+          <h1 className="text-2xl font-bold tracking-tight text-ink dark:text-white">Domain Search</h1>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            Find every email at any company in seconds.
+          </p>
         </div>
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Domain Search</h1>
-        <p className="text-gray-600 dark:text-gray-300">
-          Find every email at any company in seconds.
-        </p>
       </div>
 
       <Card className="shadow-md border-gray-200 dark:border-white/10">
@@ -309,7 +314,7 @@ export default function DomainSearchPage() {
                   onChange={(e) => { setDomainInput(e.target.value); if (formError) setFormError(null) }}
                   disabled={previewLoading}
                   autoComplete="off"
-                  className="flex-1 text-[#1b1c1b] dark:text-white placeholder-[#5a4042]/50 dark:placeholder-[#e2bebf]/50"
+                  className="flex-1"
                 />
                 <Button type="submit" disabled={previewLoading || !domainInput.trim()} className="sm:px-6">
                   <Search className="mr-2 h-4 w-4" />

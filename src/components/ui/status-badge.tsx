@@ -3,27 +3,55 @@ import { Badge } from '@/components/ui/badge'
 /**
  * Shared verification/find status badge.
  *
- * Class strings are intentionally identical to the original inline version in
- * `recent-results-table.tsx` so every existing surface keeps rendering exactly
- * the same colours in light and dark mode.
+ * Styling follows the Stitch "Chips & Verification Status Badges" spec:
+ * a 24px pill with a 6px semantic dot — emerald for deliverable, amber for
+ * risky/catch-all, red for invalid, slate for unknown/guessed.
+ *
+ * The status values and labels are unchanged; only the presentation differs.
  */
+function Dot({ className }: { className: string }) {
+  return <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full shrink-0 ${className}`} />
+}
+
+const VALID =
+  'bg-[#ECFDF5] text-[#059669] border-[#A7F3D0] dark:bg-[#059669]/15 dark:text-[#34D399] dark:border-[#059669]/30'
+const RISKY =
+  'bg-[#FFFBEB] text-[#D97706] border-[#FDE68A] dark:bg-[#D97706]/15 dark:text-[#FBBF24] dark:border-[#D97706]/30'
+
 export function StatusBadge({ status }: { status: string }) {
   const s = (status || '').toLowerCase()
+
   if (s === 'valid' || s === 'found') {
-    return <Badge className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 border-green-200 dark:border-green-800">{s === 'found' ? 'Found' : 'Valid'}</Badge>
+    return (
+      <Badge className={VALID}>
+        <Dot className="bg-[#059669] dark:bg-[#34D399]" />
+        {s === 'found' ? 'Found' : 'Valid'}
+      </Badge>
+    )
   }
   if (s === 'invalid') {
-    // `text-destructive-foreground` from the destructive variant resolves to
-    // nothing (--destructive-foreground is not defined), so the label inherits
-    // its parent colour — near-black on red in light mode. Force white there.
-    // `dark:text-inherit` keeps dark mode on the existing inherited colour.
-    return <Badge variant="destructive" className="text-white dark:text-inherit">Invalid</Badge>
+    return (
+      <Badge variant="destructive">
+        <Dot className="bg-[#DC2626] dark:bg-[#F87171]" />
+        Invalid
+      </Badge>
+    )
   }
   if (s === 'risky' || s === 'catch_all') {
-    return <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 border-amber-200 dark:border-amber-800">{s === 'catch_all' ? 'Catch-All' : 'Risky'}</Badge>
+    return (
+      <Badge className={RISKY}>
+        <Dot className="bg-[#D97706] dark:bg-[#FBBF24]" />
+        {s === 'catch_all' ? 'Catch-All' : 'Risky'}
+      </Badge>
+    )
   }
   if (s === 'unknown' || s === 'guessed') {
-    return <Badge variant="secondary">{s === 'guessed' ? 'Guessed' : 'Unknown'}</Badge>
+    return (
+      <Badge variant="secondary">
+        <Dot className="bg-[#94A3B8]" />
+        {s === 'guessed' ? 'Guessed' : 'Unknown'}
+      </Badge>
+    )
   }
   return <Badge variant="outline">{status || 'Unknown'}</Badge>
 }

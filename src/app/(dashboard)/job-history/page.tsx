@@ -5,10 +5,13 @@ import { ActiveJobsBanner } from '@/components/active-jobs-banner'
 
 export default function JobHistoryPage() {
   return (
-    <div className="max-w-6xl mx-auto space-y-8">
+    <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Job History</h1>
-        <p className="text-gray-600 dark:text-gray-400 mt-2">
+        <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">
+          Processing Queue
+        </p>
+        <h1 className="text-2xl font-bold tracking-tight text-ink dark:text-white">Job History</h1>
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
           View and manage your bulk find and verify jobs.
         </p>
       </div>

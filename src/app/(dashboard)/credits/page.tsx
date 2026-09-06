@@ -241,8 +241,8 @@ if (isPurchaseArray(parsed)) {
       {
         label: 'Credits Used',
         data: filledUsage.map(item => item.totalCreditsUsed),
-        borderColor: '#b71d3f',
-        backgroundColor: 'rgba(183, 29, 63, 0.10)',
+        borderColor: '#b71d40',
+        backgroundColor: 'rgba(183, 29, 64, 0.10)',
         tension: 0.1,
         fill: true
       }
@@ -753,13 +753,14 @@ if (isPurchaseArray(parsed)) {
   }
 
   return (
-    <div className="credits-page max-w-4xl mx-auto space-y-8">
-
-      
+    <div className="credits-page max-w-5xl space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Credits & Billing</h1>
-        <p className="text-gray-600 mt-2">
-          Manage your credits and billing information.
+        <p className="text-[11px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">
+          Enterprise Ledger
+        </p>
+        <h1 className="text-2xl font-bold tracking-tight text-ink dark:text-white">Billing &amp; Quota</h1>
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+          Monitor credit burn rate, subscription status and billing history.
         </p>
       </div>
 

@@ -7,7 +7,9 @@ function Card({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="card"
       className={cn(
-        "bg-background dark:bg-[#2a2a2a] text-foreground flex flex-col gap-6 rounded-xl border border-[rgba(226,190,191,0.2)] py-6 shadow-sm transition-all duration-300 ease-out motion-reduce:transition-none hover:-translate-y-0.5 hover:shadow-md",
+        // Stitch Layer 1: white surface, 1px hairline micro-border, ambient
+        // shadow; hover lifts the border tone rather than adding heavy shadow.
+        "bg-white dark:bg-[#1a1a1a] text-foreground flex flex-col gap-6 rounded-xl border border-gray-200 dark:border-white/10 py-6 shadow-card transition-all duration-200 ease-out motion-reduce:transition-none hover:border-gray-300 dark:hover:border-white/20 hover:shadow-card-hover",
         className
       )}
       {...props}

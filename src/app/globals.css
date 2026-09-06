@@ -1,4 +1,5 @@
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 @import "tailwindcss";
 @import "tw-animate-css";
@@ -6,6 +7,30 @@
 
 
 @custom-variant dark (&:is(.dark *));
+
+/* ---------------------------------------------------------------
+   Stitch design tokens — "Email Intelligence & Prospecting System"
+   Source of truth: Stitch project 6968732847106623467.
+   These generate the brand/ink/canvas utilities used across the app
+   (bg-brand, text-brand, border-brand-border, text-ink-muted, ...)
+   so the Stitch markup can be reproduced directly.
+   --------------------------------------------------------------- */
+@theme {
+  --color-brand: #b71d40;
+  --color-brand-hover: #9f1239;
+  --color-brand-light: #fff1f2;
+  --color-brand-border: #ffe4e6;
+  --color-brand-dark: #92002c;
+
+  --color-ink: #0b0f17;
+  --color-ink-muted: #64748b;
+  --color-ink-subtle: #94a3b8;
+  --color-canvas: #f8fafc;
+  --color-hairline: #e2e8f0;
+
+  --font-display: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
 
 @theme inline {
   --color-background: var(--background);
@@ -48,41 +73,44 @@
 }
 
 :root {
+  /* Stitch: rounded.md = 0.75rem, cards use 12px, buttons 8px */
   --radius: 0.75rem;
    --font-geist-sans: 'Space Grotesk';
-  --background: #fbf9f8;
-  --foreground: #1b1c1b;
-  --card: #fbf9f8;
-  --card-foreground: #1b1c1b;
-  --popover: #fbf9f8;
-  --popover-foreground: #1b1c1b;
-  --primary: #b71d3f; 
+  /* Stitch Layer 0 canvas + ink */
+  --background: #f8fafc;
+  --foreground: #0b0f17;
+  --card: #ffffff;
+  --card-foreground: #0b0f17;
+  --popover: #ffffff;
+  --popover-foreground: #0b0f17;
+  --primary: #b71d40;
   --primary-foreground: #ffffff;
-  --gradient-start: #b71d3f;
-  --gradient-end: #fc536d;
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: #5a4042; 
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: rgba(226, 190, 191, 0.3); 
-  --input: rgba(226, 190, 191, 0.4);
-  --ring: #b71d3f;
-  --chart-1: #b71d3f;
+  --gradient-start: #b71d40;
+  --gradient-end: #9f1239;
+  --secondary: #f1f5f9;
+  --secondary-foreground: #0b0f17;
+  --muted: #f1f5f9;
+  --muted-foreground: #64748b;
+  --accent: #fff1f2;
+  --accent-foreground: #b71d40;
+  --destructive: #dc2626;
+  /* Stitch Layer 1 micro-border */
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --ring: #b71d40;
+  --chart-1: #b71d40;
   --chart-2: #fc536d;
   --chart-3: #ff8fa3;
   --chart-4: #ffb3c1;
   --chart-5: #ffd6dc;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: #b71d3f;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #0b0f17;
+  --sidebar-primary: #b71d40;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: #b71d3f;
+  --sidebar-accent: #fff1f2;
+  --sidebar-accent-foreground: #b71d40;
+  --sidebar-border: #e2e8f0;
+  --sidebar-ring: #b71d40;
   --edge-base-0: rgba(0,0,0,0);
   --edge-graphite: rgba(46,49,53,0.75);
   --edge-steel: rgba(106,133,166,0.30);
@@ -99,7 +127,7 @@
   --popover: #2a2a2a;
   --popover-foreground: #fbf9f8;
 
-  --primary: #b71d3f;
+  --primary: #b71d40;
   --primary-foreground: #ffffff;
 
   --secondary: #1f1f1f;
@@ -176,11 +204,6 @@
     min-height: 100vh;
   }
 
-  /* Hide top logo in header only */
-  header a[href="/home"] {
-    display: none !important;
-  }
-
   /* Credits page background consistency in dark mode */
   .dark .credits-page {
     background-color: #1b1c1b !important;
@@ -240,6 +263,19 @@
 }
 
 @layer utilities {
+  /* Stitch elevation model: crisp micro-borders over heavy shadows */
+  .shadow-card {
+    box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.04), 0 1px 2px -1px rgba(15, 23, 42, 0.02);
+  }
+  .shadow-card-hover {
+    box-shadow: 0 4px 12px -2px rgba(15, 23, 42, 0.06), 0 2px 6px -2px rgba(15, 23, 42, 0.04);
+  }
+  .shadow-layer2 {
+    box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.08), 0 8px 10px -6px rgba(15, 23, 42, 0.04);
+  }
+  .font-mono-code {
+    font-family: var(--font-mono);
+  }
   .animate-fade-in {
     animation: fade-in 300ms ease-out both;
   }

@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,11 +10,27 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { User, LogOut, Search, Users, CheckCircle, Code2, Globe } from 'lucide-react'
+import { LogOut, Menu, Zap, Search, Settings as SettingsIcon, Sun, Moon } from 'lucide-react'
 import { apiGet } from '@/lib/api'
 import { OnboardingFlow } from '@/components/onboarding-flow'
+import { AppSidebar } from '@/components/app-sidebar'
 import { toast } from 'sonner'
 import { useUserProfile } from '@/hooks/useCreditsData'
+
+/** Breadcrumb labels for the Stitch top bar, keyed by route. */
+const PAGE_LABELS: Record<string, string> = {
+  '/home': 'Dashboard',
+  '/find': 'Find Email',
+  '/bulk-finder': 'Bulk Find',
+  '/verify': 'Verify Email',
+  '/domain-search': 'Domain Search',
+  '/api-calls': 'API & Webhooks',
+  '/credits': 'Billing & Quota',
+  '/upgrade': 'Upgrade Plan',
+  '/job-history': 'Job History',
+  '/user': 'Settings',
+  '/video-tutorials': 'Video Tutorials',
+}
 
 interface DashboardLayoutProps {
   children: React.ReactNode
@@ -36,6 +51,7 @@ interface DashboardLayoutProps {
 
 export function DashboardLayout({ children, userProfile }: DashboardLayoutProps) {
   const [isDark, setIsDark] = useState(false)
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
   // Backend now returns the unified spendable total in `available_credits`.
   // Fall back to summing the legacy split for any cached/stale payloads.
   const initialCredits = Math.max(
@@ -50,6 +66,24 @@ const [currentProfile, setCurrentProfile] = useState({
   const router = useRouter()
   const pathname = usePathname()
   const { data: queryProfile } = useUserProfile()
+
+  // Derived view-model for the Stitch shell (display only — no data changes).
+  const creditsDisplay = Math.max(Number(currentProfile.credits || 0), 0)
+  const pageLabel =
+    PAGE_LABELS[pathname] ??
+    Object.entries(PAGE_LABELS).find(([route]) => pathname.startsWith(route + '/'))?.[1] ??
+    'Workspace'
+  const headerInitials = (() => {
+    const source = (currentProfile.full_name || currentProfile.email || 'U').trim()
+    const parts = source.split(/[\s@.]+/).filter(Boolean)
+    return ((parts[0]?.[0] || 'U') + (parts[1]?.[0] || '')).toUpperCase()
+  })()
+  const sidebarProfile = {
+    full_name: currentProfile.full_name,
+    email: currentProfile.email,
+    credits: creditsDisplay,
+    plan: currentProfile.plan,
+  }
 
   useEffect(() => {
     const stored = typeof window !== 'undefined' ? localStorage.getItem('theme') : null
@@ -265,187 +299,152 @@ const [currentProfile, setCurrentProfile] = useState({
   }
 
   return (
-    <div className="flex h-screen bg-background transition-colors duration-500 ease-out">
+    <div className="flex h-screen overflow-hidden bg-canvas dark:bg-[#1b1c1b] text-ink dark:text-white transition-colors duration-300 ease-out">
       {/* Onboarding Flow */}
       <OnboardingFlow userProfile={currentProfile} />
+
+      {/* Sidebar — fixed rail on desktop */}
+      <div className="hidden lg:flex h-full">
+        <AppSidebar profile={sidebarProfile} onSignOut={handleSignOut} />
+      </div>
+
+      {/* Sidebar — slide-over drawer on mobile/tablet */}
+      {mobileNavOpen && (
+        <div className="lg:hidden fixed inset-0 z-50 flex">
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-[1px]"
+            onClick={() => setMobileNavOpen(false)}
+            aria-hidden="true"
+          />
+          <div className="relative h-full animate-fade-slide-in">
+            <AppSidebar
+              profile={sidebarProfile}
+              onSignOut={handleSignOut}
+              onNavigate={() => setMobileNavOpen(false)}
+              onClose={() => setMobileNavOpen(false)}
+            />
+          </div>
+        </div>
+      )}
       
       
 
       
 
       {/* Main content */}
-      <div className="flex flex-1 flex-col lg:pl-0">
+      <div className="flex flex-1 flex-col min-w-0 h-full overflow-hidden">
         {/* Top bar */}
-        <header className="bg-white dark:bg-[#0f0f0f] shadow-sm border-b dark:border-white/10 transition-colors duration-500 ease-out">
-          <div className="mx-auto max-w-6xl w-full flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center space-x-4">
-              <Link href="/home" className="flex items-center gap-2">
-                <span className="inline-flex h-6 w-6 items-center justify-center rounded-md" aria-hidden="true">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="h-6 w-6" fill="currentColor" style={{ color: 'var(--primary)' }}>
-                    <path d="M20 4H4a2 2 0 0 0-2 2v.5l10 6 10-6V6a2 2 0 0 0-2-2Zm0 4.236-8 4.8-8-4.8V18a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8.236Z"/>
-                  </svg>
-                </span>
-                <span className="text-lg font-black tracking-tight">Mailsfinder</span>
+        <header className="h-16 shrink-0 bg-white dark:bg-[#0f0f0f] border-b border-gray-200 dark:border-white/10 px-4 sm:px-6 flex items-center justify-between gap-4 z-20 transition-colors duration-300 ease-out">
+          {/* Left: mobile menu + breadcrumb */}
+          <div className="flex items-center gap-3 min-w-0">
+            <button
+              type="button"
+              onClick={() => setMobileNavOpen(true)}
+              aria-label="Open navigation"
+              className="lg:hidden p-1.5 -ml-1 rounded-lg text-gray-500 hover:text-ink dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+            <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-sm min-w-0">
+              <span className="text-gray-400 dark:text-gray-500 font-medium hidden sm:inline">Platform</span>
+              <span className="text-gray-300 dark:text-gray-600 hidden sm:inline">/</span>
+              <span className="font-semibold text-ink dark:text-white truncate">{pageLabel}</span>
+            </nav>
+          </div>
+
+          {/* Right: credits, primary action, theme, account */}
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="hidden sm:flex items-center gap-2 px-2.5 py-1 bg-gray-50 dark:bg-white/5 rounded-lg border border-gray-200 dark:border-white/10">
+              <Zap className="h-4 w-4 text-brand" />
+              <span className="text-xs font-bold text-ink dark:text-white tabular-nums">
+                {creditsDisplay.toLocaleString()}
+              </span>
+              <span className="text-[11px] text-gray-400 font-medium">Credits</span>
+              <Link href="/credits" className="text-[11px] font-bold text-brand hover:underline ml-1">
+                Top up
               </Link>
-              <div className="flex items-center space-x-2">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm" className="flex items-center">
-                      <User className="h-5 w-5" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-64 dark:bg-[#121212] dark:text-gray-100">
-                    <div className="px-3 py-2 text-sm">
-                      <div className="font-medium">{currentProfile.full_name || 'User'}</div>
-                      <div className="text-gray-500 dark:text-gray-400">{currentProfile.email}</div>
-                      {currentProfile.company && (
-                        <div className="text-gray-500 dark:text-gray-400 text-xs">{currentProfile.company}</div>
-                      )}
-                    </div>
-                    <DropdownMenuSeparator />
-                    <div className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">
-                      <div className="flex justify-between">
-                        <span>Plan:</span>
-                        <span className="capitalize font-medium">{currentProfile.plan}</span>
-                      </div>
-                      {currentProfile.plan_expiry && (
-                        <div className="flex justify-between mt-1">
-                          <span>Expires:</span>
-                          <span>{new Date(currentProfile.plan_expiry).toLocaleDateString()}</span>
-                        </div>
-                      )}
-                      <div className="mt-2 space-y-1">
-                        <div className="flex justify-between">
-                          <span>Credits:</span>
-                          <span className="font-medium">{Math.max(Number(currentProfile.credits || 0), 0)}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={handleSignOut}>
-                      <LogOut className="mr-2 h-4 w-4" />
-                      Sign out
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-                <Link href="/user" className="hidden sm:block hover:underline">
-                  {currentProfile.full_name || 'User'}
-                </Link>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  aria-label="Toggle theme"
-                  className="ml-2 hover:bg-white/10 dark:hover:bg-white/10"
-                  onClick={toggleTheme}
+            </div>
+
+            <Link
+              href="/find"
+              className="h-8 px-3 bg-brand text-white rounded-lg text-xs font-bold hover:bg-brand-hover transition-colors flex items-center gap-1.5 shadow-2xs"
+            >
+              <Search className="h-4 w-4" />
+              <span className="hidden xs:inline sm:inline">New Lookup</span>
+            </Link>
+
+            <div className="h-4 w-px bg-gray-200 dark:bg-white/10 mx-0.5 hidden sm:block" />
+
+            <button
+              type="button"
+              aria-label="Toggle theme"
+              onClick={toggleTheme}
+              className="p-1.5 text-gray-500 hover:text-ink dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors"
+            >
+              {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+            </button>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  aria-label="Account menu"
+                  className="w-8 h-8 rounded-full bg-brand-light dark:bg-brand/20 text-brand border border-brand-border dark:border-brand/30 flex items-center justify-center text-xs font-bold hover:border-brand/50 transition-colors"
                 >
-                  {isDark ? (
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="h-5 w-5 fill-yellow-400" aria-hidden="true"><path d="M12 3a1 1 0 0 1 1 1v2a1 1 0 1 1-2 0V4a1 1 0 0 1 1-1Zm0 13a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm7-5a1 1 0 0 1 1 1v0a1 1 0 1 1-2 0v0a1 1 0 0 1 1-1ZM4 12a1 1 0 0 1 1-1v0a1 1 0 1 1 0 2v0a1 1 0 0 1-1-1Zm14.95 6.536a1 1 0 0 1-1.414 1.414l-1.414-1.414a1 1 0 1 1 1.414-1.414l1.414 1.414ZM7.879 7.879a1 1 0 0 1-1.415-1.415L7.879 5.05a1 1 0 0 1 1.415 1.415L7.879 7.88ZM5.05 16.121a1 1 0 0 1 1.415-1.415l1.414 1.414a1 1 0 1 1-1.415 1.415L5.05 16.121ZM16.121 7.879a1 1 0 0 1 1.415-1.415l1.414 1.414a1 1 0 1 1-1.415 1.415L16.12 7.88Z"></path></svg>
-                  ) : (
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="h-5 w-5 text-gray-900 dark:text-white" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"/></svg>
+                  {headerInitials}
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-64 dark:bg-[#121212] dark:text-gray-100">
+                <div className="px-3 py-2 text-sm">
+                  <div className="font-medium">{currentProfile.full_name || 'User'}</div>
+                  <div className="text-gray-500 dark:text-gray-400">{currentProfile.email}</div>
+                  {currentProfile.company && (
+                    <div className="text-gray-500 dark:text-gray-400 text-xs">{currentProfile.company}</div>
                   )}
-                </Button>
-              </div>
-            </div>
-            <div className="border border-[var(--primary)] text-foreground bg-transparent px-3 py-1 rounded-full text-sm font-medium">
-              Credits: {Math.max(Number(currentProfile.credits || 0), 0)}
-            </div>
+                </div>
+                <DropdownMenuSeparator />
+                <div className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400">
+                  <div className="flex justify-between">
+                    <span>Plan:</span>
+                    <span className="capitalize font-medium">{currentProfile.plan}</span>
+                  </div>
+                  {currentProfile.plan_expiry && (
+                    <div className="flex justify-between mt-1">
+                      <span>Expires:</span>
+                      <span>{new Date(currentProfile.plan_expiry).toLocaleDateString()}</span>
+                    </div>
+                  )}
+                  <div className="mt-2 space-y-1">
+                    <div className="flex justify-between">
+                      <span>Credits:</span>
+                      <span className="font-medium">{creditsDisplay}</span>
+                    </div>
+                  </div>
+                </div>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link href="/user">
+                    <SettingsIcon className="mr-2 h-4 w-4" />
+                    Settings
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleSignOut}>
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Sign out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </header>
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-6 md:px-8 md:py-8 md:pt-8 pb-32">
-         {children}
+        <main className="flex-1 overflow-y-auto bg-canvas dark:bg-[#1b1c1b] transition-colors duration-300 ease-out">
+          <div className="max-w-[1380px] mx-auto px-4 sm:px-6 py-6 sm:py-8">
+            {children}
+          </div>
         </main>
       </div>
 
-      {/* Bottom Navigation */}
-      <nav
-        className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 rounded-xl border bg-white/90 dark:bg-[#121212]/95 backdrop-blur px-4 py-2 shadow-xl"
-        aria-label="Primary"
-      >
-        <ul className="flex items-center gap-2 sm:gap-4">
-          {[
-            { href: '/home', label: 'Home', icon: 'home' },
-            { href: '/find', label: 'Find Email', icon: 'search' },
-            { href: '/bulk-finder', label: 'Bulk Find', icon: 'users' },
-            { href: '/verify', label: 'Verify Email', icon: 'check' },
-            { href: '/domain-search', label: 'Domain Search', icon: 'globe' },
-            { href: '/api-calls', label: 'API', icon: 'code' },
-            { href: '/user', label: 'Account', icon: 'user' },
-          ].map((item) => {
-            const isAccount = item.icon === 'user'
-            const active = isAccount
-              ? (pathname.startsWith('/user') || pathname.startsWith('/credits') || pathname.startsWith('/job-history'))
-              : pathname.startsWith(item.href)
-            return (
-              <li key={item.href} className={isAccount ? 'relative group' : ''}>
-                {isAccount ? (
-                  <>
-                    <div
-                      className={`group relative flex flex-col items-center justify-center rounded-[10px] px-3 sm:px-4 py-2 transition-all duration-200 ease-out motion-reduce:transition-none hover:scale-[1.03] active:scale-[0.98] ${
-                        active
-                          ? 'text-[var(--primary)]'
-                          : 'text-[#5a4042] dark:text-[#e2bebf] hover:bg-black/5 dark:hover:bg-white/5'
-                      }`}
-                    >
-                      {active && <span aria-hidden className="absolute -top-0.5 h-[2px] w-6 rounded-full" style={{ backgroundColor: 'var(--primary)' }} />}
-                      <span className={`h-5 w-5 transition-transform duration-200 ${active ? 'text-[var(--primary)]' : 'text-gray-400 dark:text-gray-400'} group-hover:scale-105`}>
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm0 2c-4.42 0-8 1.79-8 4v2h16v-2c0-2.21-3.58-4-8-4z"/></svg>
-                      </span>
-                      <span className="mt-1 text-xs">Account</span>
-                    </div>
-                    {/* Invisible hover bridge to maintain hover across the gap */}
-                    <div className="absolute left-1/2 -translate-x-1/2 bottom-[calc(100%+0px)] h-3 w-48 hidden group-hover:block bg-transparent z-[59]" />
-                    <div className="absolute left-1/2 -translate-x-1/2 bottom-[calc(100%+12px)] hidden group-hover:block z-[60] w-48 rounded-xl border border-gray-200 dark:border-white/10 bg-white/95 dark:bg-[#121212]/95 shadow-lg backdrop-blur-sm p-1 space-y-1">
-                      <Link href="/job-history" className="block rounded-md px-3 py-2 text-sm font-medium text-gray-800 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5 transition-colors text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/50">
-                        Job History
-                      </Link>
-                      <Link href="/credits" className="block rounded-md px-3 py-2 text-sm font-medium text-gray-800 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5 transition-colors text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/50">
-                        Credits & Billing
-                      </Link>
-                      <Link href="/user" className="block rounded-md px-3 py-2 text-sm font-medium text-gray-800 dark:text-gray-200 hover:bg-black/5 dark:hover:bg-white/5 transition-colors text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/50">
-                        Settings
-                      </Link>
-                    </div>
-                  </>
-                ) : (
-                  <Link
-                    href={item.href}
-                    className={`group relative flex flex-col items-center justify-center rounded-[10px] px-3 sm:px-4 py-2 transition-all duration-200 ease-out motion-reduce:transition-none hover:scale-[1.03] active:scale-[0.98] ${
-                      active
-                        ? 'text-[var(--primary)]'
-                        : 'text-[#5a4042] dark:text-[#e2bebf] hover:bg-black/5 dark:hover:bg-white/5'
-                    }`}
-                  >
-                    {active && <span aria-hidden className="absolute -top-0.5 h-[2px] w-6 rounded-full" style={{ backgroundColor: 'var(--primary)' }} />}
-                    <span className={`h-5 w-5 transition-transform duration-200 ${active ? 'text-[var(--primary)]' : 'text-gray-500 dark:text-gray-300'} group-hover:scale-105`}>
-                      {item.icon === 'home' && (
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
-                      )}
-                      {item.icon === 'search' && (
-                        <Search className="h-5 w-5" />
-                      )}
-                      {item.icon === 'check' && (
-                        <CheckCircle className="h-5 w-5" />
-                      )}
-                      {item.icon === 'users' && (
-                        <Users className="h-5 w-5" />
-                      )}
-                      {item.icon === 'code' && (
-                        <Code2 className="h-5 w-5" />
-                      )}
-                      {item.icon === 'globe' && (
-                        <Globe className="h-5 w-5" />
-                      )}
-                    </span>
-                    <span className="mt-1 text-xs">{item.label}</span>
-                  </Link>
-                )}
-              </li>
-            )
-          })}
-        </ul>
-      </nav>
     </div>
   )
 }
