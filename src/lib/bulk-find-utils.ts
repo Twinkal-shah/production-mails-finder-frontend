@@ -143,63 +143,101 @@ export async function bulkFind(
     }
   }
 
-  // --- Step 1: Submit to V2 endpoint and get job_id ---
-  let resp = await fetch(`${sameOrigin}/api/email/findBulkEmailV2`, {
-    method: 'POST',
-    headers: buildHeaders(),
-    body: JSON.stringify(requestPayload),
-    credentials: 'include',
-    mode: 'cors'
-  })
+  const { runInChunks, readSummaryCredits } = await import('./ninja-bulk')
+  const { humanizeApiError } = await import('./api-error')
 
-  // Handle 401 with token refresh
-  if (resp.status === 401) {
-    const refreshed = await tryRefresh()
-    if (refreshed) {
-      resp = await fetch(`${sameOrigin}/api/email/findBulkEmailV2`, {
-        method: 'POST',
-        headers: buildHeaders(),
-        body: JSON.stringify(requestPayload),
-        credentials: 'include',
-        mode: 'cors'
-      })
+  const lookups = requestPayload.lookups
+  const total = lookups.length
+  if (onProgress) onProgress(0, total)
+
+  const postChunk = async (chunk: BulkFindItem[]) => {
+    const doFetch = () => fetch(`${sameOrigin}/api/email/findBulkEmailNinja`, {
+      method: 'POST',
+      headers: buildHeaders(),
+      body: JSON.stringify(chunk),
+      credentials: 'include',
+      mode: 'cors'
+    })
+    let resp = await doFetch()
+    // Handle 401 with token refresh
+    if (resp.status === 401) {
+      const refreshed = await tryRefresh()
+      if (refreshed) resp = await doFetch()
     }
+    let body: unknown
+    try { body = await resp.json() } catch { body = {} }
+    const obj = typeof body === 'object' && body !== null ? (body as Record<string, unknown>) : {}
+    if (!resp.ok || obj['success'] === false) {
+      const rawMsg = typeof obj['message'] === 'string' ? obj['message'] : (typeof obj['error'] === 'string' ? obj['error'] : '')
+      throw new Error(humanizeApiError(rawMsg, 'Failed to run bulk find'))
+    }
+    return { body, obj }
   }
 
-  let submitBody: unknown
-  try { submitBody = await resp.json() } catch { submitBody = {} }
-  const submitObj = typeof submitBody === 'object' && submitBody !== null ? (submitBody as Record<string, unknown>) : {}
-
-  if (!resp.ok || submitObj['success'] === false) {
-    const rawMsg = typeof submitObj['message'] === 'string' ? submitObj['message'] : ''
-    const { humanizeApiError } = await import('./api-error')
-    throw new Error(humanizeApiError(rawMsg, 'Failed to submit bulk find job'))
-  }
-
-  const submitData = submitObj['data'] as Record<string, unknown> | undefined
-  const jobId = typeof submitData?.['job_id'] === 'string' ? submitData['job_id'] as string : undefined
-  if (!jobId) throw new Error('No job_id returned from V2 endpoint')
-
-  // Report initial progress
-  if (onProgress) {
-    const initProgress = submitData?.['progress'] as Record<string, unknown> | undefined
-    const total = Number(initProgress?.['total'] ?? requestPayload.lookups.length)
-    onProgress(0, total)
-  }
-
-  // --- Step 2: Poll for completion ---
-  const { pollJob } = await import('./poll-job')
-  const result = await pollJob(
-    jobId,
-    accessToken || '',
-    (progress) => {
-      if (onProgress) onProgress(progress.processed, progress.total)
+  // Ninja returns a plain array (or wraps it in data / results). Unwrap it and
+  // normalise each item to the shape the bulk workspace already understands.
+  let totalCredits = 0
+  let sawSummaryCredits = false
+  const items = await runInChunks<BulkFindItem, Record<string, unknown>>(
+    lookups,
+    async (chunk) => {
+      const { body, obj } = await postChunk(chunk)
+      const list: unknown[] = Array.isArray(body)
+        ? body
+        : Array.isArray(obj['results'])
+          ? (obj['results'] as unknown[])
+          : Array.isArray(obj['data'])
+            ? (obj['data'] as unknown[])
+            : (typeof obj['data'] === 'object' && obj['data'] !== null && Array.isArray((obj['data'] as Record<string, unknown>)['results']))
+              ? ((obj['data'] as Record<string, unknown>)['results'] as unknown[])
+              : []
+      const summaryCredits = readSummaryCredits(obj['summary'])
+      if (typeof summaryCredits === 'number') {
+        totalCredits += summaryCredits
+        sawSummaryCredits = true
+      }
+      return chunk.map((lookup, i) => normalizeNinjaFindItem(list[i], lookup))
     },
-    5000
+    onProgress
   )
 
-  // --- Step 3: Return results in the same format as V1 ---
-  const items = Array.isArray(result.results) ? result.results : []
-  const totalCredits = Number(result.summary?.credits_charged ?? 0)
+  // Credits: prefer a backend summary, otherwise sum per-item credits_used.
+  if (!sawSummaryCredits) {
+    totalCredits = items.reduce((sum, it) => sum + (typeof it.credits_used === 'number' ? it.credits_used : 0), 0)
+  }
   return { items, totalCredits }
+}
+
+/**
+ * Map one Ninja bulk-find result onto the legacy item shape consumed by the
+ * bulk finder workspace (domain / confidence 0–100 / status found|invalid).
+ */
+function normalizeNinjaFindItem(raw: unknown, lookup: BulkFindItem): Record<string, unknown> {
+  const obj: Record<string, unknown> = typeof raw === 'object' && raw !== null ? { ...(raw as Record<string, unknown>) } : {}
+  const email = typeof obj.email === 'string' ? obj.email : ''
+
+  // Keep the lookup identity on the item so row matching by domain still works
+  if (typeof obj.domain !== 'string' || !obj.domain) obj.domain = lookup.domain
+  if (typeof obj.first_name !== 'string') obj.first_name = lookup.first_name
+  if (typeof obj.last_name !== 'string') obj.last_name = lookup.last_name
+
+  // Status: Ninja uses found / not_found / guessed; legacy used found / invalid
+  const statusRaw = typeof obj.status === 'string' ? obj.status.toLowerCase() : ''
+  if (statusRaw === 'found' || statusRaw === 'valid') obj.status = 'found'
+  else if (!email || statusRaw === 'not_found' || statusRaw === 'invalid' || statusRaw === 'failed') obj.status = 'invalid'
+  else if (statusRaw) obj.status = statusRaw
+  else obj.status = email ? 'found' : 'invalid'
+
+  // Confidence on the 0–100 scale (Ninja `confidence` is 0–1)
+  if (typeof obj.confidence_score === 'number') {
+    obj.confidence = obj.confidence_score
+  } else if (typeof obj.confidence === 'number' && obj.confidence <= 1) {
+    obj.confidence = Math.round(obj.confidence * 100)
+  }
+
+  // Ninja flags catch-all domains as `catch_all`; legacy used is_catch_all_domain
+  if (obj.is_catch_all_domain === undefined && obj.catch_all === true) obj.is_catch_all_domain = true
+
+  if (typeof obj.user_name !== 'string' && email) obj.user_name = email.split('@')[0]
+  return obj
 }

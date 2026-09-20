@@ -86,7 +86,7 @@ export async function findEmailReal(request: EmailFinderRequest): Promise<EmailF
       const { apiPost } = await import('@/lib/api')
       const { getAccessTokenFromCookies } = await import('@/lib/auth-server')
       const token = await getAccessTokenFromCookies()
-      const res = await apiPost<unknown>('/api/email/findEmail', {
+      const res = await apiPost<unknown>('/api/email/findEmailNinja', {
         domain: request.domain,
         first_name,
         last_name
@@ -126,7 +126,14 @@ export async function findEmailReal(request: EmailFinderRequest): Promise<EmailF
       } else {
         normalizedStatus = 'invalid'
       }
-      const confidence = typeof payload?.confidence === 'number' ? (payload.confidence as number) : (normalizedStatus === 'valid' ? 95 : 0)
+      // Ninja returns `confidence` on a 0–1 scale and `confidence_score` on
+      // 0–100; prefer the 0–100 score so callers keep the same scale as before.
+      const confidence =
+        typeof payload?.confidence_score === 'number'
+          ? (payload.confidence_score as number)
+          : typeof payload?.confidence === 'number'
+            ? ((payload.confidence as number) <= 1 ? Math.round((payload.confidence as number) * 100) : (payload.confidence as number))
+            : (normalizedStatus === 'valid' ? 95 : 0)
       const rootMessage = typeof root?.message === 'string' ? (root.message as string) : undefined
       const payloadMessage = typeof payload?.message === 'string' ? (payload.message as string) : undefined
       const message = rootMessage || payloadMessage || (normalizedStatus === 'valid' ? 'Email found' : normalizedStatus === 'invalid' ? 'No email found' : 'Email search completed')

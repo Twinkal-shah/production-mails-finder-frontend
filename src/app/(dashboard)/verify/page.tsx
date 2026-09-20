@@ -382,7 +382,6 @@ export default function VerifyPage() {
         originalRow.email = normalized
         dedupedRowsMap.set(normalized, originalRow)
       }
-      const dedupedRows = Array.from(dedupedRowsMap.values())
       const uniqueEmails = Array.from(dedupedRowsMap.keys())
 
       setRows(prev => prev.map(r => {
@@ -405,67 +404,104 @@ export default function VerifyPage() {
       setProgress(0)
       setIsIndeterminate(true)
 
-      // --- Step 1: Submit to V2 endpoint ---
-      const verifyBody: Record<string, unknown> = { rows: dedupedRows }
-      if (originalFileNameWithExt) verifyBody.original_filename = originalFileNameWithExt
-      const resp = await fetch('/api/email/verifyBulkEmailV2', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
+      // Show duplicate info (de-duplication is done client-side above)
+      if (rows.length > uniqueEmails.length) {
+        const dupes = rows.length - uniqueEmails.length
+        setDuplicateInfo(`${uniqueEmails.length} unique emails to process (${dupes} duplicates removed)`)
+      }
+
+      // --- Step 1: Verify via the Ninja bulk endpoint, in chunks ---
+      // The Ninja endpoint is synchronous, so chunking gives real progress and
+      // keeps each request short. Results come back in input order.
+      const { runInChunks, readSummaryCredits } = await import('@/lib/ninja-bulk')
+      let ninjaCredits = 0
+      let sawSummaryCredits = false
+      const verifiedItems = await runInChunks<string, Record<string, unknown>>(
+        uniqueEmails,
+        async (chunk) => {
+          const resp = await fetch('/api/email/verifyBulkEmailNinja', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { Authorization: `Bearer ${token}` } : {})
+            },
+            credentials: 'include',
+            body: JSON.stringify({ emails: chunk })
+          })
+
+          let body: Record<string, unknown> = {}
+          let parsed: unknown = null
+          try { parsed = await resp.json() } catch {}
+          if (Array.isArray(parsed)) body = { results: parsed }
+          else body = asRecord(parsed)
+
+          if (!resp.ok || body.success === false) {
+            const rawMsg = getStringValue(body.message) || getStringValue(body.error) || ''
+            throw new Error(humanizeApiError(rawMsg, 'Failed to run bulk verification'))
+          }
+
+          const data = asRecord(body.data)
+          const list: unknown[] = Array.isArray(body.results)
+            ? body.results
+            : Array.isArray(data.results)
+              ? data.results
+              : Array.isArray(body.data)
+                ? (body.data as unknown[])
+                : []
+          // Credits: explicit credit figure if the backend sends one, else the
+          // Ninja policy is 1 credit per valid email -> use summary.valid_emails
+          const summary = asRecord(body.summary ?? data.summary)
+          const summaryCredits = readSummaryCredits(summary)
+          if (typeof summaryCredits === 'number') {
+            ninjaCredits += summaryCredits
+            sawSummaryCredits = true
+          } else if (typeof summary.valid_emails === 'number') {
+            ninjaCredits += summary.valid_emails
+            sawSummaryCredits = true
+          }
+          // Align by index; fall back to matching by email if the order differs.
+          // Ninja items omit domain / user_name, so derive them from the email
+          // to keep the results table and CSV export populated as before.
+          return chunk.map((email, i) => {
+            const byIndex = asRecord(list[i])
+            const hit = normalizeEmail(getStringValue(byIndex.email) || '') === email
+              ? byIndex
+              : asRecord(list.find(it => normalizeEmail(getStringValue(asRecord(it).email) || '') === email))
+            const item: Record<string, unknown> = Object.keys(hit).length > 0 ? { ...hit } : { email, status: 'unknown' }
+            if (!getStringValue(item.email)) item.email = email
+            if (!getStringValue(item.domain)) item.domain = email.split('@')[1] || ''
+            if (!getStringValue(item.user_name)) item.user_name = email.split('@')[0] || ''
+            return item
+          })
         },
-        body: JSON.stringify(verifyBody)
-      })
-
-      if (!resp.ok) {
-        let errorData: Record<string, unknown> = {}
-        try { errorData = await resp.json() } catch {}
-        const rawMsg = typeof errorData.message === 'string' ? errorData.message : ''
-        throw new Error(humanizeApiError(rawMsg, 'Failed to submit bulk verify job'))
-      }
-
-      const submitBody = await resp.json()
-      const submitData = submitBody?.data as Record<string, unknown> | undefined
-      const backendJobId = typeof submitData?.job_id === 'string' ? submitData.job_id : undefined
-      if (!backendJobId) throw new Error('No job_id returned from V2 endpoint')
-
-      // Show duplicate info from initial response
-      const initProgress = submitData?.progress as Record<string, unknown> | undefined
-      const backendTotal = Number(initProgress?.total ?? uniqueEmails.length)
-      if (uniqueEmails.length > backendTotal) {
-        const dupes = uniqueEmails.length - backendTotal
-        setDuplicateInfo(`${backendTotal} unique emails to process (${dupes} duplicates removed)`)
-      } else if (rows.length > backendTotal) {
-        const dupes = rows.length - backendTotal
-        setDuplicateInfo(`${backendTotal} unique emails to process (${dupes} duplicates removed)`)
-      }
-
-      // --- Step 2: Poll for completion ---
-      const { pollJob } = await import('@/lib/poll-job')
-      const jobResult = await pollJob(
-        backendJobId,
-        token || '',
-        (progress) => {
-          if (progress.processed === 0) {
-            // SMTP phase — indeterminate
+        (processed, total) => {
+          if (processed === 0) {
             setIsIndeterminate(true)
             setStatusText('Verifying emails... This may take a few minutes for large batches')
           } else {
-            // Real progress
             setIsIndeterminate(false)
-            const pct = progress.total > 0 ? Math.round((progress.processed / progress.total) * 100) : 0
+            const pct = total > 0 ? Math.round((processed / total) * 100) : 0
             setProgress(pct)
-            setStatusText(`Processing ${progress.processed} / ${progress.total} emails`)
+            setStatusText(`Processing ${processed} / ${total} emails`)
           }
-          setProcessedCount(progress.processed)
+          setProcessedCount(processed)
           setCurrentJob(prev => prev ? {
             ...prev,
-            processedEmails: progress.processed,
-            totalEmails: progress.total
+            processedEmails: processed,
+            totalEmails: total
           } : prev)
-        },
-        5000
+        }
       )
+
+      // Same shape the old job poller returned, so Step 3 below is unchanged.
+      const jobResult = {
+        results: verifiedItems,
+        summary: {
+          credits_charged: sawSummaryCredits
+            ? ninjaCredits
+            : verifiedItems.filter(it => normalizeStatus(it.status ?? it.result ?? it.email_status) === 'valid').length
+        }
+      }
 
       // --- Step 3: Process completed results ---
       const resultsArr = Array.isArray(jobResult.results) ? jobResult.results : []

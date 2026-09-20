@@ -32,18 +32,14 @@ export async function verifyEmailReal(
 
     const backend = getBackendBaseUrl()
 
-    // Prepare body
-    const params = new URLSearchParams()
-    params.set('email', request.email)
-
-    // Call backend directly
-    const res = await fetch(`${backend}/api/email/verifyEmail`, {
+    // Call the Mailtester Ninja verify endpoint directly (JSON body)
+    const res = await fetch(`${backend}/api/email/verifyEmailNinja`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Type': 'application/json',
         ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {})
       },
-      body: params.toString()
+      body: JSON.stringify({ email: request.email })
     })
 
     if (!res.ok) {
@@ -107,6 +103,7 @@ export async function verifyEmailReal(
     const reason =
       details?.reason ||
       data?.reason ||
+      json?.reason ||
       undefined
 
     const rawDeliverable = details?.deliverable ?? data?.deliverable ?? json?.deliverable
@@ -115,21 +112,30 @@ export async function verifyEmailReal(
       : normalizedStatus === 'valid'
 
     // -------------------------------
-    // 4️⃣ Confidence (using SMTP connections)
+    // 4️⃣ Confidence (SMTP connections when reported, else Ninja's score)
     // -------------------------------
+    const ninjaScore = (json?.confidence_score ?? data?.confidence_score ?? details?.confidence_score)
     const confidence =
       typeof details?.connections === 'number'
         ? Math.min(100, details.connections * 20)
-        : 0
+        : typeof ninjaScore === 'number'
+          ? ninjaScore
+          : 0
 
     const rawProvider = (json?.email_provider ?? data?.email_provider ?? details?.email_provider)
     const email_provider = typeof rawProvider === 'string' ? rawProvider : undefined
     const rawConfidenceScore = (json?.confidence_score ?? data?.confidence_score ?? details?.confidence_score)
     const confidence_score = typeof rawConfidenceScore === 'number' ? rawConfidenceScore : undefined
     const rawSafeToSend = (json?.safe_to_send ?? data?.safe_to_send ?? details?.safe_to_send)
+    // Ninja returns safe_to_send as a string ("deliverable" / "risky" /
+    // "undeliverable"); legacy returned a boolean. Normalise to boolean | 'risky'.
+    const safeStr = typeof rawSafeToSend === 'string' ? rawSafeToSend.toLowerCase() : ''
     const safe_to_send: boolean | 'risky' | undefined =
       typeof rawSafeToSend === 'boolean' ? rawSafeToSend :
-      rawSafeToSend === 'risky' ? 'risky' : undefined
+      safeStr === 'risky' ? 'risky' :
+      safeStr === 'deliverable' || safeStr === 'safe' || safeStr === 'true' || safeStr === 'yes' ? true :
+      safeStr === 'undeliverable' || safeStr === 'unsafe' || safeStr === 'false' || safeStr === 'no' ? false :
+      undefined
 
     const rawIsCatchAllDomain = (json?.is_catch_all_domain ?? data?.is_catch_all_domain ?? details?.is_catch_all_domain)
     const is_catch_all_domain = rawIsCatchAllDomain === true
@@ -145,10 +151,10 @@ export async function verifyEmailReal(
       confidence,
       deliverable,
       reason,
-      catch_all: details?.catch_all ?? data?.catch_all,
-      domain: details?.domain ?? data?.domain,
-      mx: details?.mx ?? data?.mx,
-      user_name: details?.user_name ?? data?.user_name,
+      catch_all: details?.catch_all ?? data?.catch_all ?? json?.catch_all,
+      domain: details?.domain ?? data?.domain ?? json?.domain ?? (request.email.split('@')[1] || undefined),
+      mx: details?.mx ?? data?.mx ?? json?.mx,
+      user_name: details?.user_name ?? data?.user_name ?? json?.user_name ?? (request.email.split('@')[0] || undefined),
       email_provider,
       confidence_score,
       safe_to_send,

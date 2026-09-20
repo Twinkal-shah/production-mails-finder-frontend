@@ -80,7 +80,7 @@ export async function findEmail(request: FindEmailRequest): Promise<FindEmailRes
           last_name: request.last_name
         }
         const { apiPost } = await import('@/lib/api')
-        const apiRes = await apiPost<Record<string, unknown>>('/api/email/findEmail', payload, { useProxy: true, includeAuth: true, token })
+        const apiRes = await apiPost<Record<string, unknown>>('/api/email/findEmailNinja', payload, { useProxy: true, includeAuth: true, token })
         const data: Record<string, unknown> = apiRes.ok && apiRes.data ? (apiRes.data as Record<string, unknown>) : {}
         const root = data
         const p = (typeof root?.data === 'object' && root.data !== null)
@@ -89,7 +89,12 @@ export async function findEmail(request: FindEmailRequest): Promise<FindEmailRes
             ? (root.result as Record<string, unknown>)
             : root
         const email = typeof p?.email === 'string' ? (p.email as string) : null
-        const confidence = typeof p?.confidence === 'number' ? (p.confidence as number) : (email ? 95 : 0)
+        const confidence =
+          typeof p?.confidence_score === 'number'
+            ? (p.confidence_score as number)
+            : typeof p?.confidence === 'number'
+              ? ((p.confidence as number) <= 1 ? Math.round((p.confidence as number) * 100) : (p.confidence as number))
+              : (email ? 95 : 0)
         if (email) {
           result.email = email
           result.confidence = confidence

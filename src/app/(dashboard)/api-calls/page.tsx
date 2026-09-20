@@ -122,7 +122,7 @@ const PREDEFINED_ENDPOINTS: PredefinedEndpoint[] = [
   {
     name: 'Email • Find',
     method: 'POST',
-    url: '/api/email/findEmail',
+    url: '/api/email/findEmailNinja',
     description: 'Find email by name and domain (JWT required)',
     headers: [
       { id: '1', key: 'Content-Type', value: 'application/json', enabled: true },
@@ -137,7 +137,7 @@ const PREDEFINED_ENDPOINTS: PredefinedEndpoint[] = [
   {
     name: 'Email • Find Bulk',
     method: 'POST',
-    url: '/api/email/findBulkEmail',
+    url: '/api/email/findBulkEmailNinja',
     description: 'Find emails in bulk (array of name+domain objects)',
     headers: [
       { id: '1', key: 'Content-Type', value: 'application/json', enabled: true },
@@ -151,7 +151,7 @@ const PREDEFINED_ENDPOINTS: PredefinedEndpoint[] = [
   {
     name: 'Email • Verify Bulk',
     method: 'POST',
-    url: '/api/email/verifyBulkEmail',
+    url: '/api/email/verifyBulkEmailNinja',
     description: 'Verify a list of emails',
     headers: [
       { id: '1', key: 'Content-Type', value: 'application/json', enabled: true },
@@ -164,7 +164,7 @@ const PREDEFINED_ENDPOINTS: PredefinedEndpoint[] = [
   {
     name: 'Email • Verify',
     method: 'POST',
-    url: '/api/email/verifyEmail',
+    url: '/api/email/verifyEmailNinja',
     description: 'Verify a single email (JWT required)',
     headers: [
       { id: '1', key: 'Content-Type', value: 'application/json', enabled: true },
@@ -903,7 +903,7 @@ export default function ApiCallsPage() {
     setTryFindDuration(null)
     try {
       const start = Date.now()
-      const res = await apiPost<unknown>('/api/email/findEmail', {
+      const res = await apiPost<unknown>('/api/email/findEmailNinja', {
         domain: tryFindDomain.trim(),
         first_name: tryFindFirst.trim(),
         last_name: tryFindLast.trim()
@@ -934,7 +934,7 @@ export default function ApiCallsPage() {
     setTryVerifyDuration(null)
     try {
       const start = Date.now()
-      const res = await apiPost<unknown>('/api/email/verifyEmail', {
+      const res = await apiPost<unknown>('/api/email/verifyEmailNinja', {
         email: tryVerifyEmail.trim()
       })
       const end = Date.now()
@@ -972,7 +972,7 @@ export default function ApiCallsPage() {
     setTryFindBulkDuration(null)
     try {
       const start = Date.now()
-      const res = await apiPost<unknown>('/api/email/findBulkEmail', JSON.stringify(items))
+      const res = await apiPost<unknown>('/api/email/findBulkEmailNinja', JSON.stringify(items))
       const end = Date.now()
       setTryFindBulkDuration(end - start)
       setTryFindBulkResult(res.ok ? res.data : (res.error ?? res.data))
@@ -1000,7 +1000,7 @@ export default function ApiCallsPage() {
     setTryVerifyBulkDuration(null)
     try {
       const start = Date.now()
-      const res = await apiPost<unknown>('/api/email/verifyBulkEmail', { emails })
+      const res = await apiPost<unknown>('/api/email/verifyBulkEmailNinja', { emails })
       const end = Date.now()
       setTryVerifyBulkDuration(end - start)
       setTryVerifyBulkResult(res.ok ? res.data : (res.error ?? res.data))

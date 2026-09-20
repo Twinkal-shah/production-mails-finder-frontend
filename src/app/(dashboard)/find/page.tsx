@@ -110,7 +110,7 @@ export default function FindPage() {
       // simply replace splitting one combined name field.
       const first_name = firstName.trim().toLowerCase().replace(/[^a-z]/g, '')
       const last_name = lastName.trim().toLowerCase().replace(/[^a-z]/g, '')
-      const res = await fetch('/api/email/findEmail', {
+      const res = await fetch('/api/email/findEmailNinja', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -167,7 +167,11 @@ export default function FindPage() {
       const creditsUsed = typeof (payload as Record<string, unknown>)?.credits_used === 'number'
         ? ((payload as Record<string, unknown>).credits_used as number)
         : undefined
-      const isCatchAllDomain = (payload as Record<string, unknown>)?.is_catch_all_domain === true
+      // Ninja reports catch-all domains as `catch_all`; the legacy field is kept
+      // as a fallback so both shapes drive the same catch-all UI.
+      const isCatchAllDomain =
+        (payload as Record<string, unknown>)?.is_catch_all_domain === true ||
+        (payload as Record<string, unknown>)?.catch_all === true
       const noticeText = typeof (payload as Record<string, unknown>)?.notice === 'string'
         ? ((payload as Record<string, unknown>).notice as string)
         : undefined
