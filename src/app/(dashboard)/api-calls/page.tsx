@@ -299,25 +299,43 @@ const API_DOCS: ApiDoc[] = [
     id: 'doc-email-find',
     name: 'Email • Find',
     method: 'POST',
-    url: `${PUBLIC_API_BASE}/api/access-key/email/findEmail`,
-    displayUrl: `${PUBLIC_API_BASE}/api/access-key/email/findEmail`,
+    url: `${PUBLIC_API_BASE}/api/access-key/email/findEmailNinja`,
+    displayUrl: `${PUBLIC_API_BASE}/api/access-key/email/findEmailNinja`,
     description: 'Find email by name and domain',
-    headers: { 'Authorization': 'Bearer YOUR_API_KEY', 'Content-Type': 'application/json' },
-    requestBody: { first_name: 'John', last_name: 'Doe', domain: 'example.com' },
-    requestBodyAlt: { full_name: 'John Doe', domain: 'example.com' },
-    success: { success: true, data: { email: 'john.doe@example.com', confidence: 95, status: 'found', catch_all: false, domain: 'example.com', mx: 'mx.example.com', time_exec: 350, user_name: 'john', connections: 3, ver_ops: 1 }, message: 'Email found' },
+    headers: { 'x-api-key': 'YOUR_API_KEY', 'Content-Type': 'application/json' },
+    requestBody: { first_name: 'Satya', last_name: 'Nadella', domain: 'microsoft.com' },
+    success: {
+      email: 'satya.nadella@microsoft.com',
+      first_name: 'Satya',
+      last_name: 'Nadella',
+      domain: 'microsoft.com',
+      full_name: 'Satya Nadella',
+      status: 'found',
+      confidence: 1.0,
+      confidence_score: 100,
+      safe_to_send: true,
+      catch_all: false,
+      email_provider: 'Microsoft 365',
+      mx: 'microsoft-com.mail.protection.outlook.com',
+      credits_used: 1,
+      verification_source: 'mailtester.ninja'
+    },
     error: { error: { message: 'Invalid JSON in request body', code: 400 } },
     responseFields: {
-      email: "The email address found or generated based on the provided name + domain.",
-      status: "Whether the email was found (found / not_found / unknown).",
-      confidence: "Score (0–100) predicting how accurate the found/generated email is.",
-      catch_all: "Indicates whether the domain accepts all emails.",
+      email: "The email address found for the provided name + domain.",
+      first_name: "First name used for the lookup.",
+      last_name: "Last name used for the lookup.",
       domain: "The domain used during lookup.",
+      full_name: "Full name assembled from first and last name.",
+      status: "Whether the email was found (found / not_found / guessed).",
+      confidence: "Confidence as a fraction between 0 and 1.",
+      confidence_score: "Confidence score from 0 to 100.",
+      safe_to_send: "Whether the address is safe to send to.",
+      catch_all: "Indicates whether the domain accepts all emails.",
+      email_provider: "Detected email provider (e.g. Microsoft 365, Google Workspace).",
       mx: "Mail server (MX record) used by the domain.",
-      time_exec: "Time taken to process the request.",
-      user_name: "Username portion generated from the name.",
-      connections: "Number of SMTP connections attempted.",
-      ver_ops: "Number of verification operations executed."
+      credits_used: "Credits charged for this request (1 when found, 0 otherwise).",
+      verification_source: "Verification engine used for the result."
     },
     statusCodes: {
       "200": "We found the email successfully.",
@@ -330,26 +348,26 @@ const API_DOCS: ApiDoc[] = [
     id: 'doc-email-find-bulk',
     name: 'Email • Find Bulk',
     method: 'POST',
-    url: `${PUBLIC_API_BASE}/api/access-key/email/findBulkEmail`,
-    displayUrl: `${PUBLIC_API_BASE}/api/access-key/email/findBulkEmail`,
+    url: `${PUBLIC_API_BASE}/api/access-key/email/findBulkEmailNinja`,
+    displayUrl: `${PUBLIC_API_BASE}/api/access-key/email/findBulkEmailNinja`,
     description: 'Find emails in bulk',
-    headers: { 'Authorization': 'Bearer YOUR_API_KEY', 'Content-Type': 'application/json' },
+    headers: { 'x-api-key': 'YOUR_API_KEY', 'Content-Type': 'application/json' },
     requestBody: [
-      { domain: 'example.com', first_name: 'John', last_name: 'Doe' },
-      { domain: 'example.com', first_name: 'Jane', last_name: 'Smith' },
-      { domain: 'example.com', first_name: 'Alex', last_name: 'Johnson' }
+      { first_name: 'Satya', last_name: 'Nadella', domain: 'microsoft.com' },
+      { first_name: 'Sundar', last_name: 'Pichai', domain: 'google.com' }
     ],
-    success: { success: true, data: { results: [ { email: 'john.doe@example.com', confidence: 95, status: 'found', domain: 'example.com', first_name: 'John', last_name: 'Doe' }, { email: null, confidence: 0, status: 'not_found', domain: 'example.com', first_name: 'Jane', last_name: 'Smith' } ], totalCredits: 2 } },
+    success: [
+      { email: 'satya.nadella@microsoft.com', status: 'found', confidence_score: 100, safe_to_send: true, credits_used: 1 },
+      { email: 'sundarp@google.com', status: 'found', confidence_score: 100, safe_to_send: true, credits_used: 1 }
+    ],
     error: { error: { message: 'Unauthorized', code: 401 } },
     responseFields: {
-      results: "List of results for each name/domain entry.",
-      "results[].email": "The email found for this entry (or null if not found).",
-      "results[].confidence": "Score (0–100) for each individual email prediction.",
-      "results[].status": "Result for each: found / not_found / unknown.",
-      "results[].domain": "Domain used for this lookup.",
-      "results[].first_name": "First name provided for this entry.",
-      "results[].last_name": "Last name provided for this entry.",
-      totalCredits: "Number of credits consumed for the entire bulk operation."
+      "[]": "One result per entry, in the same order as the request. Also accepts { \"rows\": [...] } or { \"lookups\": [...] } as the request body.",
+      "[].email": "The email found for this entry (or null if not found).",
+      "[].status": "Result for each: found / not_found / guessed.",
+      "[].confidence_score": "Confidence score from 0 to 100 for each prediction.",
+      "[].safe_to_send": "Whether the address is safe to send to.",
+      "[].credits_used": "Credits charged for this entry (1 when found, 0 otherwise)."
     },
     statusCodes: {
       "200": "All emails were processed.",
@@ -363,24 +381,34 @@ const API_DOCS: ApiDoc[] = [
     id: 'doc-email-verify-bulk',
     name: 'Email • Verify Bulk',
     method: 'POST',
-    url: `${PUBLIC_API_BASE}/api/access-key/email/verifyBulkEmail`,
-    displayUrl: `${PUBLIC_API_BASE}/api/access-key/email/verifyBulkEmail`,
+    url: `${PUBLIC_API_BASE}/api/access-key/email/verifyBulkEmailNinja`,
+    displayUrl: `${PUBLIC_API_BASE}/api/access-key/email/verifyBulkEmailNinja`,
     description: 'Verify a list of emails',
-    headers: { 'Authorization': 'Bearer YOUR_API_KEY', 'Content-Type': 'application/json' },
-    requestBody: { emails: ['john.doe@example.com', 'jane.smith@example.com'] },
-    success: { success: true, data: { results: [ { email: 'john.doe@example.com', status: 'valid', confidence: 90, deliverable: true, reason: 'Accepted', catch_all: false, domain: 'example.com', mx: 'mx.example.com' }, { email: 'jane.smith@example.com', status: 'invalid', confidence: 0, deliverable: false, reason: 'Undeliverable' } ], totalCredits: 2 } },
+    headers: { 'x-api-key': 'YOUR_API_KEY', 'Content-Type': 'application/json' },
+    requestBody: { emails: ['satya.nadella@microsoft.com', 'sundar.pichai@google.com'] },
+    success: {
+      results: [
+        { email: 'satya.nadella@microsoft.com', status: 'valid', deliverable: true, reason: 'Accepted', catch_all: false, confidence_score: 100, safe_to_send: 'deliverable' },
+        { email: 'sundar.pichai@google.com', status: 'valid', deliverable: true, reason: 'Accepted', catch_all: false, confidence_score: 100, safe_to_send: 'deliverable' }
+      ],
+      summary: { total_emails: 2, valid_emails: 2, invalid_emails: 0, catch_all_emails: 0, unknown_emails: 0 }
+    },
     error: { error: { message: 'email list is required', code: 400 } },
     responseFields: {
-      results: "List of verification results for each email.",
+      results: "List of verification results for each email. A plain array of emails is also accepted as the request body.",
       "results[].email": "Email address being checked.",
-      "results[].status": "valid / invalid / unknown.",
-      "results[].confidence": "Verification confidence score.",
+      "results[].status": "valid / invalid / catch_all / unknown.",
       "results[].deliverable": "Whether the email can receive messages.",
       "results[].reason": "Explanation from SMTP server.",
       "results[].catch_all": "Whether this domain accepts all emails.",
-      "results[].domain": "Domain of the email.",
-      "results[].mx": "Mail server used for verification.",
-      totalCredits: "Credits used for the entire verification request."
+      "results[].confidence_score": "Verification confidence score from 0 to 100.",
+      "results[].safe_to_send": "deliverable / risky / undeliverable.",
+      summary: "Totals for the batch.",
+      "summary.total_emails": "Number of emails processed.",
+      "summary.valid_emails": "Number of valid emails (1 credit is charged per valid email).",
+      "summary.invalid_emails": "Number of invalid emails.",
+      "summary.catch_all_emails": "Number of emails on catch-all domains.",
+      "summary.unknown_emails": "Number of emails that could not be determined."
     },
     statusCodes: {
       "200": "All emails were checked.",
@@ -394,23 +422,33 @@ const API_DOCS: ApiDoc[] = [
     id: 'doc-email-verify',
     name: 'Email • Verify',
     method: 'POST',
-    url: `${PUBLIC_API_BASE}/api/access-key/email/verifyEmail`,
-    displayUrl: `${PUBLIC_API_BASE}/api/access-key/email/verifyEmail`,
+    url: `${PUBLIC_API_BASE}/api/access-key/email/verifyEmailNinja`,
+    displayUrl: `${PUBLIC_API_BASE}/api/access-key/email/verifyEmailNinja`,
     description: 'Verify a single email',
-    headers: { 'Authorization': 'Bearer YOUR_API_KEY', 'Content-Type': 'application/json' },
-    requestBody: { email: 'john.doe@example.com' },
-    success: { success: true, data: { email: 'john.doe@example.com', status: 'valid', confidence: 80, deliverable: true, reason: 'OK', catch_all: false, domain: 'example.com', mx: 'mx.example.com', user_name: 'john' }, message: 'Verified' },
+    headers: { 'x-api-key': 'YOUR_API_KEY', 'Content-Type': 'application/json' },
+    requestBody: { email: 'satya.nadella@microsoft.com' },
+    success: {
+      email: 'satya.nadella@microsoft.com',
+      status: 'valid',
+      deliverable: true,
+      reason: 'Accepted',
+      catch_all: false,
+      confidence_score: 100,
+      safe_to_send: 'deliverable',
+      email_provider: 'Microsoft 365',
+      mx: 'microsoft-com.mail.protection.outlook.com'
+    },
     error: { error: { message: 'email is required', code: 400 } },
     responseFields: {
       email: "The email address that was verified.",
-      status: "valid / invalid / unknown based on verification.",
-      confidence: "Score indicating verification certainty.",
+      status: "valid / invalid / catch_all / unknown based on verification.",
       deliverable: "Whether the mailbox can actually receive emails.",
       reason: "SMTP server message explaining the status.",
       catch_all: "Whether the domain accepts all addresses.",
-      domain: "The domain of the email.",
-      mx: "Mail server used during verification.",
-      user_name: "Username portion extracted from the email."
+      confidence_score: "Verification confidence score from 0 to 100.",
+      safe_to_send: "deliverable / risky / undeliverable.",
+      email_provider: "Detected email provider (e.g. Microsoft 365, Google Workspace).",
+      mx: "Mail server used during verification."
     },
     statusCodes: {
       "200": "The email was checked successfully.",
@@ -1151,9 +1189,9 @@ export default function ApiCallsPage() {
             </span>
           </CardTitle>
           <CardDescription className="text-[13px]">
-            Bearer tokens pass via{' '}
+            API keys pass via{' '}
             <code className="font-mono-code text-[12px] text-ink dark:text-gray-200">
-              Authorization: Bearer &lt;key&gt;
+              x-api-key: &lt;key&gt;
             </code>
           </CardDescription>
         </CardHeader>
