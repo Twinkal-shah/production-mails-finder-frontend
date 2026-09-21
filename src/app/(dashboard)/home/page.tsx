@@ -15,7 +15,6 @@ import {
   MailCheck,
   Gauge,
   CalendarCheck,
-  UploadCloud,
   FileSpreadsheet,
   ArrowRight,
   PlusCircle,
@@ -366,32 +365,18 @@ export default function HomePage() {
         </div>
         <div className="flex items-center gap-2.5 flex-wrap">
           <Link
-            href="/bulk-finder"
-            className="h-9 px-3.5 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 text-gray-700 dark:text-gray-200 font-semibold text-xs rounded-lg hover:bg-gray-50 dark:hover:bg-white/10 hover:border-gray-300 transition-colors flex items-center gap-2 shadow-2xs"
-          >
-            <UploadCloud className="h-4 w-4 text-gray-500" />
-            <span>Upload CSV for Bulk Find</span>
-          </Link>
-          <Link
-            href="/verify?mode=bulk"
-            className="h-9 px-3.5 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 text-gray-700 dark:text-gray-200 font-semibold text-xs rounded-lg hover:bg-gray-50 dark:hover:bg-white/10 hover:border-gray-300 transition-colors flex items-center gap-2 shadow-2xs"
-          >
-            <FileSpreadsheet className="h-4 w-4 text-gray-500" />
-            <span>Upload CSV for Bulk Verify</span>
-          </Link>
-          <Link
             href="/find"
             className="h-9 px-3.5 bg-brand text-white font-bold text-xs rounded-lg hover:bg-brand-hover transition-colors flex items-center gap-1.5 shadow-2xs"
           >
             <Search className="h-4 w-4" />
-            <span>Find Single Email</span>
+            <span>Find Email</span>
           </Link>
           <Link
             href="/verify"
             className="h-9 px-3.5 bg-brand text-white font-bold text-xs rounded-lg hover:bg-brand-hover transition-colors flex items-center gap-1.5 shadow-2xs"
           >
             <MailCheck className="h-4 w-4" />
-            <span>Verify Single Email</span>
+            <span>Verify Email</span>
           </Link>
         </div>
       </div>

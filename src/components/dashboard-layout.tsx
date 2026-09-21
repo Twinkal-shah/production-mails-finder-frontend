@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { LogOut, Menu, Zap, Search, Settings as SettingsIcon, Sun, Moon } from 'lucide-react'
 import { apiGet } from '@/lib/api'
-import { OnboardingFlow } from '@/components/onboarding-flow'
+import { OnboardingGate } from '@/components/onboarding-gate'
 import { AppSidebar } from '@/components/app-sidebar'
 import { toast } from 'sonner'
 import { useUserProfile } from '@/hooks/useCreditsData'
@@ -299,8 +299,8 @@ const [currentProfile, setCurrentProfile] = useState({
 
   return (
     <div className="flex h-screen overflow-hidden bg-canvas dark:bg-[#1b1c1b] text-ink dark:text-white transition-colors duration-300 ease-out">
-      {/* Onboarding Flow */}
-      <OnboardingFlow userProfile={currentProfile} />
+      {/* Onboarding — first-time free users are sent to the setup wizard */}
+      <OnboardingGate userProfile={currentProfile} />
 
       {/* Sidebar — fixed rail on desktop */}
       <div className="hidden lg:flex h-full">
