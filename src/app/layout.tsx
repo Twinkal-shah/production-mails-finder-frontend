@@ -18,10 +18,10 @@ export const metadata: Metadata = {
   description: "Find and verify email addresses with MailsFinder",
   icons: {
     icon: [
-      { url: '/Mailsfinder black - Fav (1).png', type: 'image/png' },
+      { url: '/favicon-v2.png', type: 'image/png' },
     ],
-    shortcut: '/Mailsfinder black - Fav (1).png',
-    apple: '/Mailsfinder black - Fav (1).png',
+    shortcut: '/favicon-v2.png',
+    apple: '/favicon-v2.png',
   },
 }
 

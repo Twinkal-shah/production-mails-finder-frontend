@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard,
@@ -116,11 +117,14 @@ export function AppSidebar({
         {/* Logo header */}
         <div className="h-16 px-5 flex items-center justify-between border-b border-gray-100 dark:border-white/10 shrink-0">
           <Link href="/home" onClick={onNavigate} className="flex items-center gap-2.5">
-            <span className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-brand text-white">
-              <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="currentColor" aria-hidden="true">
-                <path d="M20 4H4a2 2 0 0 0-2 2v.5l10 6 10-6V6a2 2 0 0 0-2-2Zm0 4.236-8 4.8-8-4.8V18a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8.236Z" />
-              </svg>
-            </span>
+            <Image
+              src="/favicon-v2.png"
+              alt="Mailsfinder"
+              width={28}
+              height={28}
+              className="h-7 w-7 object-contain"
+              priority
+            />
             <span className="text-lg font-bold tracking-tight text-ink dark:text-white">Mailsfinder</span>
           </Link>
           {onClose && (

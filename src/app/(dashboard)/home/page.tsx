@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import {
   Search,
@@ -10,27 +9,27 @@ import {
   Database,
   BadgeCheck,
   Code2,
-  PlayCircle,
   Users,
   Lock,
-  Zap,
-  CircleDollarSign,
-  ContactRound,
-  ShieldCheck,
+  Coins,
+  MailCheck,
+  Gauge,
+  CalendarCheck,
   UploadCloud,
+  FileSpreadsheet,
   ArrowRight,
-  ArrowUpRight,
   PlusCircle,
   Globe,
-  User as UserIcon,
   Copy,
   Check,
   FileDown,
+  Download,
   Clock,
 } from 'lucide-react'
 import { useCreditsData } from '@/hooks/useCreditsData'
 import { useRecentFindResults } from '@/hooks/useRecentResults'
 import { useVerificationStats } from '@/hooks/useVerificationStats'
+import { useBulkHistory, downloadBulkHistoryEntry, type BulkHistoryEntry } from '@/lib/bulk-history'
 import type { RecentFindResult } from '@/types/jobs'
 
 /** Static display value, matching the Find Email page. */
@@ -52,7 +51,7 @@ function MetricCard({
   unit?: string
   icon: React.ComponentType<{ className?: string }>
   iconClass: string
-  footerLeft: React.ReactNode
+  footerLeft?: React.ReactNode
   footerRight?: React.ReactNode
 }) {
   return (
@@ -71,10 +70,12 @@ function MetricCard({
           <Icon className="h-5 w-5" />
         </div>
       </div>
-      <div className="mt-4 pt-3 border-t border-gray-100 dark:border-white/10 flex items-center justify-between gap-2 text-xs">
-        {footerLeft}
-        {footerRight}
-      </div>
+      {(footerLeft || footerRight) && (
+        <div className="mt-4 pt-3 border-t border-gray-100 dark:border-white/10 flex items-center justify-between gap-2 text-xs">
+          {footerLeft ?? <span />}
+          {footerRight}
+        </div>
+      )}
     </div>
   )
 }
@@ -200,16 +201,76 @@ function CopyCell({ email }: { email: string }) {
   )
 }
 
+type ActivityRow =
+  | { kind: 'single'; item: RecentFindResult }
+  | { kind: 'bulk'; entry: BulkHistoryEntry }
+
+/** One completed CSV run (bulk find or bulk verify) with its download. */
+function BulkActivityRow({ entry }: { entry: BulkHistoryEntry }) {
+  const isFind = entry.type === 'bulk_find'
+  const label = isFind ? 'Bulk Find via CSV' : 'Bulk Verify via CSV'
+  const name = entry.filename || entry.downloadName.replace(/\.csv$/i, '')
+  return (
+    <tr className="hover:bg-gray-50/60 dark:hover:bg-white/5 transition-colors group">
+      <td className="py-3.5 px-5">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 shrink-0 rounded-full bg-brand-light dark:bg-brand/15 text-brand flex items-center justify-center border border-brand-border dark:border-brand/30">
+            <FileSpreadsheet className="h-4 w-4" />
+          </div>
+          <div className="min-w-0">
+            <p className="font-bold text-ink dark:text-white group-hover:text-brand transition-colors truncate">
+              {name}
+            </p>
+            <p className="text-[11px] text-gray-400 truncate">{label}</p>
+          </div>
+        </div>
+      </td>
+      <td className="py-3.5 px-5">
+        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 font-medium text-[11px] tabular-nums">
+          <FileSpreadsheet className="h-3 w-3 text-gray-400" />
+          {entry.total.toLocaleString()} rows
+        </span>
+      </td>
+      <td className="py-3.5 px-5 text-gray-600 dark:text-gray-300 tabular-nums">
+        {entry.success.toLocaleString()} {isFind ? 'emails found' : 'deliverable'}
+      </td>
+      <td className="py-3.5 px-5">
+        <div className="flex items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 h-6 rounded-full border px-2.5 text-[11px] font-semibold bg-[#ECFDF5] text-[#059669] border-[#A7F3D0] dark:bg-[#059669]/15 dark:border-[#059669]/30">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#059669]" />
+            {isFind ? 'Found' : 'Deliverable'} {entry.success.toLocaleString()}
+          </span>
+          {entry.risky > 0 && (
+            <span className="inline-flex items-center gap-1.5 h-6 rounded-full border px-2.5 text-[11px] font-semibold bg-[#FFFBEB] text-[#D97706] border-[#FDE68A] dark:bg-[#D97706]/15 dark:border-[#D97706]/30">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#D97706]" />
+              Risky {entry.risky.toLocaleString()}
+            </span>
+          )}
+        </div>
+      </td>
+      <td className="py-3.5 px-5 text-gray-500 dark:text-gray-400">{relativeTime(entry.created_at)}</td>
+      <td className="py-3.5 px-5 text-right">
+        <button
+          type="button"
+          onClick={() => downloadBulkHistoryEntry(entry)}
+          className="inline-flex items-center gap-1 text-[11px] font-bold text-brand hover:underline whitespace-nowrap"
+        >
+          <Download className="h-3.5 w-3.5" />
+          Download CSV
+        </button>
+      </td>
+    </tr>
+  )
+}
+
 /* --------------------------------- page --------------------------------- */
 
 export default function HomePage() {
-  const router = useRouter()
   const { profile, creditUsage } = useCreditsData()
   const { data: recentFinds, isLoading: findsLoading } = useRecentFindResults()
   const { data: verificationStats, isLoading: statsLoading } = useVerificationStats()
+  const bulkHistory = useBulkHistory()
 
-  const [quickName, setQuickName] = useState('')
-  const [quickDomain, setQuickDomain] = useState('')
   const [filter, setFilter] = useState<'all' | 'safe' | 'risky'>('all')
 
   const isLifetime = (profile?.plan || '').toString().trim().toLowerCase() === 'lifetime'
@@ -249,6 +310,16 @@ export default function HomePage() {
   const visibleRows =
     filter === 'safe' ? rows.filter(isSafe) : filter === 'risky' ? rows.filter(isRisky) : rows
 
+  /* --- single lookups + bulk CSV runs, newest first (bulk only in "All") --- */
+  const activity = useMemo<ActivityRow[]>(() => {
+    const singles: ActivityRow[] = visibleRows.map((item) => ({ kind: 'single', item }))
+    const bulks: ActivityRow[] = filter === 'all' ? bulkHistory.map((entry) => ({ kind: 'bulk', entry })) : []
+    const ts = (r: ActivityRow) =>
+      new Date(r.kind === 'single' ? r.item.created_at : r.entry.created_at).getTime() || 0
+    return [...singles, ...bulks].sort((a, b) => ts(b) - ts(a))
+  }, [visibleRows, bulkHistory, filter])
+  const totalCount = rows.length + bulkHistory.length
+
   const exportCsv = () => {
     if (visibleRows.length === 0) {
       toast.error('Nothing to export yet')
@@ -281,17 +352,6 @@ export default function HomePage() {
     URL.revokeObjectURL(url)
   }
 
-  /** Hands the entered values to the Find page — no lookup runs here. */
-  const handleQuickSearch = (e: React.FormEvent) => {
-    e.preventDefault()
-    const parts = quickName.trim().split(/\s+/).filter(Boolean)
-    const params = new URLSearchParams()
-    if (parts[0]) params.set('first', parts[0])
-    if (parts.length > 1) params.set('last', parts.slice(1).join(' '))
-    if (quickDomain.trim()) params.set('domain', quickDomain.trim())
-    router.push(`/find${params.toString() ? `?${params.toString()}` : ''}`)
-  }
-
   return (
     <div className="flex flex-col gap-6">
       {/* ---------------------------- header ---------------------------- */}
@@ -313,11 +373,25 @@ export default function HomePage() {
             <span>Upload CSV for Bulk Find</span>
           </Link>
           <Link
+            href="/verify?mode=bulk"
+            className="h-9 px-3.5 bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 text-gray-700 dark:text-gray-200 font-semibold text-xs rounded-lg hover:bg-gray-50 dark:hover:bg-white/10 hover:border-gray-300 transition-colors flex items-center gap-2 shadow-2xs"
+          >
+            <FileSpreadsheet className="h-4 w-4 text-gray-500" />
+            <span>Upload CSV for Bulk Verify</span>
+          </Link>
+          <Link
             href="/find"
             className="h-9 px-3.5 bg-brand text-white font-bold text-xs rounded-lg hover:bg-brand-hover transition-colors flex items-center gap-1.5 shadow-2xs"
           >
             <Search className="h-4 w-4" />
             <span>Find Single Email</span>
+          </Link>
+          <Link
+            href="/verify"
+            className="h-9 px-3.5 bg-brand text-white font-bold text-xs rounded-lg hover:bg-brand-hover transition-colors flex items-center gap-1.5 shadow-2xs"
+          >
+            <MailCheck className="h-4 w-4" />
+            <span>Verify Single Email</span>
           </Link>
         </div>
       </div>
@@ -327,7 +401,7 @@ export default function HomePage() {
         <MetricCard
           label="Available Credits"
           value={credits.toLocaleString()}
-          icon={CircleDollarSign}
+          icon={Coins}
           iconClass="bg-brand-light dark:bg-brand/15 text-brand"
           footerLeft={
             <span className="text-emerald-600 font-bold flex items-center gap-1">
@@ -341,93 +415,29 @@ export default function HomePage() {
         <MetricCard
           label="Verified Emails (30D)"
           value={statsLoading ? '…' : verificationStats ? verificationStats.last30.toLocaleString() : '—'}
-          icon={ContactRound}
+          icon={MailCheck}
           iconClass="bg-blue-50 dark:bg-blue-500/15 text-blue-600 dark:text-blue-400"
-          footerLeft={
-            verificationStats ? (
-              <span className="text-emerald-600 font-bold flex items-center gap-1">
-                <ArrowUpRight className="h-3.5 w-3.5" />
-                Successful verifications
-              </span>
-            ) : (
-              <span className="text-gray-400 font-medium">Awaiting backend counter</span>
-            )
-          }
-          footerRight={<span className="text-gray-400 font-medium">last 30 days</span>}
         />
 
         <MetricCard
           label="Deliverability Accuracy"
           value={ACCURACY_LABEL}
-          icon={ShieldCheck}
+          icon={Gauge}
           iconClass="bg-emerald-50 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
-          footerLeft={
-            <span className="text-emerald-600 font-medium flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-              Published accuracy
-            </span>
-          }
         />
 
         <MetricCard
           label="Verified Emails Today"
           value={statsLoading ? '…' : verificationStats ? verificationStats.today.toLocaleString() : '—'}
           unit={verificationStats ? 'emails' : undefined}
-          icon={Zap}
+          icon={CalendarCheck}
           iconClass="bg-purple-50 dark:bg-purple-500/15 text-purple-600 dark:text-purple-400"
-          footerLeft={
-            <span className="text-gray-600 dark:text-gray-300 font-medium">
-              {verificationStats ? 'Single, bulk and API' : 'Awaiting backend counter'}
-            </span>
-          }
           footerRight={
             <Link href="/verify" className="text-brand font-bold hover:underline">
               Verify
             </Link>
           }
         />
-      </div>
-
-      {/* ------------------------ quick lookup widget ------------------------ */}
-      <div className="bg-white dark:bg-[#1a1a1a] rounded-xl border border-gray-200 dark:border-white/10 p-5 shadow-2xs">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 mb-3.5">
-          <div className="flex items-center gap-2">
-            <Zap className="h-5 w-5 text-brand" />
-            <h3 className="text-sm font-bold text-ink dark:text-white">Quick Discovery Sandbox</h3>
-          </div>
-          <span className="text-xs text-gray-400">Opens the finder with these details prefilled</span>
-        </div>
-        <form onSubmit={handleQuickSearch} className="grid grid-cols-1 sm:grid-cols-12 gap-3">
-          <div className="sm:col-span-5 relative">
-            <UserIcon className="absolute left-3 top-2.5 h-[18px] w-[18px] text-gray-400 pointer-events-none" />
-            <input
-              type="text"
-              value={quickName}
-              onChange={(e) => setQuickName(e.target.value)}
-              placeholder="Full Name (e.g. Marc Benioff)"
-              className="w-full h-10 pl-9 pr-3 text-xs bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-ink dark:text-white placeholder:text-gray-400 focus:bg-white dark:focus:bg-white/10 focus:border-brand/40 focus:ring-2 focus:ring-brand/10 transition-all focus:outline-none"
-            />
-          </div>
-          <div className="sm:col-span-4 relative">
-            <Globe className="absolute left-3 top-2.5 h-[18px] w-[18px] text-gray-400 pointer-events-none" />
-            <input
-              type="text"
-              value={quickDomain}
-              onChange={(e) => setQuickDomain(e.target.value)}
-              placeholder="Company Domain (e.g. salesforce.com)"
-              className="w-full h-10 pl-9 pr-3 text-xs bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-lg text-ink dark:text-white placeholder:text-gray-400 focus:bg-white dark:focus:bg-white/10 focus:border-brand/40 focus:ring-2 focus:ring-brand/10 transition-all focus:outline-none"
-            />
-          </div>
-          <div className="sm:col-span-3">
-            <button
-              type="submit"
-              className="w-full h-10 bg-brand text-white text-xs font-bold rounded-lg hover:bg-brand-hover transition-colors flex items-center justify-center gap-2 shadow-2xs"
-            >
-              <Search className="h-4 w-4" />
-              <span>Find &amp; Verify</span>
-            </button>
-          </div>
-        </form>
       </div>
 
       {/* --------------------------- tool cards --------------------------- */}
@@ -453,7 +463,7 @@ export default function HomePage() {
           <ToolCard
             href="/bulk-finder"
             icon={Database}
-            title="Bulk CSV List Finder"
+            title="Bulk Email Finder via CSV"
             description="Upload CSV/Excel spreadsheets to discover and enrich prospect records at scale."
             cta="Upload List"
           />
@@ -471,6 +481,7 @@ export default function HomePage() {
             description="Integrate finding and verification directly into your outbound stack."
             cta="View API Docs"
           />
+          {/* Video Tutorials card hidden until tutorial content is available.
           <ToolCard
             href="/video-tutorials"
             icon={PlayCircle}
@@ -478,6 +489,7 @@ export default function HomePage() {
             description="Learn how to get the most out of Mailsfinder with short walkthroughs."
             cta="Watch Tutorials"
           />
+          */}
           <ToolCard
             href={communityLink}
             icon={Users}
@@ -500,7 +512,7 @@ export default function HomePage() {
             <div className="flex items-center gap-2.5">
               <h2 className="text-base font-bold text-ink dark:text-white">Recent Prospect Activity</h2>
               <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 tabular-nums">
-                {rows.length} Total
+                {totalCount} Total
               </span>
             </div>
             <p className="text-xs text-gray-400 mt-0.5">
@@ -511,7 +523,7 @@ export default function HomePage() {
           <div className="flex items-center gap-3 flex-wrap">
             <div className="flex items-center bg-gray-100 dark:bg-white/5 p-1 rounded-lg">
               {([
-                ['all', `All (${rows.length})`],
+                ['all', `All (${totalCount})`],
                 ['safe', `Verified Safe (${safeCount})`],
                 ['risky', `Catch-all / Risky (${riskyCount})`],
               ] as const).map(([key, label]) => (
@@ -543,20 +555,20 @@ export default function HomePage() {
 
         {findsLoading ? (
           <div className="p-10 text-center text-xs text-gray-400">Loading recent activity…</div>
-        ) : visibleRows.length === 0 ? (
+        ) : activity.length === 0 ? (
           <div className="p-12 flex flex-col items-center justify-center text-center gap-2">
             <span className="h-10 w-10 rounded-full bg-gray-50 dark:bg-white/5 text-gray-400 flex items-center justify-center">
               <Clock className="h-5 w-5" />
             </span>
             <p className="text-sm font-semibold text-ink dark:text-white">
-              {rows.length === 0 ? 'No prospect activity yet' : 'Nothing matches this filter'}
+              {totalCount === 0 ? 'No prospect activity yet' : 'Nothing matches this filter'}
             </p>
             <p className="text-xs text-gray-400 max-w-xs">
-              {rows.length === 0
+              {totalCount === 0
                 ? 'Run your first lookup and discovered contacts will appear here.'
                 : 'Try a different tab to see more results.'}
             </p>
-            {rows.length === 0 && (
+            {totalCount === 0 && (
               <Link
                 href="/find"
                 className="mt-2 h-8 px-3 bg-brand text-white rounded-lg text-xs font-bold hover:bg-brand-hover transition-colors flex items-center gap-1.5"
@@ -580,7 +592,9 @@ export default function HomePage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-white/10 text-xs">
-                {visibleRows.map((item, i) => {
+                {activity.map((row, i) => {
+                  if (row.kind === 'bulk') return <BulkActivityRow key={row.entry.id} entry={row.entry} />
+                  const item = row.item
                   const score = scoreOf(item)
                   const risky = isRisky(item)
                   const safe = isSafe(item)

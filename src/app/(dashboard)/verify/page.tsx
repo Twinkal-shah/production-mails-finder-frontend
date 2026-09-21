@@ -12,6 +12,7 @@ import { useRecentVerifyResults } from '@/hooks/useRecentResults'
 import { useUserProfile } from '@/hooks/useCreditsData'
 import { ActiveJobsBanner } from '@/components/active-jobs-banner'
 import { humanizeApiError } from '@/lib/api-error'
+import { saveBulkHistoryEntry } from '@/lib/bulk-history'
 import { VerifyHeader } from './components/verify-header'
 import { VerifyResultPanel } from './components/verify-result-panel'
 import { SingleVerifyPanel } from './components/single-verify-panel'
@@ -93,6 +94,13 @@ export default function VerifyPage() {
   useEffect(() => {
     loadUserJobs()
   }, [loadUserJobs])
+
+  // Deep link: /verify?mode=bulk opens the CSV upload tab
+  useEffect(() => {
+    try {
+      if (new URLSearchParams(window.location.search).get('mode') === 'bulk') setMode('bulk')
+    } catch {}
+  }, [])
 
 
 
@@ -600,6 +608,18 @@ export default function VerifyPage() {
       setStatusText('Completed')
       toast.success('Bulk verification completed')
       invalidateCreditsData()
+      // Keep the finished CSV available on the dashboard's Recent Activity.
+      try {
+        saveBulkHistoryEntry({
+          type: 'bulk_verify',
+          filename: originalFileName || null,
+          downloadName: originalFileName ? `${originalFileName}.csv` : `email-verification-results-${new Date().toISOString().split('T')[0]}.csv`,
+          total: totals.processed,
+          success: totals.valid,
+          risky: totals.risky,
+          csv: buildResultsCsv(collected),
+        })
+      } catch {}
     } catch (error: unknown) {
       const msg = humanizeApiError(error, 'Failed to run bulk verification')
       toast.error(msg)
@@ -609,23 +629,32 @@ export default function VerifyPage() {
     }
   }
 
+  const VERIFY_CSV_COLUMNS = ['catch_all', 'connections', 'domain', 'email', 'mx', 'status', 'time_exec', 'user_name', 'is_catch_all_domain', 'notice']
+
+  /** Results CSV with the same columns/order as the download button. */
+  const buildResultsCsv = (items: VerifyResultItem[]) =>
+    Papa.unparse(
+      items.map(it => ({
+        catch_all: it.catch_all,
+        connections: it.connections,
+        domain: it.domain,
+        email: it.email,
+        mx: it.mx,
+        status: it.status,
+        time_exec: it.time_exec,
+        user_name: it.user_name,
+        is_catch_all_domain: it.is_catch_all_domain,
+        notice: it.notice
+      })),
+      { columns: VERIFY_CSV_COLUMNS }
+    )
+
   const downloadResults = () => {
     try {
-      const cols = ['catch_all', 'connections', 'domain', 'email', 'mx', 'status', 'time_exec', 'user_name', 'is_catch_all_domain', 'notice']
-      const list = results.length > 0
-        ? results.map(it => ({
-            catch_all: it.catch_all,
-            connections: it.connections,
-            domain: it.domain,
-            email: it.email,
-            mx: it.mx,
-            status: it.status,
-            time_exec: it.time_exec,
-            user_name: it.user_name,
-            is_catch_all_domain: it.is_catch_all_domain,
-            notice: it.notice
-          }))
-        : rows.map(r => ({
+      const cols = VERIFY_CSV_COLUMNS
+      const csv = results.length > 0
+        ? buildResultsCsv(results)
+        : Papa.unparse(rows.map(r => ({
             catch_all: r.catch_all,
             connections: undefined,
             domain: r.domain,
@@ -636,8 +665,7 @@ export default function VerifyPage() {
             user_name: r.user_name,
             is_catch_all_domain: r.is_catch_all_domain,
             notice: r.notice
-          }))
-      const csv = Papa.unparse(list, { columns: cols })
+          })), { columns: cols })
       const blob = new Blob([csv], { type: 'text/csv' })
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')

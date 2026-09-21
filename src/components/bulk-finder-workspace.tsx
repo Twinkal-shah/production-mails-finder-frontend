@@ -14,6 +14,7 @@ import { useQueryInvalidation } from '@/lib/query-invalidation'
 import { bulkFind, buildBulkFindPayload } from '@/lib/bulk-find-utils'
 import { ActiveJobsBanner } from '@/components/active-jobs-banner'
 import { humanizeApiError } from '@/lib/api-error'
+import { saveBulkHistoryEntry } from '@/lib/bulk-history'
 
 interface CsvRow {
   'Full Name'?: string
@@ -489,6 +490,20 @@ export function BulkFinderWorkspace({ showHeader = true }: { showHeader?: boolea
       setStatusDirectText('Completed')
       toast.success(`Bulk find completed${totalCredits ? ` • Credits used: ${totalCredits}` : ''}`)
       invalidateCreditsData()
+      // Keep the finished CSV available on the dashboard's Recent Activity.
+      try {
+        const finalRows = rows.map(r => updates.get(r.id) ?? r)
+        const { csv, downloadFileName } = buildResultsCsv(finalRows)
+        saveBulkHistoryEntry({
+          type: 'bulk_find',
+          filename: originalFileName,
+          downloadName: downloadFileName,
+          total: totals.processed,
+          success: totals.found,
+          risky: finalRows.filter(r => r.catch_all || r.is_catch_all_domain).length,
+          csv,
+        })
+      } catch {}
     } catch (e) {
       setIsProcessingDirect(false)
       setIsIndeterminate(false)
@@ -498,13 +513,14 @@ export function BulkFinderWorkspace({ showHeader = true }: { showHeader?: boolea
     }
   }
 
-  const downloadDirectResults = () => {
+  /** Builds the results CSV (same columns as the download) for the given rows. */
+  const buildResultsCsv = (rowsToExport: BulkRow[]) => {
     const finderResultColumns = ['Email', 'Confidence', 'Status', 'Catch All', 'Catch-All Domain', 'Notice', 'User Name', 'MX', 'Error']
     const columnsToUse = originalColumnOrder.length > 0
       ? originalColumnOrder
-      : (rows.length > 0 ? Object.keys(rows[0]).filter(key => !['email', 'confidence', 'status', 'catch_all', 'user_name', 'mx', 'error', 'result_status', 'is_catch_all_domain', 'notice'].includes(key)) : [])
+      : (rowsToExport.length > 0 ? Object.keys(rowsToExport[0]).filter(key => !['email', 'confidence', 'status', 'catch_all', 'user_name', 'mx', 'error', 'result_status', 'is_catch_all_domain', 'notice'].includes(key)) : [])
     const orderedColumns = Array.from(new Set([...columnsToUse, ...finderResultColumns]))
-    const csvData = rows.map(row => {
+    const csvData = rowsToExport.map(row => {
       const { fullName, domain, role, email, confidence, result_status, catch_all, user_name, mx, error, is_catch_all_domain, notice, ...originalColumns } = row
       const rowData: Record<string, string | number | boolean | null | undefined> = {}
       columnsToUse.forEach(col => {
@@ -530,13 +546,18 @@ export function BulkFinderWorkspace({ showHeader = true }: { showHeader?: boolea
       return rowData
     })
     const csv = Papa.unparse(csvData, { columns: orderedColumns })
+    const downloadFileName = originalFileName 
+      ? `result-${originalFileName.replace(/\.[^/.]+$/, '')}.csv` 
+      : `bulk_finder_results_${new Date().toISOString().split('T')[0]}.csv`
+    return { csv, downloadFileName }
+  }
+
+  const downloadDirectResults = () => {
+    const { csv, downloadFileName } = buildResultsCsv(rows)
     const blob = new Blob([csv], { type: 'text/csv' })
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    const downloadFileName = originalFileName 
-      ? `result-${originalFileName.replace(/\.[^/.]+$/, '')}.csv` 
-      : `bulk_finder_results_${new Date().toISOString().split('T')[0]}.csv`
     a.download = downloadFileName
     document.body.appendChild(a)
     a.click()

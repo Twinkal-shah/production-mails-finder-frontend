@@ -241,11 +241,6 @@ export default function FindPage() {
         <div>
           <p className="flex items-center gap-2 text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-1">
             Prospecting Engine
-            <span aria-hidden="true">•</span>
-            <span className="flex items-center gap-1.5 text-[#059669] normal-case tracking-normal font-mono-code font-medium">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#059669]" />
-              SMTP Engine Online
-            </span>
           </p>
           <h1 className="text-2xl font-bold tracking-tight text-ink dark:text-white">Find Email</h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
