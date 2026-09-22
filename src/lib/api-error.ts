@@ -25,8 +25,19 @@ export function humanizeApiError(raw: unknown, fallback = 'Something went wrong.
 
   const lower = text.toLowerCase()
 
-  if (lower.includes('daily') && lower.includes('limit')) {
-    return "You've hit today's email limit. Please try again tomorrow."
+  // The backend's daily-cap message already names the cap and the reset time
+  // ("You've reached your daily 3,000 credit cap. Resets at 00:00 UTC..."), so
+  // pass it through verbatim rather than flattening it into something vaguer.
+  const isDailyCap = lower.includes('daily') && (lower.includes('cap') || lower.includes('limit'))
+  if (isDailyCap && (/\d/.test(text) || lower.includes('reset'))) {
+    return text.trim()
+  }
+  if (isDailyCap) {
+    return "You've hit today's limit. It resets at midnight UTC."
+  }
+  // API access refused for the current plan (HTTP 403 plan_not_allowed).
+  if (lower.includes('plan_not_allowed') || (lower.includes('api access') && lower.includes('not included'))) {
+    return text.includes(' ') ? text.trim() : 'API access is not included in your plan. Upgrade to Growth or Agency to use the API.'
   }
   if (lower.includes('insufficient') && lower.includes('credit')) {
     return "You don't have enough credits to perform this action."

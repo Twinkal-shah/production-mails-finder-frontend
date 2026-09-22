@@ -3,7 +3,9 @@ import { apiGet } from '@/lib/api'
 // New plan taxonomy returned by the backend. Kept as a broad `string` on the
 // Profile type below so older/unknown values don't break the UI, but this
 // alias documents the canonical set.
-export type PlanName = 'free' | 'monthly' | 'lifetime' | 'payg'
+// `monthly` is the retired $9.99 tier — still returned for grandfathered
+// subscribers, never offered for sale. See `isLegacyMonthly` in lib/plans.
+export type PlanName = 'free' | 'starter' | 'growth' | 'agency' | 'monthly' | 'lifetime' | 'payg'
 export type BillingCycle = 'none' | 'monthly' | 'annual'
 export type SubscriptionStatus =
   | 'active'
@@ -22,6 +24,12 @@ export type BucketBalance = {
   daily_cap?: number
   resets_at?: string | null
   cycle_end_date?: string | null
+  /** Cycle has lapsed — `balance` is already zero, show "expired" not a number. */
+  cycle_expired?: boolean
+  /** Always false today: credits never roll over. */
+  rollover?: boolean
+  /** Free plan only — monthly ceiling across daily resets. */
+  monthly_ceiling?: number
 }
 
 export type ProfileBalances = {
@@ -37,6 +45,8 @@ export type ProfileCaps = {
   signals_monthly_cap?: number
   signals_used?: number
   database_export_30d_cap?: number
+  /** Requests per minute allowed for API-key requests. 0 = no API access. */
+  api_rate_limit_per_minute?: number
 }
 
 export type Profile = {

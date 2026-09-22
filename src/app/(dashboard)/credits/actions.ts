@@ -91,128 +91,14 @@ export async function getCreditUsageHistory(): Promise<CreditUsage[]> {
   }
 }
 
-export async function createLemonSqueezyCheckout(planData: {
-  name: string
-  price: number
-  period: string
-  findCredits: number
-  verifyCredits: number
-}) {
-  const { getCurrentUserFromCookies } = await import('@/lib/auth-server')
-  const user = await getCurrentUserFromCookies()
-  if (!user) {
-    throw new Error('User not authenticated')
-  }
-  
-  // Validate plan data
-  const validPlans = {
-    'Monthly': { price: 9.99, period: 'month', findCredits: 300000, verifyCredits: 300000 },
-    'Annual': { price: 7.99, period: 'month', findCredits: 300000, verifyCredits: 300000 },
-    'Lifetime': { price: 249, period: 'lifetime', findCredits: 2000000, verifyCredits: 2000000 }
-  }
-
-  const validPlan = validPlans[planData.name as keyof typeof validPlans]
-  if (!validPlan || validPlan.price !== planData.price) {
-    throw new Error('Invalid subscription plan')
-  }
-
-  try {
-    const { createLemonSqueezyCheckout: createCheckout } = await import('@/lib/services/lemonsqueezy')
-
-    // Map plan names to LemonSqueezy variant IDs (configured in the LemonSqueezy dashboard)
-    const variantIds = {
-      'Monthly': process.env.LEMONSQUEEZY_MONTHLY_VARIANT_ID || 'monthly-variant-id',
-      'Annual': process.env.LEMONSQUEEZY_ANNUAL_VARIANT_ID || 'annual-variant-id',
-      'Lifetime': process.env.LEMONSQUEEZY_LIFETIME_VARIANT_ID || 'lifetime-variant-id'
-    }
-    
-    const variantId = variantIds[planData.name as keyof typeof variantIds]
-    if (!variantId) {
-      throw new Error('Invalid plan selected')
-    }
-    
-    const checkoutData = {
-      productId: process.env.LEMONSQUEEZY_PRODUCT_ID || 'product-id',
-      variantId,
-      customData: {
-        plan_name: planData.name,
-        find_credits: planData.findCredits,
-        verify_credits: planData.verifyCredits,
-      },
-    }
-    
-    const userId = (user as Record<string, unknown>).id as string | undefined || (user as Record<string, unknown>)._id as string | undefined || ''
-    const result = await createCheckout(checkoutData, userId)
-    
-    return { url: result.url }
-  } catch (error) {
-    console.error('LemonSqueezy checkout error:', error)
-    throw new Error('Failed to create checkout session')
-  }
-}
-
-export async function createCustomCreditCheckout(creditData: {
-  credits: number
-  price: number
-}) {
-  const { getCurrentUserFromCookies } = await import('@/lib/auth-server')
-  const user = await getCurrentUserFromCookies()
-  if (!user) {
-    throw new Error('User not authenticated')
-  }
-  
-  // Validate credit package data (PAYG packs)
-  const validPackages = {
-    10000: 5,
-    22000: 9,
-    42000: 14.99,
-    100000: 29,
-    250000: 59
-  }
-
-  const validPrice = validPackages[creditData.credits as keyof typeof validPackages]
-  if (!validPrice || validPrice !== creditData.price) {
-    throw new Error('Invalid credit package')
-  }
-
-  try {
-    const { createLemonSqueezyCheckout: createCheckout } = await import('@/lib/services/lemonsqueezy')
-
-    // Map credit amounts to LemonSqueezy PAYG variant IDs
-    const creditVariantIds = {
-      10000: process.env.LEMONSQUEEZY_PAYG_10K_VARIANT_ID || 'payg-10k-variant-id',
-      22000: process.env.LEMONSQUEEZY_PAYG_22K_VARIANT_ID || 'payg-22k-variant-id',
-      42000: process.env.LEMONSQUEEZY_PAYG_42K_VARIANT_ID || 'payg-42k-variant-id',
-      100000: process.env.LEMONSQUEEZY_PAYG_100K_VARIANT_ID || 'payg-100k-variant-id',
-      250000: process.env.LEMONSQUEEZY_PAYG_250K_VARIANT_ID || 'payg-250k-variant-id'
-    }
-    
-    const variantId = creditVariantIds[creditData.credits as keyof typeof creditVariantIds]
-    if (!variantId) {
-      throw new Error('Invalid credit package selected')
-    }
-    
-    const userId = (user as Record<string, unknown>).id as string | undefined || (user as Record<string, unknown>)._id as string | undefined || ''
-    const result = await createCheckout(
-      {
-        productId: process.env.LEMONSQUEEZY_CREDITS_PRODUCT_ID || process.env.LEMONSQUEEZY_PRODUCT_ID || 'credits-product-id',
-        variantId,
-        customData: {
-          credits: creditData.credits,
-          package_type: 'credits',
-          find_credits: creditData.credits,
-          verify_credits: 0,
-        },
-      },
-      userId
-    )
-    
-    return { url: result.url }
-  } catch (error) {
-    console.error('Mock checkout error:', error)
-    throw new Error('Failed to create checkout session')
-  }
-}
+/*
+ * The `createLemonSqueezyCheckout` / `createCustomCreditCheckout` server
+ * actions were removed here. They had no callers — all checkouts go through
+ * `/api/checkout`, which posts the live plan taxonomy to the backend — and
+ * because this is a `'use server'` module their exported plan table remained a
+ * reachable endpoint for the retired $9.99 / 300,000-credit "Monthly" tier,
+ * which is no longer for sale.
+ */
 
 export async function createLemonSqueezyPortal(): Promise<{ url?: string; error?: string }> {
   try {

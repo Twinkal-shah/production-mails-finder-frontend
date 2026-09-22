@@ -22,6 +22,20 @@ import {
   CreditCard as CreditCardIcon,
 } from 'lucide-react'
 import { useCreditsData } from '@/hooks/useCreditsData'
+import {
+  CREDIT_PACKS,
+  PLAN_CATALOG,
+  ROLLOVER_NOTICE,
+  activeBucket,
+  displayApiRateLimit,
+  dailyCapOf,
+  dailyUsedOf,
+  formatResetTime,
+  isCycleExpired,
+  isLegacyMonthly,
+  normalizePlan,
+  planLabel,
+} from '@/lib/plans'
 import { Bar } from 'react-chartjs-2'
 import { isAuthenticated, saveRedirectUrl } from '@/lib/auth'
 import {
@@ -67,59 +81,37 @@ interface CreditTransaction {
 
 // Removed unused interfaces - UserProfile and CreditUsage are now imported from hooks
 
-const PLANS = {
-  free: {
-    name: 'Free',
-    price: '$0',
-    duration: 'forever',
-    features: ['Email Finder & Verifier only', '100 credits/day', 'No API access', 'No domain search', 'No export'],
-    color: 'bg-gray-100 text-gray-800',
-    icon: Calendar
-  },
-  monthly: {
-    name: 'Monthly',
-    price: '$9.99',
-    duration: 'per month',
-    features: [
-      'Everything in Free',
-      'Full Finder / Verifier / Enrichment APIs',
-      'Domain search',
-      '25,000 exports / month',
-      'Unlimited Signals',
-      '600 req/min'
-    ],
-    color: 'bg-blue-100 text-blue-800',
-    icon: TrendingUp
-  },
-  lifetime: {
-    name: 'Lifetime',
-    price: '$249',
-    duration: 'one-time',
-    features: [
-      'Finder / Verifier APIs',
-      'Domain search',
-      '5,000 exports / month',
-      '1,000 Enrichment calls / month',
-      '25 Signals / month',
-      '300 req/min'
-    ],
-    color: 'bg-green-100 text-green-800',
-    icon: TrendingUp
-  },
+/**
+ * Plan cards for the "Current Plan" summary. Built from the shared catalog so
+ * pricing can never drift from the upgrade page, plus the two plans that are
+ * never sold but can still be reported by the API: pay-as-you-go and the
+ * grandfathered `monthly` tier.
+ */
+const PLANS: Record<string, { name: string; price: string; duration: string; features: string[] }> = {
+  ...Object.fromEntries(
+    Object.values(PLAN_CATALOG).map((plan) => [
+      plan.key,
+      {
+        name: plan.name,
+        price: plan.monthly.price === 0 ? '$0' : `$${plan.monthly.price}`,
+        duration: plan.key === 'free' ? 'forever' : plan.key === 'lifetime' ? 'one-time' : 'per month',
+        features: plan.features,
+      },
+    ])
+  ),
   payg: {
     name: 'Pay As You Go',
     price: 'From $5',
     duration: 'one-time',
-    features: [
-      'Email Finder & Verifier only',
-      'No APIs',
-      'No domain search',
-      'No exports',
-      '60 req/min'
-    ],
-    color: 'bg-purple-100 text-purple-800',
-    icon: Coins
-  }
+    features: ['Credit pool that never expires', 'Email Finder & Verifier', 'No API access'],
+  },
+  // Retired $9.99 / 300,000-credit tier. Shown only to existing subscribers.
+  monthly: {
+    name: 'Monthly (legacy)',
+    price: '$9.99',
+    duration: 'per month',
+    features: ['300,000 credits / cycle', 'Plan no longer sold', 'Your allowance continues as-is'],
+  },
 }
 
 interface PurchaseItem {
@@ -154,8 +146,8 @@ function CreditsPageComponent() {
   
   // Use React Query for data fetching with caching
   const { profile, transactions, creditUsage, isLoading, isError, error } = useCreditsData()
-  // Normalize plan name (API returns e.g. "Monthly"; keys in PLANS are lowercase)
-const planKey = (profile?.plan || 'free').toString().trim().toLowerCase() as keyof typeof PLANS;
+  // Normalize plan name (API returns e.g. "Growth"; keys in PLANS are lowercase)
+const planKey = normalizePlan(profile?.plan);
 const currentPlan = PLANS[planKey] || PLANS.free;
 
 // ------------------ Purchase history (fetch from dedicated API) ------------------
@@ -487,17 +479,17 @@ if (isPurchaseArray(parsed)) {
     return url
   }
 
-  const handleSubscribe = (planName: 'monthly' | 'annual' | 'lifetime') => {
+  const handleSubscribe = (
+    planName: 'starter' | 'growth' | 'agency' | 'lifetime',
+    billing: 'monthly' | 'annual' = 'monthly'
+  ) => {
     const loadingKey = `plan-${planName}`
     setLoadingStates(prev => ({ ...prev, [loadingKey]: true }))
-    // Build payload for the backend pricing taxonomy:
-    //  - Monthly subscription  -> { plan: 'monthly', billing: 'monthly' }
-    //  - Annual subscription   -> { plan: 'monthly', billing: 'annual' }
-    //  - Lifetime              -> { plan: 'lifetime' }
+    // Backend pricing taxonomy:
+    //  - Subscription -> { plan: 'starter' | 'growth' | 'agency', billing }
+    //  - Lifetime     -> { plan: 'lifetime' }
     const payload: Record<string, string> =
-      planName === 'lifetime'
-        ? { plan: 'lifetime' }
-        : { plan: 'monthly', billing: planName === 'annual' ? 'annual' : 'monthly' }
+      planName === 'lifetime' ? { plan: 'lifetime' } : { plan: planName, billing }
     startTransition(async () => {
       try {
         const url = await postCheckout(payload)
@@ -660,90 +652,6 @@ if (isPurchaseArray(parsed)) {
         return transaction.product_name || 'Transaction'
     }
   }
-
-  const pricingPlans = [
-    {
-      name: 'Monthly',
-      price: 9.99,
-      period: 'month',
-      findCredits: 300000,
-      verifyCredits: 300000,
-      popular: true,
-      features: [
-        '300,000 credits / cycle',
-        'Full Finder / Verifier / Enrichment APIs',
-        'Domain search',
-        '25,000 exports / month',
-        'Unlimited Signals',
-        '600 req/min',
-        'Priority email support'
-      ]
-    },
-    {
-      name: 'Annual',
-      price: 7.99,
-      period: 'month',
-      findCredits: 300000,
-      verifyCredits: 300000,
-      popular: false,
-      features: [
-        '300,000 credits / cycle',
-        'Billed $95.88 / year',
-        'Full Finder / Verifier / Enrichment APIs',
-        'Domain search',
-        '25,000 exports / month',
-        'Unlimited Signals',
-        '600 req/min',
-        'Priority email support'
-      ]
-    },
-    {
-      name: 'Lifetime',
-      price: 249,
-      period: 'lifetime',
-      findCredits: 2000000,
-      verifyCredits: 2000000,
-      popular: false,
-      features: [
-        '2,000,000 credits (lifetime pool)',
-        'Finder / Verifier APIs',
-        'Domain search',
-        '5,000 exports / month',
-        '1,000 Enrichment calls / month',
-        '25 Signals / month',
-        '300 req/min',
-        'Lifetime access'
-      ]
-    }
-  ]
-
-  const customCreditPackages = [
-    {
-      credits: 10000,
-      price: 5,
-      description: '10,000 credits for email finding and verification'
-    },
-    {
-      credits: 22000,
-      price: 9,
-      description: '22,000 credits for email finding and verification'
-    },
-    {
-      credits: 42000,
-      price: 14.99,
-      description: '42,000 credits for email finding and verification'
-    },
-    {
-      credits: 100000,
-      price: 29,
-      description: '100,000 credits for email finding and verification'
-    },
-    {
-      credits: 250000,
-      price: 59,
-      description: '250,000 credits for email finding and verification'
-    }
-  ]
 
   // For free plans, assume they are not expired (plan expiry logic removed)
   const daysRemaining = profile?.plan === 'free' ? 3 : 0
@@ -928,6 +836,44 @@ if (isPurchaseArray(parsed)) {
     .map((k) => ({ key: k, value: Number(buckets?.[k]?.balance ?? 0) }))
     .filter((b) => b.value > 0)
   const caps = profile?.caps
+
+  /* --- Daily cap: always the account's own figure, never a catalog guess --- */
+  const dailyCap = dailyCapOf(profile)
+  const dailyUsed = dailyUsedOf(profile)
+  const dailyRemaining = dailyCap !== null && dailyUsed !== null ? Math.max(dailyCap - dailyUsed, 0) : null
+  const dailyPct = dailyCap !== null && dailyUsed !== null && dailyCap > 0
+    ? Math.min(Math.round((dailyUsed / dailyCap) * 100), 100)
+    : null
+  const dailyResetLabel = formatResetTime(activeBucket(profile)?.resets_at)
+  const dailyCapReached = dailyRemaining !== null && dailyRemaining === 0
+  const cycleExpired = isCycleExpired(profile)
+  const apiRateLimit = displayApiRateLimit(profile)
+  const legacyPlan = isLegacyMonthly(profile?.plan)
+
+  /*
+   * Feature bullets for the user's OWN plan. Catalog copy describes what is
+   * sold today, which is not always what an existing subscriber bought — an
+   * earlier Lifetime purchase was a 2,000,000-credit pool, not 1,000,000 — so
+   * prefer the figures the API reports for this account.
+   */
+  const currentPlanFeatures = (() => {
+    const features = [...(currentPlan.features || [])]
+    const pool = Number(activeBucket(profile)?.pool)
+    if (Number.isFinite(pool) && pool > 0) {
+      const poolIndex = features.findIndex((f) => /lifetime pool/i.test(f))
+      if (poolIndex >= 0) {
+        features[poolIndex] = `${pool.toLocaleString()} credits (lifetime pool)`
+      }
+    }
+    if (dailyCap !== null) {
+      const capIndex = features.findIndex((f) => /verifications \/ day|credits \/ day/i.test(f))
+      if (capIndex >= 0) {
+        features[capIndex] = `${dailyCap.toLocaleString()} credits / day`
+      }
+    }
+    return features
+  })()
+
   const msToRenewal = renewalDate ? renewalDate.getTime() - Date.now() : null
   const daysToRenewal = msToRenewal === null ? null : Math.ceil(msToRenewal / 86400000)
   const renewalPassed = msToRenewal !== null && msToRenewal <= 0
@@ -969,7 +915,7 @@ if (isPurchaseArray(parsed)) {
           <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">
             <span>Enterprise Quota</span>
             <span aria-hidden="true">/</span>
-            <span className="capitalize text-brand">{currentPlan.name}</span>
+            <span className="text-brand">{planLabel(profile?.plan)}</span>
           </p>
           <h1 className="text-2xl font-bold tracking-tight text-ink dark:text-white">
             Billing &amp; Quotas
@@ -1012,13 +958,23 @@ if (isPurchaseArray(parsed)) {
               <span className="h-1.5 w-1.5 rounded-full bg-[#059669]" />
               Active
             </span>
+            {apiRateLimit !== null && apiRateLimit > 0 && (
+              <span className="inline-flex items-center h-6 rounded-full border border-gray-200 dark:border-white/10 bg-[#F8FAFC] dark:bg-white/5 px-2.5 text-[11px] font-semibold text-gray-600 dark:text-gray-300">
+                API {apiRateLimit} req/min
+              </span>
+            )}
           </div>
+          {legacyPlan && (
+            <p className="mt-1.5 text-[11px] text-gray-500 dark:text-gray-400">
+              This plan is no longer sold — your allowance continues unchanged.
+            </p>
+          )}
           <div className="flex items-baseline gap-1.5 mt-2">
             <span className="text-2xl font-bold text-ink dark:text-white">{currentPlan.price}</span>
             <span className="text-xs text-gray-400 font-medium">{currentPlan.duration}</span>
           </div>
           <div className="mt-4 pt-3 border-t border-gray-100 dark:border-white/10 space-y-1.5">
-            {(currentPlan.features || []).slice(0, 3).map((feature: string) => (
+            {currentPlanFeatures.slice(0, 3).map((feature: string) => (
               <div key={feature} className="flex items-start gap-2">
                 <Check className="h-3.5 w-3.5 text-[#059669] mt-0.5 shrink-0" />
                 <span className="text-[11px] text-gray-500 dark:text-gray-400">{feature}</span>
@@ -1035,10 +991,56 @@ if (isPurchaseArray(parsed)) {
               Available Balance
             </span>
           </div>
-          <p className="text-2xl font-bold text-ink dark:text-white tabular-nums">
-            {usageStats.balance.toLocaleString()}{' '}
-            <span className="text-sm font-medium text-gray-400">Credits</span>
-          </p>
+          {cycleExpired ? (
+            <>
+              <p className="text-2xl font-bold text-ink dark:text-white tabular-nums">
+                0 <span className="text-sm font-medium text-gray-400">Credits</span>
+              </p>
+              <span className="mt-2 inline-flex w-fit items-center h-6 rounded-full border border-[#FDE68A] dark:border-[#D97706]/30 bg-[#FFFBEB] dark:bg-[#D97706]/15 px-2.5 text-[11px] font-semibold text-[#D97706]">
+                Cycle expired
+                {renewalDate
+                  ? ` — renews ${renewalDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`
+                  : ''}
+              </span>
+            </>
+          ) : (
+            <p className="text-2xl font-bold text-ink dark:text-white tabular-nums">
+              {usageStats.balance.toLocaleString()}{' '}
+              <span className="text-sm font-medium text-gray-400">Credits</span>
+            </p>
+          )}
+
+          {/* Daily cap is a real limit users hit — show it against usage. */}
+          {dailyCap !== null && (
+            <div className="mt-4 pt-3 border-t border-gray-100 dark:border-white/10">
+              <div className="flex items-center justify-between text-[11px] mb-1.5">
+                <span className="text-gray-500 dark:text-gray-400">Today&apos;s usage</span>
+                <span
+                  className={`font-semibold tabular-nums ${
+                    dailyCapReached ? 'text-[#D97706]' : 'text-ink dark:text-white'
+                  }`}
+                >
+                  {(dailyUsed ?? 0).toLocaleString()} / {dailyCap.toLocaleString()}
+                </span>
+              </div>
+              <div className="h-1.5 w-full rounded-full bg-gray-100 dark:bg-white/10 overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all ${
+                    dailyCapReached ? 'bg-[#D97706]' : 'bg-brand'
+                  }`}
+                  style={{ width: `${dailyPct ?? 0}%` }}
+                />
+              </div>
+              <p className={`mt-1.5 text-[11px] ${dailyCapReached ? 'text-[#D97706] font-semibold' : 'text-gray-500 dark:text-gray-400'}`}>
+                {dailyCapReached
+                  ? `Daily cap reached. Resets at ${dailyResetLabel}.`
+                  : dailyRemaining !== null
+                    ? `${dailyRemaining.toLocaleString()} left today · resets at ${dailyResetLabel}`
+                    : `Resets at ${dailyResetLabel}`}
+              </p>
+            </div>
+          )}
+
           <div className="mt-4 pt-3 border-t border-gray-100 dark:border-white/10 space-y-2">
             <div className="flex items-center justify-between text-[11px]">
               <span className="text-gray-500 dark:text-gray-400">Used (last 30 days)</span>
@@ -1088,8 +1090,8 @@ if (isPurchaseArray(parsed)) {
           <div className="mt-4 pt-3 border-t border-gray-100 dark:border-white/10 space-y-2">
             <div className="flex items-center justify-between text-[11px]">
               <span className="text-gray-500 dark:text-gray-400">Plan</span>
-              <span className="font-semibold text-ink dark:text-white capitalize">
-                {(profile?.plan || 'free').toString()}
+              <span className="font-semibold text-ink dark:text-white">
+                {planLabel(profile?.plan)}
               </span>
             </div>
             <div className="flex items-center justify-between text-[11px]">
@@ -1100,6 +1102,15 @@ if (isPurchaseArray(parsed)) {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Credits expire — stated here so a reset is never a surprise. */}
+      <div className="rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-[#1a1a1a] shadow-card p-4 flex items-start gap-2.5">
+        <ShieldCheck className="h-4 w-4 text-brand mt-0.5 shrink-0" />
+        <p className="text-[11px] leading-5 text-gray-500 dark:text-gray-400">
+          <strong className="text-ink dark:text-white">Credits do not roll over.</strong>{' '}
+          {ROLLOVER_NOTICE.replace('Credits do not roll over. ', '')}
+        </p>
       </div>
 
       {/* ---------------------- Consumption + side rail ---------------------- */}
@@ -1298,9 +1309,9 @@ if (isPurchaseArray(parsed)) {
               onChange={(e) => setRefillPack(Number(e.target.value))}
               className="h-10 w-full px-3 rounded-lg bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 text-sm text-ink dark:text-white outline-none focus:border-brand focus:ring-1 focus:ring-brand"
             >
-              {customCreditPackages.map((pkg) => (
-                <option key={pkg.credits} value={pkg.credits}>
-                  Add {pkg.credits.toLocaleString()} credits for ${pkg.price}
+              {CREDIT_PACKS.map((pack) => (
+                <option key={pack.package} value={pack.credits}>
+                  Add {pack.credits.toLocaleString()} credits for ${pack.price}
                 </option>
               ))}
             </select>

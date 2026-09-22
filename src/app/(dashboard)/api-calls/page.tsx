@@ -44,6 +44,16 @@ import type {
 import { JsonEditor } from '@/components/api-testing/json-editor'
 import { ResponseViewer } from '@/components/api-testing/response-viewer'
 import { useUserProfile } from '@/hooks/useCreditsData'
+import {
+  activeBucket,
+  displayApiRateLimit,
+  hasApiAccess,
+  dailyCapOf,
+  dailyUsedOf,
+  formatResetTime,
+  planLabel,
+  upgradeSuggestion,
+} from '@/lib/plans'
 import { apiGet, apiPost, apiDelete } from '@/lib/api'
 import { 
   Dialog, 
@@ -521,16 +531,20 @@ export default function ApiCallsPage() {
   })
 
   const [activeTab, setActiveTab] = useState('docs')
-  const restricted = !profileLoading && (profile?.plan === 'free' || profile?.plan === 'payg')
+  const apiRateLimit = displayApiRateLimit(profile)
+  /** No API access: the backend answers key requests with 403 plan_not_allowed. */
+  const restricted = !profileLoading && !hasApiAccess(profile)
   const handleUpgrade = () => {
-    router.push('/credits')
+    router.push('/upgrade')
   }
 
-  useEffect(() => {
-    if (restricted) {
-      router.replace('/credits')
-    }
-  }, [restricted, router])
+  /* Daily cap, straight from the API — never a hardcoded plan figure. */
+  const dailyCap = dailyCapOf(profile)
+  const dailyUsed = dailyUsedOf(profile)
+  const dailyPct = dailyCap !== null && dailyUsed !== null && dailyCap > 0
+    ? Math.min(Math.round((dailyUsed / dailyCap) * 100), 100)
+    : null
+  const dailyResetLabel = formatResetTime(activeBucket(profile)?.resets_at)
 
   // --- keep the ApiKeyRecord type but ensure we use this shape in UI ---
   type ApiKeyRecord = {
@@ -671,6 +685,12 @@ export default function ApiCallsPage() {
     const name = newKeyName.trim()
     if (!name) {
       toast.error('Key name is required')
+      return
+    }
+    if (restricted) {
+      toast.error(
+        `API access is not included in the ${planLabel(profile?.plan)} plan. Upgrade to ${upgradeSuggestion(profile?.plan)} to use the API.`
+      )
       return
     }
     setCreatingKey(true)
@@ -1132,11 +1152,22 @@ export default function ApiCallsPage() {
         <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/70 backdrop-blur-sm">
           <Card className="w-full max-w-md">
             <CardHeader>
-              <CardTitle>Upgrade Required</CardTitle>
-              <CardDescription>API access requires an upgraded plan</CardDescription>
+              <CardTitle>API access not included</CardTitle>
+              <CardDescription>
+                API access is not included in the {planLabel(profile?.plan)} plan. Upgrade to{' '}
+                {upgradeSuggestion(profile?.plan)} to create a key and call the REST API.
+              </CardDescription>
             </CardHeader>
-            <CardContent>
-              <Button className="w-full" onClick={handleUpgrade}>Upgrade Your Plan</Button>
+            <CardContent className="space-y-3">
+              <div className="flex items-center justify-between rounded-lg border border-gray-200 dark:border-white/10 bg-[#F8FAFC] dark:bg-white/5 px-3 py-2 text-xs">
+                <span className="font-semibold text-ink dark:text-white">Growth</span>
+                <span className="text-gray-500 dark:text-gray-400">30 req/min</span>
+              </div>
+              <div className="flex items-center justify-between rounded-lg border border-gray-200 dark:border-white/10 bg-[#F8FAFC] dark:bg-white/5 px-3 py-2 text-xs">
+                <span className="font-semibold text-ink dark:text-white">Agency</span>
+                <span className="text-gray-500 dark:text-gray-400">60 req/min</span>
+              </div>
+              <Button className="w-full" onClick={handleUpgrade}>View plans</Button>
             </CardContent>
           </Card>
         </div>
@@ -1206,7 +1237,7 @@ export default function ApiCallsPage() {
                 className="rounded-lg"
               />
             </div>
-            <Button onClick={handleCreateKey} disabled={creatingKey || !newKeyName.trim()} className="rounded-lg px-6">
+            <Button onClick={handleCreateKey} disabled={restricted || creatingKey || !newKeyName.trim()} className="rounded-lg px-6">
               {creatingKey ? (
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -1358,8 +1389,8 @@ export default function ApiCallsPage() {
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between gap-2">
             <span className="text-base font-bold text-ink dark:text-white">Daily Quota Meter</span>
-            <span className="px-2.5 py-0.5 rounded-full bg-brand-light dark:bg-brand/15 border border-brand-border dark:border-brand/30 text-brand font-mono-code text-xs font-bold capitalize shrink-0">
-              {(profile?.plan || 'free').toString()}
+            <span className="px-2.5 py-0.5 rounded-full bg-brand-light dark:bg-brand/15 border border-brand-border dark:border-brand/30 text-brand font-mono-code text-xs font-bold shrink-0">
+              {planLabel(profile?.plan)}
             </span>
           </div>
 
@@ -1367,10 +1398,23 @@ export default function ApiCallsPage() {
             <div className="relative w-36 h-36 flex items-center justify-center">
               <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
                 <circle className="text-gray-100 dark:text-white/10" cx="50" cy="50" r="40" fill="transparent" stroke="currentColor" strokeWidth="8" />
-                <circle className="text-brand" cx="50" cy="50" r="40" fill="transparent" stroke="currentColor" strokeWidth="8" strokeLinecap="round" strokeDasharray="251.2" strokeDashoffset="251.2" />
+                <circle
+                  className={dailyPct !== null && dailyPct >= 100 ? 'text-[#D97706]' : 'text-brand'}
+                  cx="50"
+                  cy="50"
+                  r="40"
+                  fill="transparent"
+                  stroke="currentColor"
+                  strokeWidth="8"
+                  strokeLinecap="round"
+                  strokeDasharray="251.2"
+                  strokeDashoffset={251.2 - (251.2 * (dailyPct ?? 0)) / 100}
+                />
               </svg>
               <div className="absolute flex flex-col items-center justify-center text-center">
-                <span className="text-2xl font-bold text-ink dark:text-white tracking-tight">&mdash;</span>
+                <span className="text-2xl font-bold text-ink dark:text-white tracking-tight">
+                  {dailyPct !== null ? `${dailyPct}%` : <>&mdash;</>}
+                </span>
                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Consumed</span>
               </div>
             </div>
@@ -1378,11 +1422,18 @@ export default function ApiCallsPage() {
 
           <div className="flex flex-col gap-2 bg-gray-50 dark:bg-white/5 p-3.5 rounded-xl border border-gray-200 dark:border-white/10">
             <div className="flex justify-between items-center text-xs font-semibold text-ink dark:text-white gap-2">
-              <span>Requests Today</span>
-              <span className="font-mono-code font-bold text-gray-400">Not reported</span>
+              <span>Credits Today</span>
+              <span className="font-mono-code font-bold text-gray-400">
+                {dailyCap !== null
+                  ? `${(dailyUsed ?? 0).toLocaleString()} / ${dailyCap.toLocaleString()}`
+                  : 'Not reported'}
+              </span>
             </div>
             <div className="w-full bg-gray-200 dark:bg-white/10 h-2 rounded-full overflow-hidden">
-              <div className="bg-brand h-full rounded-full" style={{ width: '0%' }} />
+              <div
+                className={`h-full rounded-full ${dailyPct !== null && dailyPct >= 100 ? 'bg-[#D97706]' : 'bg-brand'}`}
+                style={{ width: `${dailyPct ?? 0}%` }}
+              />
             </div>
             <div className="flex justify-between items-center text-[11px] text-gray-500 dark:text-gray-400 font-medium gap-2">
               <span>
@@ -1390,12 +1441,15 @@ export default function ApiCallsPage() {
                   const rates = apiKeys
                     .map((k) => k.rate_limit_per_minute)
                     .filter((r): r is number => typeof r === 'number')
+                  if (apiRateLimit !== null && apiRateLimit > 0) {
+                    return `Rate limit: ${apiRateLimit.toLocaleString()} req/min`
+                  }
                   return rates.length > 0
                     ? `Rate limit: ${Math.max(...rates).toLocaleString()} req/min`
                     : 'Rate limit: not reported'
                 })()}
               </span>
-              <span>Resets daily</span>
+              <span>Resets {dailyResetLabel}</span>
             </div>
           </div>
         </div>

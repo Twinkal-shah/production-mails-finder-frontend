@@ -3,7 +3,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { getTransactionHistory } from '@/app/(dashboard)/credits/actions'
 import { useEffect, useState } from 'react'
-import { getProfileDataClient } from '@/lib/profile'
+import { getProfileDataClient, type Profile, type ProfileBalances, type ProfileCaps } from '@/lib/profile'
 import { apiGet } from '@/lib/api'
 
 // Hook for user profile with credits - client-side version
@@ -14,20 +14,38 @@ export function useUserProfile() {
       const p = await getProfileDataClient()
       let findCredits = 0
       let verifyCredits = 0
+      // `/api/user/credits` proxies getCredits — the authoritative source for
+      // per-bucket balances, daily caps and the API rate limit. Prefer it over
+      // the profile payload, which may not carry these.
+      let credits: Record<string, unknown> | null = null
       try {
         const res = await apiGet<Record<string, unknown>>('/api/user/credits', { useProxy: true })
         if (res.ok && res.data) {
-          const d = res.data as Record<string, unknown>
+          const raw = res.data as Record<string, unknown>
+          const d = (raw.data && typeof raw.data === 'object' ? raw.data : raw) as Record<string, unknown>
+          credits = d
           findCredits = Math.max(Number(d['find'] ?? d['credits_find'] ?? 0), 0)
           verifyCredits = Math.max(Number(d['verify'] ?? d['credits_verify'] ?? 0), 0)
         }
       } catch {}
+
+      const creditsAvailable = Number(credits?.['available_credits'])
+      const balances = (credits?.['balances'] ?? p?.balances) as ProfileBalances | undefined
+      const caps = (credits?.['caps'] ?? p?.caps) as ProfileCaps | undefined
+      const billingCycle = (credits?.['billing_cycle'] ?? p?.billing_cycle) as Profile['billing_cycle']
+      const subscriptionStatus = (credits?.['subscription_status'] ??
+        p?.subscription_status) as Profile['subscription_status']
+      const planName =
+        (typeof credits?.['plan'] === 'string' && credits['plan']) ||
+        (p?.plan as string) ||
+        'free'
       // Backend now returns `available_credits` as the unified spendable
       // total. credits_find and credits_verify both equal that same value,
       // so summing them double-counts. Prefer available_credits; fall back
       // to the larger of the two legacy values, NOT the sum.
-      const availableCredits =
-        typeof p?.available_credits === 'number'
+      const availableCredits = Number.isFinite(creditsAvailable) && creditsAvailable >= 0
+        ? creditsAvailable
+        : typeof p?.available_credits === 'number'
           ? p.available_credits
           : Math.max(findCredits, verifyCredits)
 
@@ -36,7 +54,7 @@ export function useUserProfile() {
           id: p.id,
           email: p.email || '',
           full_name: (p.full_name as string) || 'User',
-          plan: (p.plan as string) || 'free',
+          plan: planName,
           // Already returned by the profile API — surfaced so the billing page
           // can show the renewal date.
           plan_expiry: p.plan_expiry ?? null,
@@ -46,10 +64,10 @@ export function useUserProfile() {
           credits_verify: Math.max(verifyCredits, 0),
           total_credits: availableCredits,
           // New backend fields — exposed for future consumers, no UI wired yet.
-          billing_cycle: p.billing_cycle,
-          subscription_status: p.subscription_status,
-          balances: p.balances,
-          caps: p.caps,
+          billing_cycle: billingCycle,
+          subscription_status: subscriptionStatus,
+          balances,
+          caps,
           credits: typeof p.credits === 'number' ? p.credits : undefined,
         }
       }
