@@ -6,11 +6,22 @@ import { getBackendBaseUrl } from '@/lib/api'
 // it is not offered anywhere in the UI. New checkouts use starter/growth/agency.
 type Plan = 'starter' | 'growth' | 'agency' | 'monthly' | 'lifetime' | 'payg'
 type Billing = 'monthly' | 'annual'
-type PaygPackage = '10k' | '22k' | '42k' | '100k' | '250k'
+type PaygPackage =
+  | 'quick_boost'
+  | 'starter_surge'
+  | 'growth_surge'
+  | 'scale_volume'
+  | 'max_volume'
 
 const SUBSCRIPTION_PLANS: Plan[] = ['starter', 'growth', 'agency', 'monthly']
 const VALID_PLANS: Plan[] = [...SUBSCRIPTION_PLANS, 'lifetime', 'payg']
-const VALID_PACKAGES: PaygPackage[] = ['10k', '22k', '42k', '100k', '250k']
+const VALID_PACKAGES: PaygPackage[] = [
+  'quick_boost',
+  'starter_surge',
+  'growth_surge',
+  'scale_volume',
+  'max_volume',
+]
 
 export async function POST(req: NextRequest) {
   const token = (await cookies()).get('access_token')?.value
@@ -45,6 +56,12 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     )
   }
+  if (plan === 'payg' && !pkg) {
+    return NextResponse.json(
+      { message: `Unknown credit pack. Valid packs are: ${VALID_PACKAGES.join(', ')}.` },
+      { status: 400 }
+    )
+  }
 
   // Resolve the LemonSqueezy variant ID server-side. The backend can also
   // resolve it from (plan, billing, package) — variantId here is an optional
@@ -58,16 +75,12 @@ export async function POST(req: NextRequest) {
       variantId = process.env.LEMONSQUEEZY_MONTHLY_VARIANT_ID
     } else if (plan === 'lifetime') {
       variantId = process.env.LEMONSQUEEZY_LIFETIME_VARIANT_ID
-    } else if (plan === 'payg' && pkg) {
-      const paygVariantMap: Record<PaygPackage, string | undefined> = {
-        '10k': process.env.LEMONSQUEEZY_PAYG_10K_VARIANT_ID,
-        '22k': process.env.LEMONSQUEEZY_PAYG_22K_VARIANT_ID,
-        '42k': process.env.LEMONSQUEEZY_PAYG_42K_VARIANT_ID,
-        '100k': process.env.LEMONSQUEEZY_PAYG_100K_VARIANT_ID,
-        '250k': process.env.LEMONSQUEEZY_PAYG_250K_VARIANT_ID,
-      }
-      variantId = paygVariantMap[pkg]
     }
+    // PAYG deliberately resolves no variant here. The LEMONSQUEEZY_PAYG_*
+    // env vars are keyed by the previous credit amounts (10K/22K/42K/...),
+    // which no longer match the current packs, so forwarding one would
+    // override the backend with a stale variant. The backend resolves the
+    // right variant from (plan, package) — same as the subscription tiers.
   }
 
   const payload: Record<string, unknown> = { plan }

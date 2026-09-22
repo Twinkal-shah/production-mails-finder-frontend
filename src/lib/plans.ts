@@ -10,7 +10,7 @@
  * Checkout payloads follow the live backend contract:
  *   { plan: 'starter' | 'growth' | 'agency', billing: 'monthly' | 'annual' }
  *   { plan: 'lifetime' }
- *   { plan: 'payg', package: '10k' | '22k' | '42k' | '100k' | '250k' }
+ *   { plan: 'payg', package: 'quick_boost' | 'starter_surge' | ... }
  */
 
 import type { Profile } from '@/lib/profile'
@@ -150,7 +150,12 @@ export const PRICING_PLANS: PlanDefinition[] = [
   PLAN_CATALOG.lifetime,
 ]
 
-export type PaygPackageKey = '10k' | '22k' | '42k' | '100k' | '250k'
+export type PaygPackageKey =
+  | 'quick_boost'
+  | 'starter_surge'
+  | 'growth_surge'
+  | 'scale_volume'
+  | 'max_volume'
 
 export interface CreditPack {
   package: PaygPackageKey
@@ -160,13 +165,17 @@ export interface CreditPack {
   blurb: string
 }
 
-/** Pay-as-you-go packs — unchanged from the previous pricing. */
+/**
+ * Pay-as-you-go packs. Prices are unchanged; every credit amount changed with
+ * the new pricing, and the checkout keys are now the pack names rather than
+ * the old credit-count shorthand ('10k', '22k', ...).
+ */
 export const CREDIT_PACKS: CreditPack[] = [
-  { package: '10k', credits: 10_000, price: 5, label: 'Quick Boost', blurb: 'Great for immediate list cleansing before an outbound campaign.' },
-  { package: '22k', credits: 22_000, price: 9, label: 'Starter Surge', blurb: 'A step up for steady weekly prospecting volume.' },
-  { package: '42k', credits: 42_000, price: 14.99, label: 'Growth Surge', blurb: 'For SDR pods scrubbing monthly inbound or event lists.' },
-  { package: '100k', credits: 100_000, price: 29, label: 'Scale Volume', blurb: 'High-volume enrichment across large target accounts.' },
-  { package: '250k', credits: 250_000, price: 59, label: 'Max Volume', blurb: 'Bulk provisioning for sustained multi-team campaigns.' },
+  { package: 'quick_boost', credits: 5_000, price: 5, label: 'Quick Boost', blurb: 'Great for immediate list cleansing before an outbound campaign.' },
+  { package: 'starter_surge', credits: 10_000, price: 9, label: 'Starter Surge', blurb: 'A step up for steady weekly prospecting volume.' },
+  { package: 'growth_surge', credits: 20_000, price: 14.99, label: 'Growth Surge', blurb: 'For SDR pods scrubbing monthly inbound or event lists.' },
+  { package: 'scale_volume', credits: 50_000, price: 29, label: 'Scale Volume', blurb: 'High-volume enrichment across large target accounts.' },
+  { package: 'max_volume', credits: 125_000, price: 59, label: 'Max Volume', blurb: 'Bulk provisioning for sustained multi-team campaigns.' },
 ]
 
 /** Stated on the pricing page so expiry is never a surprise. */

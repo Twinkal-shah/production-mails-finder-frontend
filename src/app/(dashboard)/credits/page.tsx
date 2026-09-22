@@ -24,6 +24,7 @@ import {
 import { useCreditsData } from '@/hooks/useCreditsData'
 import {
   CREDIT_PACKS,
+  type CreditPack,
   PLAN_CATALOG,
   ROLLOVER_NOTICE,
   activeBucket,
@@ -154,14 +155,18 @@ const currentPlan = PLANS[planKey] || PLANS.free;
   /* Auto-refill preference. Stored in this browser only — there is no backend
      endpoint for it yet, so the panel says so rather than implying it is live. */
   const [autoRefillOn, setAutoRefillOn] = useState(false)
-  const [refillPack, setRefillPack] = useState(100000)
+  const [refillPack, setRefillPack] = useState<number>(CREDIT_PACKS[1].credits)
   useEffect(() => {
     try {
       const raw = localStorage.getItem('autoRefillPref')
       if (raw) {
         const v = JSON.parse(raw) as { on?: boolean; pack?: number }
         if (typeof v.on === 'boolean') setAutoRefillOn(v.on)
-        if (typeof v.pack === 'number') setRefillPack(v.pack)
+        // Ignore a preference saved against a pack size that no longer exists
+        // (the credit amounts changed), otherwise the select desyncs.
+        if (typeof v.pack === 'number' && CREDIT_PACKS.some((p) => p.credits === v.pack)) {
+          setRefillPack(v.pack)
+        }
       }
     } catch {}
   }, [])
@@ -503,25 +508,12 @@ if (isPurchaseArray(parsed)) {
     })
   }
 
-  const handleBuyCredits = (creditPackage: { credits: number }) => {
-    // Map credit count to the PAYG package label expected by the backend.
-    const paygPackageMap: Record<number, '10k' | '22k' | '42k' | '100k' | '250k'> = {
-      10000: '10k',
-      22000: '22k',
-      42000: '42k',
-      100000: '100k',
-      250000: '250k',
-    }
-    const pkgLabel = paygPackageMap[creditPackage.credits]
-    if (!pkgLabel) {
-      toast.error('Invalid credit package')
-      return
-    }
-    const loadingKey = `credits-${creditPackage.credits}`
+  const handleBuyCredits = (pack: CreditPack) => {
+    const loadingKey = `credits-${pack.package}`
     setLoadingStates(prev => ({ ...prev, [loadingKey]: true }))
     startTransition(async () => {
       try {
-        const url = await postCheckout({ plan: 'payg', package: pkgLabel })
+        const url = await postCheckout({ plan: 'payg', package: pack.package })
         window.location.href = url
       } catch (error) {
         console.error('Error creating custom credit checkout:', error)
