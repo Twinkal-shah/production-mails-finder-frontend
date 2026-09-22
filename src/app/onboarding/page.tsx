@@ -38,6 +38,7 @@ import { humanizeApiError } from '@/lib/api-error'
 import {
   markOnboardingCompleted,
   saveOnboardingAnswers,
+  persistOnboardingAnswers,
   type OnboardingAnswers,
 } from '@/lib/onboarding'
 
@@ -351,6 +352,9 @@ export default function OnboardingPage() {
     }
     try {
       saveOnboardingAnswers(email, answers)
+      // Also store them on the account — localStorage only lives in this one
+      // browser. Best-effort; never blocks entry to the workspace.
+      await persistOnboardingAnswers(answers)
       if (!skipped && answers.companyName) {
         const res = await fetch('/api/user/profile/updateProfile', {
           method: 'PUT',

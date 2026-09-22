@@ -43,3 +43,25 @@ export function saveOnboardingAnswers(email: string, answers: OnboardingAnswers)
     if (email) localStorage.setItem(answersKey(email), JSON.stringify(answers))
   } catch {}
 }
+
+/**
+ * Persist the wizard answers to the user's account.
+ *
+ * localStorage only survives on one browser, so the answers are also stored
+ * server-side where they can actually be read later. Best-effort: onboarding
+ * must never trap a user because a save failed, so this resolves false rather
+ * than throwing.
+ */
+export async function persistOnboardingAnswers(answers: OnboardingAnswers): Promise<boolean> {
+  try {
+    const res = await fetch('/api/user/profile/onboarding', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(answers),
+    })
+    return res.ok
+  } catch {
+    return false
+  }
+}
