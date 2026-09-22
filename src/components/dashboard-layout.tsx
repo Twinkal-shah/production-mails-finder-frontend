@@ -17,6 +17,9 @@ import { AppSidebar } from '@/components/app-sidebar'
 import { toast } from 'sonner'
 import { useUserProfile } from '@/hooks/useCreditsData'
 
+/** Remembers the desktop sidebar rail state across visits, per browser. */
+const SIDEBAR_COLLAPSED_KEY = 'mailsfinder_sidebar_collapsed'
+
 /** Breadcrumb labels for the Stitch top bar, keyed by route. */
 const PAGE_LABELS: Record<string, string> = {
   '/home': 'Dashboard',
@@ -51,6 +54,25 @@ interface DashboardLayoutProps {
 export function DashboardLayout({ children, userProfile }: DashboardLayoutProps) {
   const [isDark, setIsDark] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  /* Desktop sidebar rail. Starts expanded and is corrected from localStorage
+     after mount, so the server and first client render agree. */
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true') setSidebarCollapsed(true)
+    } catch {}
+  }, [])
+
+  const toggleSidebar = () => {
+    setSidebarCollapsed((prev) => {
+      const next = !prev
+      try {
+        localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(next))
+      } catch {}
+      return next
+    })
+  }
   // Backend now returns the unified spendable total in `available_credits`.
   // Fall back to summing the legacy split for any cached/stale payloads.
   const initialCredits = Math.max(
@@ -304,7 +326,12 @@ const [currentProfile, setCurrentProfile] = useState({
 
       {/* Sidebar — fixed rail on desktop */}
       <div className="hidden lg:flex h-full">
-        <AppSidebar profile={sidebarProfile} onSignOut={handleSignOut} />
+        <AppSidebar
+          profile={sidebarProfile}
+          onSignOut={handleSignOut}
+          collapsed={sidebarCollapsed}
+          onToggleCollapse={toggleSidebar}
+        />
       </div>
 
       {/* Sidebar — slide-over drawer on mobile/tablet */}
