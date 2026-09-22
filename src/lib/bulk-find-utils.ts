@@ -143,7 +143,7 @@ export async function bulkFind(
     }
   }
 
-  const { runInChunks, readSummaryCredits } = await import('./ninja-bulk')
+  const { runInChunks, readSummaryCredits, sendBulkResultEmail } = await import('./ninja-bulk')
   const { humanizeApiError } = await import('./api-error')
 
   const lookups = requestPayload.lookups
@@ -205,6 +205,11 @@ export async function bulkFind(
   if (!sawSummaryCredits) {
     totalCredits = items.reduce((sum, it) => sum + (typeof it.credits_used === 'number' ? it.credits_used : 0), 0)
   }
+
+  // Every chunk is done — send the one completion email, with the complete
+  // result set. Best-effort: never fail the run over the email.
+  void sendBulkResultEmail('find', items, accessToken ?? undefined)
+
   return { items, totalCredits }
 }
 

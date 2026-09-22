@@ -421,7 +421,7 @@ export default function VerifyPage() {
       // --- Step 1: Verify via the Ninja bulk endpoint, in chunks ---
       // The Ninja endpoint is synchronous, so chunking gives real progress and
       // keeps each request short. Results come back in input order.
-      const { runInChunks, readSummaryCredits } = await import('@/lib/ninja-bulk')
+      const { runInChunks, readSummaryCredits, sendBulkResultEmail } = await import('@/lib/ninja-bulk')
       let ninjaCredits = 0
       let sawSummaryCredits = false
       const verifiedItems = await runInChunks<string, Record<string, unknown>>(
@@ -500,6 +500,10 @@ export default function VerifyPage() {
           } : prev)
         }
       )
+
+      // Every chunk is done — send the one completion email, with the complete
+      // result set. Best-effort: never fail the run over the email.
+      void sendBulkResultEmail('verify', verifiedItems, token ?? undefined)
 
       // Same shape the old job poller returned, so Step 3 below is unchanged.
       const jobResult = {

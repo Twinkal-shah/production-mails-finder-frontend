@@ -72,3 +72,37 @@ export function readSummaryCredits(summary: unknown): number | undefined {
   }
   return undefined
 }
+
+/**
+ * Email the FINAL, complete CSV for a bulk run — called ONCE, after every
+ * chunk has finished.
+ *
+ * The bulk endpoints are synchronous and we call them one 20-row chunk at a
+ * time, so the backend cannot know when a run is over or what the whole
+ * result set looks like. It therefore no longer emails per chunk (which sent
+ * one partial CSV per request); we post the assembled results here instead.
+ *
+ * Best-effort: a failure here must never fail the run the user just watched
+ * complete, so it resolves false rather than throwing.
+ */
+export async function sendBulkResultEmail(
+  type: 'find' | 'verify',
+  results: unknown[],
+  token?: string
+): Promise<boolean> {
+  if (!Array.isArray(results) || results.length === 0) return false
+  try {
+    const resp = await fetch('/api/email/bulkResultEmail', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      },
+      credentials: 'include',
+      body: JSON.stringify({ type, results })
+    })
+    return resp.ok
+  } catch {
+    return false
+  }
+}
