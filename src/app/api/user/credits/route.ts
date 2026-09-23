@@ -39,12 +39,18 @@ export async function GET(req: NextRequest) {
         find,
         verify,
         total_credits: total,
-        // Pass through the per-bucket detail getCredits already returns. The
+        // Pass through the per-bucket detail getCredits already returns: the
         // Daily Quota Meter reads daily_used / daily_cap / resets_at out of
-        // `balances` and the rate limit out of `caps`; rebuilding the payload
-        // without them was why the card rendered "Not reported".
+        // `balances`, and rebuilding the payload without it was why the card
+        // rendered "Not reported".
+        //
+        // `caps` is deliberately NOT forwarded. It is derived from
+        // resolveEffectivePlan(), which returns "free" for a legacy `monthly`
+        // subscriber whose subscription record is not `active` — so
+        // api_rate_limit_per_minute comes back 0 and hasApiAccess() hides the
+        // API page from users who do have access. Leaving it absent keeps the
+        // frontend on its catalog fallback, which reads those users correctly.
         balances: inner.balances,
-        caps: inner.caps,
       })
     }
 
