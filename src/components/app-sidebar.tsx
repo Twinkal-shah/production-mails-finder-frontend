@@ -7,7 +7,6 @@ import {
   LayoutDashboard,
   UserSearch,
   ShieldCheck,
-  Globe,
   Code2,
   CreditCard,
   Zap,
@@ -37,7 +36,9 @@ const PROSPECTING = [
   { href: '/home', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/find', label: 'Find Email', icon: UserSearch },
   { href: '/verify', label: 'Verify Email', icon: ShieldCheck },
-  { href: '/domain-search', label: 'Domain Search', icon: Globe },
+  // Domain Search hidden for now — to restore, uncomment the line below
+  // and re-add the `Globe` icon to the lucide-react import above.
+  // { href: '/domain-search', label: 'Domain Search', icon: Globe },
 ]
 
 const ACCOUNT = [

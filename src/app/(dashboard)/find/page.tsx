@@ -9,11 +9,10 @@ import { FindResultPanel } from './components/find-result-panel'
  * Credit cost shown on this page. Display strings only — the actual
  * deduction is done by the backend and is not affected by these values.
  */
-const CREDITS_PER_FIND_LABEL = '20 Credits / Find'
 const CREDITS_PER_FIND_TEXT = '20 credits'
 
 import { toast } from 'sonner'
-import { Search, Mail, ChevronDown, ChevronRight, AlertTriangle, UserSearch, UploadCloud, Loader2, ShieldCheck, CircleDollarSign, IdCard, Globe, Info, Database } from 'lucide-react'
+import { Search, Mail, ChevronDown, ChevronRight, AlertTriangle, UserSearch, UploadCloud, Loader2, ShieldCheck, IdCard, Globe, Info, Database } from 'lucide-react'
 import { isAuthenticated, saveRedirectUrl } from '@/lib/auth'
 import { useQueryInvalidation } from '@/lib/query-invalidation'
 import { useRecentFindResults } from '@/hooks/useRecentResults'
@@ -255,15 +254,6 @@ export default function FindPage() {
             <div className="flex flex-col">
               <span className="text-[11px] text-gray-400 font-medium leading-none">Accuracy</span>
               <span className="font-mono-code text-xs text-ink dark:text-white font-bold">99.4%</span>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-[#F8FAFC] dark:bg-white/5 rounded-lg">
-            <CircleDollarSign className="h-[18px] w-[18px] text-brand shrink-0" />
-            <div className="flex flex-col">
-              <span className="text-[11px] text-gray-400 font-medium leading-none">Usage Policy</span>
-              <span className="font-mono-code text-xs text-ink dark:text-white font-bold whitespace-nowrap">
-                {CREDITS_PER_FIND_LABEL}
-              </span>
             </div>
           </div>
         </div>
