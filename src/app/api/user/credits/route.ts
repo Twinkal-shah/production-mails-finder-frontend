@@ -39,6 +39,12 @@ export async function GET(req: NextRequest) {
         find,
         verify,
         total_credits: total,
+        // Pass through the per-bucket detail getCredits already returns. The
+        // Daily Quota Meter reads daily_used / daily_cap / resets_at out of
+        // `balances` and the rate limit out of `caps`; rebuilding the payload
+        // without them was why the card rendered "Not reported".
+        balances: inner.balances,
+        caps: inner.caps,
       })
     }
 
