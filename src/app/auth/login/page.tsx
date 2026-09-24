@@ -12,8 +12,22 @@ import { Loader2 } from 'lucide-react'
 import { apiPost } from '@/lib/api'
  
 
+/**
+ * Only same-origin relative paths are honoured, so a crafted `returnTo` can't
+ * bounce a freshly signed-in user to another site.
+ */
+function safeReturnTo(value: string | null): string | null {
+  if (!value) return null
+  if (!value.startsWith('/') || value.startsWith('//')) return null
+  return value
+}
+
 function LoginInner() {
   const params = useSearchParams()
+  /* Where to land after login. Used by flows that must resume where they
+     started — e.g. AppSumo activation, which carries a single-use code in the
+     query string. Falls back to the dashboard. */
+  const returnTo = safeReturnTo(params.get('returnTo')) || '/home'
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -76,7 +90,7 @@ function LoginInner() {
       
       // Force a page reload to ensure auth state is updated
       setTimeout(() => {
-        window.location.href = '/home'
+        window.location.href = returnTo
       }, 100)
       
     } catch (e: unknown) {
