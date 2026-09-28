@@ -23,8 +23,9 @@
   --color-brand-dark: #92002c;
 
   --color-ink: #0b0f17;
-  --color-ink-muted: #64748b;
-  --color-ink-subtle: #94a3b8;
+  /* #64748b fell to 4.3:1 on the grey chips it labels; same hue, one step down. */
+  --color-ink-muted: #5f6d81;
+  --color-ink-subtle: #7c8799;
   --color-canvas: #f8fafc;
   --color-hairline: #e2e8f0;
 
@@ -73,6 +74,7 @@
 }
 
 :root {
+  color-scheme: light;
   /* Stitch: rounded.md = 0.75rem, cards use 12px, buttons 8px */
   --radius: 0.75rem;
    --font-geist-sans: 'Space Grotesk';
@@ -90,7 +92,7 @@
   --secondary: #f1f5f9;
   --secondary-foreground: #0b0f17;
   --muted: #f1f5f9;
-  --muted-foreground: #64748b;
+  --muted-foreground: #5f6d81;
   --accent: #fff1f2;
   --accent-foreground: #b71d40;
   --destructive: #dc2626;
@@ -115,9 +117,15 @@
   --edge-graphite: rgba(46,49,53,0.75);
   --edge-steel: rgba(106,133,166,0.30);
   --edge-opacity: 0.55;
+
+  /* Brand-coloured *text* on a surface. Kept apart from --primary because the
+     solid brand fill has to stay dark in both themes (white sits on it), while
+     brand text has to lighten on a dark surface to stay legible. */
+  --brand-ink: #b71d40;
 }
 
 .dark {
+  color-scheme: dark;
   --background: #1b1c1b;
   --foreground: #fbf9f8;
 
@@ -136,13 +144,14 @@
   --muted: #242424;
   --muted-foreground: #e2bebf;
 
-  --accent: #fc536d;
-  --accent-foreground: #1b1c1b;
+  --accent: rgba(255,255,255,0.08);
+  --accent-foreground: #fbf9f8;
 
-  --destructive: #ba1a1a;
+  /* #ba1a1a sat at 2.2:1 on the dark card — destructive alert copy was unreadable. */
+  --destructive: #ff6b6b;
 
-  --border: rgba(183, 29, 63, 0.25);
-  --input: rgba(255,255,255,0.10);
+  --border: rgba(255,255,255,0.14);
+  --input: rgba(255,255,255,0.14);
 
   --ring: #b71d3f;
 
@@ -161,104 +170,68 @@
   --sidebar-accent: #1f1f1f;
   --sidebar-accent-foreground: #fbf9f8;
 
-  --sidebar-border: rgba(183, 29, 63, 0.25);
+  --sidebar-border: rgba(255,255,255,0.12);
   --sidebar-ring: #b71d3f;
 
   --edge-base-0: rgba(0,0,0,0);
   --edge-graphite: rgba(46,49,53,0.85);
   --edge-steel: rgba(106,133,166,0.45);
   --edge-opacity: 0.65;
+
+  --brand-ink: #ff8da3;
+
+  /* Stitch palette, dark-surface equivalents. Only the tokens that are used as
+     *surfaces* are flipped here; the ink tokens are text-only and are remapped
+     in the dark safety net below so that `bg-ink` (a deliberately dark panel)
+     keeps working in both themes. */
+  --color-brand-light: rgba(183, 29, 63, 0.22);
+  --color-brand-border: rgba(255, 141, 163, 0.30);
 }
 
 
 @layer base {
-  .dark .text-gray-900 { color: #fbf9f8 !important; }
-  .dark .text-gray-800 { color: #f3e6e7 !important; }
-  .dark .text-gray-700 { color: #e2bebf !important; }
-  .dark .text-gray-600 { color: #d6b3b6 !important; }
-  .dark .text-gray-500 { color: #b08a8c !important; }
-  .dark .text-blue-700 { color: #b71d3f !important; }
-  .dark .bg-gray-50 { background-color: rgba(255,255,255,0.05) !important; }
-  .dark .border-gray-200 { border-color: rgba(255,255,255,0.10) !important; }
-  .dark .bg-blue-50 { background-color: rgba(255,255,255,0.06) !important; }
-
-  /* Header text and icons visibility in dark mode */
-  .dark header,
-  .dark header * {
-    color: #ffffff !important;
-    stroke: #ffffff !important;
-    fill: #ffffff !important;
-  }
-
-  /* STEP 1: root background in dark mode */
+  /* Root surfaces. Kept as element-level rules so a page that has not opted
+     into an explicit dark background still lands on the canvas colour. */
   html.dark,
   body.dark {
-    background-color: #1b1c1b !important;
+    background-color: #1b1c1b;
   }
 
-  /* STEP 2: main/wrapper background in dark mode */
   .dark main,
   .dark .page-wrapper,
   .dark .app-container {
-    background-color: #1b1c1b !important;
-    min-height: 100vh;
+    background-color: #1b1c1b;
   }
 
-  /* Credits page background consistency in dark mode */
-  .dark .credits-page {
-    background-color: #1b1c1b !important;
-  }
-  .dark .credits-page .bg-white,
-  .dark .credits-page .bg-gray-50,
-  .dark .credits-page .bg-gray-100 {
-    background-color: transparent !important;
+  /* Nothing set a colour on <body>, so any markup that does not name one of
+     its own inherited the browser default black — unreadable on the dark
+     canvas (/api-ping was rendering that way). */
+  body {
+    color: var(--foreground);
   }
 
-  /* STEP 5: ensure root containers also match */
-  .dark body > div,
-  .dark #root,
-  .dark #app {
-    background-color: #1b1c1b !important;
-  }
-
-  /* Form field improvements - mode-based visibility */
+  /* Form fields: the browser default text colour ignores the theme, so it is
+     pinned per mode. Placeholders follow the muted ink of each theme. */
   input,
   textarea {
-    color: #1b1c1b !important; /* light mode */
+    color: #1b1c1b;
   }
   input::placeholder,
   textarea::placeholder {
-    color: rgba(90, 64, 66, 0.5) !important;
+    color: rgba(90, 64, 66, 0.55);
   }
   .dark input,
   .dark textarea {
-    color: #fbf9f8 !important; /* dark mode */
+    color: #fbf9f8;
   }
   .dark input::placeholder,
   .dark textarea::placeholder {
-    color: rgba(226, 190, 191, 0.5) !important;
+    color: rgba(226, 190, 191, 0.55);
   }
-
-  /* User Details dark-mode legibility */
-  .dark .user-details h1,
-  .dark .user-details h2 {
-    color: #fbf9f8 !important;
-  }
-  .dark .user-details p {
-    color: #e2bebf !important;
-  }
-  
-  /* Verification result box text contrast in dark mode (keep icons intact) */
-  .dark .verification-result,
-  .dark .verification-result p,
-  .dark .verification-result span,
-  .dark .verification-result .text-sm,
-  .dark .verification-result .font-medium,
-  .dark .verification-result .text-gray-600,
-  .dark .verification-result .text-gray-500,
-  .dark .verification-result .text-gray-800,
-  .dark .verification-result .text-gray-900 {
-    color: #fbf9f8 !important;
+  .dark select,
+  .dark option {
+    color: #fbf9f8;
+    background-color: #1f1f1f;
   }
 }
 
@@ -341,4 +314,290 @@
     0% { opacity: 0; transform: translateY(6px) }
     100% { opacity: 1; transform: translateY(0) }
   }
+}
+
+/* ===============================================================
+   Dark-mode legibility safety net
+   ---------------------------------------------------------------
+   Tailwind's light-surface palette (white / *-50…300 backgrounds and
+   *-500…950 text) is used directly in a lot of markup that predates dark
+   mode, which left near-black text sitting on the dark canvas.
+
+   Every rule below is written as `:where(.dark) .utility`, so it carries the
+   specificity of the bare utility it patches and only wins because it is
+   emitted later in the same layer. An explicit `dark:` variant on the element
+   is (0,2,0) and therefore always beats these — the net is a floor, never an
+   override of a deliberate dark style.
+   =============================================================== */
+@layer utilities {
+  /* ---------- Stitch ink (text-only tokens) ---------- */
+  :where(.dark) .text-ink { color: #fbf9f8; }
+  :where(.dark) .text-ink-muted { color: #b6adaa; }
+  :where(.dark) .text-ink-subtle { color: #9c9390; }
+  :where(.dark) .hover\:text-ink:hover { color: #fbf9f8; }
+  :where(.dark) .group:hover .group-hover\:text-ink { color: #fbf9f8; }
+  :where(.dark) .bg-canvas { background-color: #1b1c1b; }
+  :where(.dark) .border-hairline { border-color: rgba(255,255,255,0.12); }
+
+  /* ---------- Brand as text ----------
+     The solid brand fill stays dark (white type sits on it); brand *text* has
+     to lighten or it reads at ~2.2:1 on the dark card. */
+  :where(.dark) .text-brand { color: #ff8da3; }
+  :where(.dark) .text-brand-hover { color: #ffa7b9; }
+  :where(.dark) .hover\:text-brand:hover { color: #ffa7b9; }
+  :where(.dark) .hover\:text-brand-hover:hover { color: #ffa7b9; }
+  :where(.dark) .group:hover .group-hover\:text-brand { color: #ffa7b9; }
+  :where(.dark) .data-\[state\=active\]\:text-brand[data-state="active"] { color: #ff8da3; }
+  :where(.dark) .border-brand { border-color: #e04f6c; }
+  :where(.dark) .hover\:border-brand:hover { border-color: #e9647f; }
+  :where(.dark) .hover\:border-brand-border:hover { border-color: rgba(255,141,163,0.45); }
+  :where(.dark) .decoration-brand { text-decoration-color: #ff8da3; }
+
+  /* ---------- Neutral text: dark ink -> light ink ---------- */
+  :where(.dark) .text-gray-950,
+  :where(.dark) .text-slate-950,
+  :where(.dark) .text-zinc-950,
+  :where(.dark) .text-neutral-950 { color: #ffffff; }
+
+  :where(.dark) .text-gray-900,
+  :where(.dark) .text-slate-900,
+  :where(.dark) .text-zinc-900,
+  :where(.dark) .text-neutral-900 { color: #fbf9f8; }
+
+  :where(.dark) .text-gray-800,
+  :where(.dark) .text-slate-800,
+  :where(.dark) .text-zinc-800,
+  :where(.dark) .text-neutral-800 { color: #f0eae8; }
+
+  :where(.dark) .text-gray-700,
+  :where(.dark) .text-slate-700,
+  :where(.dark) .text-zinc-700,
+  :where(.dark) .text-neutral-700 { color: #e2dad7; }
+
+  :where(.dark) .text-gray-600,
+  :where(.dark) .text-slate-600,
+  :where(.dark) .text-zinc-600,
+  :where(.dark) .text-neutral-600 { color: #cfc6c3; }
+
+  :where(.dark) .text-gray-500,
+  :where(.dark) .text-slate-500,
+  :where(.dark) .text-zinc-500,
+  :where(.dark) .text-neutral-500 { color: #b6adaa; }
+
+  :where(.dark) .hover\:text-gray-900:hover,
+  :where(.dark) .hover\:text-slate-900:hover { color: #fbf9f8; }
+  :where(.dark) .hover\:text-gray-800:hover,
+  :where(.dark) .hover\:text-slate-800:hover { color: #f0eae8; }
+  :where(.dark) .hover\:text-gray-700:hover,
+  :where(.dark) .hover\:text-slate-700:hover { color: #e2dad7; }
+  :where(.dark) .group:hover .group-hover\:text-gray-900,
+  :where(.dark) .group:hover .group-hover\:text-slate-900 { color: #fbf9f8; }
+
+  /* Muted ink that is already mid-tone reads fine on the dark canvas; it is
+     only warmed slightly so it sits with the rest of the palette. */
+  :where(.dark) .text-gray-400,
+  :where(.dark) .text-slate-400 { color: #a39a97; }
+  :where(.dark) .placeholder\:text-gray-400::placeholder,
+  :where(.dark) .placeholder-slate-400::placeholder { color: rgba(226,190,191,0.55); }
+
+  /* ---------- Neutral surfaces: light -> dark ---------- */
+  :where(.dark) .bg-white { background-color: #1a1a1a; }
+  :where(.dark) .hover\:bg-white:hover { background-color: rgba(255,255,255,0.07); }
+  :where(.dark) .data-\[state\=active\]\:bg-white[data-state="active"] { background-color: rgba(255,255,255,0.10); }
+
+  :where(.dark) .bg-gray-50,
+  :where(.dark) .bg-slate-50,
+  :where(.dark) .bg-zinc-50,
+  :where(.dark) .bg-neutral-50,
+  :where(.dark) .bg-\[\#F8FAFC\],
+  :where(.dark) .bg-\[\#f8fafc\] { background-color: rgba(255,255,255,0.04); }
+  :where(.dark) .bg-gray-50\/60,
+  :where(.dark) .bg-gray-50\/80 { background-color: rgba(255,255,255,0.035); }
+  :where(.dark) .hover\:bg-gray-50:hover,
+  :where(.dark) .hover\:bg-slate-50:hover,
+  :where(.dark) .hover\:bg-gray-50\/60:hover,
+  :where(.dark) .hover\:bg-\[\#F8FAFC\]:hover { background-color: rgba(255,255,255,0.055); }
+
+  :where(.dark) .bg-gray-100,
+  :where(.dark) .bg-slate-100,
+  :where(.dark) .bg-zinc-100,
+  :where(.dark) .bg-neutral-100,
+  :where(.dark) .bg-\[\#F1F5F9\] { background-color: rgba(255,255,255,0.07); }
+  :where(.dark) .hover\:bg-gray-100:hover,
+  :where(.dark) .hover\:bg-slate-100:hover,
+  :where(.dark) .hover\:bg-\[\#F1F5F9\]:hover { background-color: rgba(255,255,255,0.10); }
+
+  :where(.dark) .bg-gray-200,
+  :where(.dark) .bg-slate-200,
+  :where(.dark) .bg-\[\#E2E8F0\] { background-color: rgba(255,255,255,0.12); }
+  :where(.dark) .bg-gray-300,
+  :where(.dark) .bg-slate-300 { background-color: rgba(255,255,255,0.20); }
+
+  /* ---------- Neutral borders ---------- */
+  :where(.dark) .border-gray-100,
+  :where(.dark) .border-slate-100,
+  :where(.dark) .divide-gray-100 > :not([hidden]) ~ :not([hidden]) { border-color: rgba(255,255,255,0.08); }
+
+  :where(.dark) .border-gray-200,
+  :where(.dark) .border-slate-200,
+  :where(.dark) .border-zinc-200,
+  :where(.dark) .border-neutral-200 { border-color: rgba(255,255,255,0.12); }
+  :where(.dark) .divide-gray-200 > :not([hidden]) ~ :not([hidden]),
+  :where(.dark) .divide-slate-200 > :not([hidden]) ~ :not([hidden]) { border-color: rgba(255,255,255,0.12); }
+
+  :where(.dark) .border-gray-300,
+  :where(.dark) .border-slate-300 { border-color: rgba(255,255,255,0.20); }
+  :where(.dark) .hover\:border-gray-200:hover,
+  :where(.dark) .hover\:border-slate-200:hover { border-color: rgba(255,255,255,0.18); }
+  :where(.dark) .hover\:border-gray-300:hover,
+  :where(.dark) .hover\:border-slate-300:hover { border-color: rgba(255,255,255,0.26); }
+
+  /* ---------- Status tints: light chips -> dark chips ---------- */
+  /* success */
+  :where(.dark) .bg-emerald-50,
+  :where(.dark) .bg-green-50,
+  :where(.dark) .bg-teal-50,
+  :where(.dark) .bg-\[\#ECFDF5\] { background-color: rgba(16,185,129,0.14); }
+  :where(.dark) .bg-emerald-50\/50,
+  :where(.dark) .bg-green-50\/50 { background-color: rgba(16,185,129,0.10); }
+  :where(.dark) .bg-emerald-100,
+  :where(.dark) .bg-green-100 { background-color: rgba(16,185,129,0.20); }
+  :where(.dark) .hover\:bg-green-100:hover,
+  :where(.dark) .hover\:bg-emerald-100:hover { background-color: rgba(16,185,129,0.26); }
+  :where(.dark) .border-emerald-200,
+  :where(.dark) .border-green-200,
+  :where(.dark) .border-\[\#A7F3D0\] { border-color: rgba(16,185,129,0.34); }
+  :where(.dark) .text-emerald-600,
+  :where(.dark) .text-green-600,
+  :where(.dark) .text-teal-600,
+  :where(.dark) .text-\[\#059669\] { color: #34d399; }
+  :where(.dark) .text-emerald-700,
+  :where(.dark) .text-green-700 { color: #6ee7b7; }
+  :where(.dark) .text-emerald-800,
+  :where(.dark) .text-green-800 { color: #a7f3d0; }
+
+  /* warning */
+  :where(.dark) .bg-amber-50,
+  :where(.dark) .bg-yellow-50,
+  :where(.dark) .bg-orange-50,
+  :where(.dark) .bg-\[\#FFFBEB\],
+  :where(.dark) .from-yellow-50,
+  :where(.dark) .to-orange-50 { background-color: rgba(245,158,11,0.14); }
+  :where(.dark) .from-yellow-50 { --tw-gradient-from: rgba(245,158,11,0.16); }
+  :where(.dark) .to-orange-50 { --tw-gradient-to: rgba(249,115,22,0.16); }
+  :where(.dark) .to-rose-50 { --tw-gradient-to: rgba(244,63,94,0.16); }
+  :where(.dark) .bg-amber-100,
+  :where(.dark) .bg-yellow-100 { background-color: rgba(245,158,11,0.20); }
+  :where(.dark) .hover\:bg-yellow-100:hover,
+  :where(.dark) .hover\:bg-amber-100:hover { background-color: rgba(245,158,11,0.26); }
+  :where(.dark) .border-amber-200,
+  :where(.dark) .border-yellow-200,
+  :where(.dark) .border-amber-300,
+  :where(.dark) .border-yellow-300,
+  :where(.dark) .border-\[\#FDE68A\] { border-color: rgba(245,158,11,0.34); }
+  :where(.dark) .text-amber-600,
+  :where(.dark) .text-yellow-600,
+  :where(.dark) .text-orange-600,
+  :where(.dark) .text-\[\#D97706\] { color: #fbbf24; }
+  :where(.dark) .text-amber-700,
+  :where(.dark) .text-yellow-700 { color: #fcd34d; }
+  :where(.dark) .text-amber-800,
+  :where(.dark) .text-yellow-800,
+  :where(.dark) .text-\[\#92400E\] { color: #fde68a; }
+
+  /* danger */
+  :where(.dark) .bg-red-50,
+  :where(.dark) .bg-rose-50,
+  :where(.dark) .bg-\[\#FEF2F2\] { background-color: rgba(239,68,68,0.14); }
+  :where(.dark) .bg-red-50\/50 { background-color: rgba(239,68,68,0.10); }
+  :where(.dark) .bg-red-100,
+  :where(.dark) .bg-rose-100,
+  :where(.dark) .bg-\[\#FEE2E2\] { background-color: rgba(239,68,68,0.20); }
+  :where(.dark) .hover\:bg-red-100:hover { background-color: rgba(239,68,68,0.26); }
+  :where(.dark) .border-red-200,
+  :where(.dark) .border-rose-200,
+  :where(.dark) .border-\[\#FECACA\] { border-color: rgba(239,68,68,0.34); }
+  :where(.dark) .text-red-600,
+  :where(.dark) .text-rose-600,
+  :where(.dark) .text-\[\#DC2626\] { color: #f87171; }
+  :where(.dark) .text-red-700,
+  :where(.dark) .text-rose-700 { color: #fca5a5; }
+  :where(.dark) .text-red-800,
+  :where(.dark) .text-rose-800 { color: #fecaca; }
+
+  /* info */
+  :where(.dark) .bg-blue-50,
+  :where(.dark) .bg-sky-50,
+  :where(.dark) .bg-indigo-50 { background-color: rgba(59,130,246,0.14); }
+  :where(.dark) .bg-blue-50\/50 { background-color: rgba(59,130,246,0.10); }
+  :where(.dark) .bg-blue-100 { background-color: rgba(59,130,246,0.20); }
+  :where(.dark) .border-blue-200,
+  :where(.dark) .border-sky-200,
+  :where(.dark) .border-indigo-200 { border-color: rgba(59,130,246,0.34); }
+  :where(.dark) .text-blue-600,
+  :where(.dark) .text-sky-600,
+  :where(.dark) .text-indigo-600 { color: #60a5fa; }
+  :where(.dark) .text-blue-700,
+  :where(.dark) .text-indigo-700 { color: #93c5fd; }
+  :where(.dark) .text-blue-800 { color: #bfdbfe; }
+
+  /* accent / neutral-slate ink used as arbitrary values */
+  :where(.dark) .bg-purple-50,
+  :where(.dark) .bg-violet-50,
+  :where(.dark) .bg-fuchsia-50 { background-color: rgba(168,85,247,0.14); }
+  :where(.dark) .text-purple-600,
+  :where(.dark) .text-violet-600 { color: #c084fc; }
+  :where(.dark) .text-purple-700,
+  :where(.dark) .text-violet-700 { color: #d8b4fe; }
+  :where(.dark) .text-\[\#475569\] { color: #cfc6c3; }
+
+  /* ---------- `dark:` utilities that were themselves too dim ---------- */
+  .dark .dark\:text-gray-500 { color: #b6adaa; }
+  .dark .dark\:text-gray-600 { color: #a39a97; }
+}
+
+/* ===============================================================
+   Light-mode legibility
+   ---------------------------------------------------------------
+   A handful of the palette steps used for micro-labels and status chips
+   sit below 4.5:1 on the light canvas (Tailwind's gray-400 reads 2.6:1 on
+   white, emerald-600 3.6:1 on its own 50-tint). These nudge each one to the
+   next accessible step of the same hue, so the tone is preserved.
+
+   Same mechanism as the dark net: `:where(:root:not(.dark))` adds no
+   specificity, so a per-element override still wins.
+   =============================================================== */
+@layer utilities {
+  :where(:root:not(.dark)) .text-gray-400,
+  :where(:root:not(.dark)) .text-slate-400,
+  :where(:root:not(.dark)) .text-zinc-400,
+  :where(:root:not(.dark)) .text-neutral-400 { color: #67707e; }
+  :where(:root:not(.dark)) .placeholder\:text-gray-400::placeholder,
+  :where(:root:not(.dark)) .placeholder-slate-400::placeholder { color: #6f7787; }
+
+  :where(:root:not(.dark)) .text-emerald-600,
+  :where(:root:not(.dark)) .text-green-600,
+  :where(:root:not(.dark)) .text-teal-600,
+  :where(:root:not(.dark)) .text-\[\#059669\] { color: #047857; }
+
+  :where(:root:not(.dark)) .text-amber-600,
+  :where(:root:not(.dark)) .text-yellow-600,
+  :where(:root:not(.dark)) .text-orange-600,
+  :where(:root:not(.dark)) .text-\[\#D97706\] { color: #b45309; }
+
+  :where(:root:not(.dark)) .text-red-600,
+  :where(:root:not(.dark)) .text-rose-600,
+  :where(:root:not(.dark)) .text-\[\#DC2626\] { color: #b91c1c; }
+
+  /* The 500 neutral lands a hair under 4.5:1 on the grey chips it is used on
+     (tab pills, method badges, job meta). */
+  :where(:root:not(.dark)) .text-gray-500,
+  :where(:root:not(.dark)) .text-slate-500,
+  :where(:root:not(.dark)) .text-zinc-500,
+  :where(:root:not(.dark)) .text-neutral-500 { color: #686f7d; }
+
+  /* Status icons drawn at the 500 step read ~2.1:1 on white, below the 3:1
+     floor for non-text. The 600 step keeps the hue and clears it. */
+  :where(:root:not(.dark)) .text-amber-500,
+  :where(:root:not(.dark)) .text-yellow-500 { color: #d97706; }
 }

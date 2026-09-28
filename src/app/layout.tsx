@@ -31,8 +31,18 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
+        {/* The theme class lives on <html>, but it used to be applied only once
+            the dashboard shell mounted. Any route outside that shell (onboarding,
+            auth, thank-you, ...) therefore rendered with light-mode colours on a
+            dark canvas. Applying it before first paint keeps every route on the
+            same theme and removes the flash. */}
+        <Script id="theme-init" strategy="beforeInteractive">{`(function(){try{
+var s=localStorage.getItem('theme');
+var d=s?s==='dark':window.matchMedia('(prefers-color-scheme: dark)').matches;
+document.documentElement.classList.toggle('dark',d);
+}catch(e){}})();`}</Script>
         <Script id="gtm-init" strategy="afterInteractive">{`(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
 new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
 j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=

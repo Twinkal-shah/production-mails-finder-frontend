@@ -394,7 +394,7 @@ function LoginInner() {
               />
               {!isSignUp && (
                 <div className="text-right mt-2">
-                  <Link href="/forgot-password" className="text-sm font-medium" style={{ color: 'var(--primary)' }}>
+                  <Link href="/forgot-password" className="text-sm font-medium" style={{ color: 'var(--brand-ink)' }}>
                     Forgot your password?
                   </Link>
                 </div>
@@ -443,10 +443,10 @@ function LoginInner() {
           <div className="mt-4 text-center">
             {!isSignUp && (
               <div className="mb-4 p-4 rounded-lg" style={{ backgroundColor: 'rgba(183,29,63,0.06)', border: '1px solid rgba(183,29,63,0.25)' }}>
-                <p className="text-sm mb-2" style={{ color: 'var(--primary)' }}>
+                <p className="text-sm mb-2" style={{ color: 'var(--brand-ink)' }}>
                   <strong>New to MailsFinder?</strong>
                 </p>
-                <p className="text-sm mb-3" style={{ color: 'var(--primary)' }}>
+                <p className="text-sm mb-3" style={{ color: 'var(--brand-ink)' }}>
                   Create an account to start finding and verifying emails today!
                 </p>
               </div>
@@ -462,7 +462,7 @@ function LoginInner() {
                 setPhone('')
               }}
               className="text-sm font-medium"
-              style={{ color: 'var(--primary)' }}
+              style={{ color: 'var(--brand-ink)' }}
             >
               {isSignUp 
                 ? 'Already have an account? Sign in'

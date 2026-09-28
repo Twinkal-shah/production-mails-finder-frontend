@@ -23,7 +23,7 @@ function JobIcon({ status }: { status: BulkVerificationJob['status'] }) {
     return <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
   }
   if (status === 'failed') return <XCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
-  return <Clock className="h-4 w-4 text-[var(--primary)]" />
+  return <Clock className="h-4 w-4 text-[var(--brand-ink)]" />
 }
 
 export function VerifyJobHistory({
@@ -39,7 +39,7 @@ export function VerifyJobHistory({
     <Card className="shadow-sm">
       <CardHeader>
         <CardTitle className="flex items-center gap-3 text-lg">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/60 text-[var(--primary)] dark:bg-white/5">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/60 text-[var(--brand-ink)] dark:bg-white/5">
             <FileText className="h-4 w-4" />
           </span>
           Bulk verification jobs

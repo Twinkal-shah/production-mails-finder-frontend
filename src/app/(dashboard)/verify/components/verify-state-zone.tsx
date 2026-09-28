@@ -30,7 +30,7 @@ export function VerifyProgressCard({
         <div className="space-y-4" role="status" aria-live="polite">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-3">
-              <Loader2 className="h-5 w-5 shrink-0 animate-spin text-[var(--primary)]" />
+              <Loader2 className="h-5 w-5 shrink-0 animate-spin text-[var(--brand-ink)]" />
               <div className="min-w-0">
                 <p className="truncate text-base font-semibold text-foreground">
                   {statusText || 'Verifying emails...'}
@@ -42,7 +42,7 @@ export function VerifyProgressCard({
               </div>
             </div>
             {!isIndeterminate && (
-              <span className="shrink-0 text-2xl font-bold tabular-nums text-[var(--primary)]">
+              <span className="shrink-0 text-2xl font-bold tabular-nums text-[var(--brand-ink)]">
                 {Math.round(progress)}%
               </span>
             )}

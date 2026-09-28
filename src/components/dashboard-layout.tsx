@@ -373,7 +373,7 @@ const [currentProfile, setCurrentProfile] = useState({
             </button>
             <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-sm min-w-0">
               <span className="text-gray-400 dark:text-gray-500 font-medium hidden sm:inline">Platform</span>
-              <span className="text-gray-300 dark:text-gray-600 hidden sm:inline">/</span>
+              <span className="text-gray-400 dark:text-gray-500 hidden sm:inline">/</span>
               <span className="font-semibold text-ink dark:text-white truncate">{pageLabel}</span>
             </nav>
           </div>

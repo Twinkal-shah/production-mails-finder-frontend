@@ -14,7 +14,7 @@ const TONE_CLASS: Record<StatTone, string> = {
   danger: 'text-red-600 dark:text-red-400',
   warning: 'text-amber-600 dark:text-amber-400',
   muted: 'text-muted-foreground',
-  brand: 'text-[var(--primary)]',
+  brand: 'text-[var(--brand-ink)]',
 }
 
 export function StatTile({

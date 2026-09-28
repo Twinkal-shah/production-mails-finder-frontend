@@ -673,7 +673,7 @@ function UpgradeCard({
     <Card className="border-[var(--primary)]/30 bg-gradient-to-br from-[var(--primary)]/10 to-transparent">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-lg">
-          <Lock className="h-5 w-5 text-[var(--primary)]" /> {total.toLocaleString()} email{total === 1 ? '' : 's'} found at {domain}
+          <Lock className="h-5 w-5 text-[var(--brand-ink)]" /> {total.toLocaleString()} email{total === 1 ? '' : 's'} found at {domain}
         </CardTitle>
         <CardDescription>
           You&apos;re seeing a 3-email preview. Unlock the full list with names, titles, and LinkedIn profiles.
@@ -758,7 +758,7 @@ function ResultsList({
                           href={blurDetails ? undefined : r.linkedin_url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-[var(--primary)] hover:underline truncate"
+                          className="text-[var(--brand-ink)] hover:underline truncate"
                         >
                           LinkedIn profile
                         </a>

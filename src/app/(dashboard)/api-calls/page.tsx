@@ -1543,7 +1543,7 @@ export default function ApiCallsPage() {
                             <span className="w-3 h-3 rounded-full bg-red-500/80 shrink-0" />
                             <span className="w-3 h-3 rounded-full bg-amber-500/80 shrink-0" />
                             <span className="w-3 h-3 rounded-full bg-emerald-500/80 shrink-0" />
-                            <span className="font-mono-code text-xs text-gray-400 ml-2 truncate">{fileName}</span>
+                            <span className="font-mono-code text-xs text-white/60 ml-2 truncate">{fileName}</span>
                           </div>
                           <button
                             type="button"
@@ -1551,7 +1551,7 @@ export default function ApiCallsPage() {
                               navigator.clipboard?.writeText(snippet)
                               toast.success('Snippet copied')
                             }}
-                            className="text-gray-400 hover:text-white transition-colors flex items-center gap-1 text-xs font-medium shrink-0"
+                            className="text-white/60 hover:text-white transition-colors flex items-center gap-1 text-xs font-medium shrink-0"
                           >
                             <Copy className="h-4 w-4" />
                             <span className="hidden sm:inline">Copy snippet</span>
@@ -1560,7 +1560,7 @@ export default function ApiCallsPage() {
                         <pre className="font-mono-code text-xs overflow-x-auto text-pink-200/90 py-2 leading-relaxed">
                           <code>{snippet}</code>
                         </pre>
-                        <div className="flex items-center justify-between pt-3 border-t border-gray-800 text-[11px] text-gray-400 gap-3">
+                        <div className="flex items-center justify-between pt-3 border-t border-gray-800 text-[11px] text-white/60 gap-3">
                           <span className="flex items-center gap-1.5">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
                             HTTPS encrypted

@@ -153,8 +153,8 @@ function SortHeader({
       type="button"
       onClick={() => onSort(sortKey)}
       className={cn(
-        'flex items-center gap-1 text-left text-xs font-medium uppercase tracking-wide transition-colors hover:text-[var(--primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
-        active ? 'text-[var(--primary)]' : 'text-muted-foreground',
+        'flex items-center gap-1 text-left text-xs font-medium uppercase tracking-wide transition-colors hover:text-[var(--brand-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
+        active ? 'text-[var(--brand-ink)]' : 'text-muted-foreground',
         className
       )}
     >
@@ -263,7 +263,7 @@ export function VerifyResultsTable({ results }: { results: VerifyResultItem[] })
                   'shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
                   filter === chip.key
                     ? 'border-[var(--primary)] bg-[var(--primary)] text-white'
-                    : 'border-border text-muted-foreground hover:border-[var(--primary)]/50 hover:text-[var(--primary)]'
+                    : 'border-border text-muted-foreground hover:border-[var(--primary)]/50 hover:text-[var(--brand-ink)]'
                 )}
               >
                 {chip.label}

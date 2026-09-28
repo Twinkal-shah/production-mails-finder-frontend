@@ -135,7 +135,7 @@ export function OnboardingFlow({ userProfile }: OnboardingFlowProps) {
           
           <div className="flex items-center gap-3 mb-4">
             <div className="p-2 rounded-lg" style={{ backgroundColor: 'rgba(183,29,63,0.06)' }}>
-              <span style={{ color: 'var(--primary)' }}>
+              <span style={{ color: 'var(--brand-ink)' }}>
                 <currentStepData.icon className="h-6 w-6" />
               </span>
             </div>

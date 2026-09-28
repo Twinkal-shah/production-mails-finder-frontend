@@ -58,7 +58,7 @@ function ThankYouContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[rgba(183,29,63,0.06)] via-white to-rose-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-[rgba(183,29,63,0.06)] via-white to-rose-50 dark:from-[rgba(183,29,63,0.22)] dark:via-[#1b1c1b] dark:to-[rgba(244,63,94,0.14)] flex items-center justify-center p-4">
       <div className="max-w-2xl w-full space-y-8">
         {/* Success Icon and Header */}
         <div className="text-center space-y-4">
@@ -90,7 +90,7 @@ function ThankYouContent() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {paymentDetails.amount && (
                 <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                  <CreditCard className="h-5 w-5" style={{ color: 'var(--primary)' }} />
+                  <CreditCard className="h-5 w-5" style={{ color: 'var(--brand-ink)' }} />
                   <div>
                     <p className="text-sm text-gray-600">Amount Paid</p>
                     <p className="font-semibold text-gray-900">${paymentDetails.amount}</p>
@@ -121,8 +121,8 @@ function ThankYouContent() {
             
             {/* What's Next Section */}
             <div className="mt-6 p-4 rounded-lg" style={{ backgroundColor: 'rgba(183,29,63,0.06)', border: '1px solid rgba(183,29,63,0.25)' }}>
-              <h3 className="font-semibold mb-2" style={{ color: 'var(--primary)' }}>What&apos;s Next?</h3>
-              <ul className="text-sm space-y-1" style={{ color: 'var(--primary)' }}>
+              <h3 className="font-semibold mb-2" style={{ color: 'var(--brand-ink)' }}>What&apos;s Next?</h3>
+              <ul className="text-sm space-y-1" style={{ color: 'var(--brand-ink)' }}>
                 <li>&bull; Your credits are now available in your account</li>
                 <li>&bull; Start finding and verifying email addresses</li>
                 <li>&bull; Check your credit balance anytime in the Credits page</li>
@@ -160,7 +160,7 @@ function ThankYouContent() {
         <div className="text-center text-sm text-gray-500 space-y-2">
           <p>
             Need help? Contact our support team at{' '}
-            <a href="mailto:support@mailsfinder.com" className="hover:underline" style={{ color: 'var(--primary)' }}>
+            <a href="mailto:support@mailsfinder.com" className="hover:underline" style={{ color: 'var(--brand-ink)' }}>
               support@mailsfinder.com
             </a>
           </p>

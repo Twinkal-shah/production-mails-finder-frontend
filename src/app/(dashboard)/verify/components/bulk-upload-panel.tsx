@@ -165,7 +165,7 @@ export function BulkUploadPanel({
           >
             <span
               className={cn(
-                'flex h-14 w-14 items-center justify-center rounded-full border border-border bg-muted/60 text-[var(--primary)] transition-transform duration-200 dark:bg-white/5',
+                'flex h-14 w-14 items-center justify-center rounded-full border border-border bg-muted/60 text-[var(--brand-ink)] transition-transform duration-200 dark:bg-white/5',
                 isDragging ? 'scale-105' : 'group-hover:scale-105'
               )}
             >
@@ -176,7 +176,7 @@ export function BulkUploadPanel({
             </p>
             <p className="mt-1 text-sm text-muted-foreground">
               or{' '}
-              <span className="font-semibold text-[var(--primary)] underline underline-offset-4">
+              <span className="font-semibold text-[var(--brand-ink)] underline underline-offset-4">
                 browse your computer
               </span>
             </p>
@@ -188,7 +188,7 @@ export function BulkUploadPanel({
           /* ---------------- File summary ---------------- */
           <div className="animate-fade-slide-in overflow-hidden rounded-xl border border-border">
             <div className="flex items-center gap-3 border-b border-border bg-muted/40 px-4 py-3 dark:bg-white/[0.03]">
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-background text-[var(--primary)] dark:bg-white/5">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-background text-[var(--brand-ink)] dark:bg-white/5">
                 <FileSpreadsheet className="h-4 w-4" />
               </span>
               <div className="min-w-0 flex-1">
@@ -206,7 +206,7 @@ export function BulkUploadPanel({
                 disabled={isProcessing}
                 aria-label="Remove file"
                 title="Remove file"
-                className="shrink-0 rounded-md p-1.5 text-muted-foreground transition-colors hover:text-[var(--primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-40"
+                className="shrink-0 rounded-md p-1.5 text-muted-foreground transition-colors hover:text-[var(--brand-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-40"
               >
                 <X className="h-4 w-4" />
               </button>
