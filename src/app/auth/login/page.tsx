@@ -1,8 +1,9 @@
 'use client'
 
-import { Suspense, useState } from 'react'
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import Script from 'next/script'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -22,6 +23,78 @@ function safeReturnTo(value: string | null): string | null {
   return value
 }
 
+/**
+ * Read at build time, as every NEXT_PUBLIC_* value is. The Client ID is not a secret — it
+ * ships in the page source of every site using Google Sign-In; what protects the flow is
+ * the origin allowlist in Google Cloud plus server-side token verification.
+ *
+ * Empty means the feature is simply not offered: the button is not rendered at all.
+ */
+const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ''
+
+/** Just the slice of the Google Identity Services global this page touches. */
+interface GoogleIdentityServices {
+  accounts?: {
+    id?: {
+      initialize: (config: {
+        client_id: string
+        callback: (response: { credential?: string }) => void
+      }) => void
+      renderButton: (
+        parent: HTMLElement,
+        options: { theme?: string; size?: string; width?: string; text?: string }
+      ) => void
+    }
+  }
+}
+
+/**
+ * The shape both the password login and Google sign-in return, since the backend answers
+ * both with the same envelope.
+ */
+function readSession(responseData: Record<string, unknown>) {
+  if (responseData.data && typeof responseData.data === 'object' && 'user' in responseData.data && 'access_token' in responseData.data) {
+    const data = responseData.data as { user: unknown; access_token: string }
+    return {
+      accessToken: data.access_token,
+      refreshToken: (responseData.data as Record<string, unknown>)['refresh_token'] as string | undefined,
+      user: data.user,
+    }
+  }
+  if (responseData.accessToken && responseData.user) {
+    return {
+      accessToken: responseData.accessToken as string,
+      refreshToken: responseData.refreshToken as string | undefined,
+      user: responseData.user,
+    }
+  }
+  return null
+}
+
+/**
+ * Stores the signed-in session and redirects.
+ *
+ * Shared by the password and Google paths so the two can never drift apart in what they
+ * persist — the dashboard reads all three keys.
+ */
+function storeSessionAndRedirect(
+  session: { accessToken: string; refreshToken?: string; user: unknown },
+  returnTo: string
+) {
+  try {
+    localStorage.setItem('access_token', session.accessToken)
+    if (session.refreshToken) localStorage.setItem('refresh_token', session.refreshToken)
+    localStorage.setItem('user_data', JSON.stringify(session.user))
+  } catch (e) {
+    console.error('Error storing in localStorage:', e)
+  }
+
+  // Full reload so auth state is picked up everywhere.
+  setTimeout(() => {
+    window.location.href = returnTo
+  }, 100)
+}
+
 function LoginInner() {
   const params = useSearchParams()
   /* Where to land after login. Used by flows that must resume where they
@@ -34,6 +107,8 @@ function LoginInner() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [isSignUp, setIsSignUp] = useState(params.get('signup') === '1')
+  const [gsiLoaded, setGsiLoaded] = useState(false)
+  const googleButtonRef = useRef<HTMLDivElement | null>(null)
   const [fullName, setFullName] = useState('')
   const [company, setCompany] = useState('')
   const [phone, setPhone] = useState('')
@@ -51,47 +126,15 @@ function LoginInner() {
         setError(errorMsg as string)
         return
       }
-      // Handle different backend response formats
-      let accessToken, refreshToken, user
-      
-      const responseData = res.data as Record<string, unknown>
-      
-      // Check for your backend format: { data: { user, access_token } }
-      if (responseData.data && typeof responseData.data === 'object' && 'user' in responseData.data && 'access_token' in responseData.data) {
-        const data = responseData.data as { user: unknown; access_token: string }
-        accessToken = data.access_token
-        refreshToken = (responseData.data as Record<string, unknown>)['refresh_token'] as string | undefined
-        user = data.user
-        console.log('Detected your backend format with data wrapper')
-      }
-      // Check for standard format: { accessToken, user }
-      else if (responseData.accessToken && responseData.user) {
-        accessToken = responseData.accessToken as string
-        refreshToken = responseData.refreshToken as string | undefined
-        user = responseData.user
-        console.log('Detected standard format')
-      }
-      
-      if (!accessToken || !user) {
+      const session = readSession(res.data as Record<string, unknown>)
+
+      if (!session?.accessToken || !session.user) {
         setError('Invalid login response format')
         return
       }
-      
-      // Store in localStorage
-      try {
-        localStorage.setItem('access_token', accessToken)
-        if (refreshToken) localStorage.setItem('refresh_token', refreshToken)
-        localStorage.setItem('user_data', JSON.stringify(user))
-      } catch (e) {
-        console.error('Error storing in localStorage:', e)
-      }
-      
+
       console.log('Login successful, redirecting...')
-      
-      // Force a page reload to ensure auth state is updated
-      setTimeout(() => {
-        window.location.href = returnTo
-      }, 100)
+      storeSessionAndRedirect(session, returnTo)
       
     } catch (e: unknown) {
       console.error('Login error:', e)
@@ -100,6 +143,71 @@ function LoginInner() {
       setIsLoading(false)
     }
   }
+
+  /**
+   * Exchanges the Google ID token for a MailsFinder session.
+   *
+   * Only the token is sent. The backend reads the address out of it after verifying the
+   * signature, so the browser never gets to say which account it wants.
+   */
+  const handleGoogleCredential = useCallback(async (credential: string) => {
+    setIsLoading(true)
+    setError(null)
+    setSuccess(null)
+    try {
+      const res = await apiPost('/api/user/auth/google', { credential }, { includeAuth: false })
+      if (!res.ok) {
+        // Carries the disposable-domain message verbatim when that is the reason.
+        const errorMsg = res.error && typeof res.error === 'object'
+          ? (res.error.message || res.error.error || `Google sign-in failed (${res.status})`)
+          : `Google sign-in failed (${res.status})`
+        setError(errorMsg as string)
+        return
+      }
+
+      const session = readSession(res.data as Record<string, unknown>)
+      if (!session?.accessToken || !session.user) {
+        setError('Invalid login response format')
+        return
+      }
+
+      storeSessionAndRedirect(session, returnTo)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Network error')
+    } finally {
+      setIsLoading(false)
+    }
+  }, [returnTo])
+
+  /**
+   * Renders the Google button once the Identity Services script has loaded.
+   *
+   * The script is loaded directly rather than through a wrapper package, so initialisation
+   * has to wait for both the script and the container element to exist — hence the flag
+   * and the ref rather than a plain effect on mount.
+   */
+  useEffect(() => {
+    if (!gsiLoaded || !googleButtonRef.current || !GOOGLE_CLIENT_ID) return
+
+    const google = (window as unknown as { google?: GoogleIdentityServices }).google
+    if (!google?.accounts?.id) return
+
+    google.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID,
+      callback: (response: { credential?: string }) => {
+        if (response?.credential) void handleGoogleCredential(response.credential)
+      },
+    })
+
+    google.accounts.id.renderButton(googleButtonRef.current, {
+      theme: 'outline',
+      size: 'large',
+      // Google Identity Services takes a pixel string here and caps it at 400. A
+      // percentage is silently ignored, which is why the container is centred instead.
+      width: '360',
+      text: 'continue_with',
+    })
+  }, [gsiLoaded, handleGoogleCredential])
 
   const registerInBackend = async (payload: { email: string; password: string; full_name: string; phone?: string; company?: string | null }) => {
     try {
@@ -172,7 +280,12 @@ function LoginInner() {
         const backendResult = await registerInBackend(testPayload)
         console.log('Signup result:', backendResult)
         if (!backendResult.ok) {
-          setError(`Backend registration failed: ${backendResult.error}`)
+          // The backend's own wording is shown as-is. It is written for the user — the
+          // disposable-domain refusal in particular has exact copy — and prefixing it with
+          // internal phrasing put debug text in front of customers.
+          // registerInBackend yields '' when the response carried no message, so a generic
+          // fallback keeps an empty alert from silently swallowing the failure.
+          setError(backendResult.error || 'Signup failed. Please try again.')
           return
         }
         
@@ -305,6 +418,27 @@ function LoginInner() {
               {isSignUp ? 'Create Account' : 'Sign In'}
             </Button>
           </form>
+
+          {GOOGLE_CLIENT_ID && (
+            <>
+              <Script
+                src="https://accounts.google.com/gsi/client"
+                strategy="afterInteractive"
+                onLoad={() => setGsiLoaded(true)}
+              />
+              <div className="relative my-6">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-card px-2 text-muted-foreground">or</span>
+                </div>
+              </div>
+              {/* One button serves both modes: a single Google click signs in an existing
+                  account or creates a new one. */}
+              <div ref={googleButtonRef} className="flex justify-center" />
+            </>
+          )}
 
           <div className="mt-4 text-center">
             {!isSignUp && (
