@@ -1,0 +1,52 @@
+name: mailsfinder-stack
+
+services:
+  frontend:
+    container_name: mailsfinder-frontend
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      # Securely mount the .env file during build time without baking it into the image cache
+      secrets:
+        - env
+    image: mailsfinder-frontend:latest
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    # Load all runtime credentials dynamically from the .env file
+    env_file:
+      - ../.env
+    environment:
+      - NODE_ENV=production
+      - HOSTNAME=0.0.0.0
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2048M
+        reservations:
+          cpus: "0.25"
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - mailsfinder-network
+
+# Define the secret source pointing to the actual .env file
+secrets:
+  env:
+    file: ../.env
+
+networks:
+  mailsfinder-network:
+    name: mailsfinder-network
+    driver: bridge

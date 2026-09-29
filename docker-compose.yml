@@ -1,42 +1,5 @@
-services:
-  frontend:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        # Build-time (inlined into the client bundle). Values come from .env
-        # sitting next to this file on the server.
-        NEXT_PUBLIC_API_ENV: ${NEXT_PUBLIC_API_ENV}
-        NEXT_PUBLIC_API_URL_PROD: ${NEXT_PUBLIC_API_URL_PROD}
-        NEXT_PUBLIC_API_URL_STAGING: ${NEXT_PUBLIC_API_URL_STAGING}
-        NEXT_PUBLIC_API_URL_LOCAL: ${NEXT_PUBLIC_API_URL_LOCAL}
-        NEXT_PUBLIC_SERVER_URL: ${NEXT_PUBLIC_SERVER_URL}
-        NEXT_PUBLIC_LOCAL_URL: ${NEXT_PUBLIC_LOCAL_URL}
-        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
-        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL}
-        NEXT_PUBLIC_CORE_API_BASE: ${NEXT_PUBLIC_CORE_API_BASE}
-        NEXT_PUBLIC_BACKEND_SIGNUP_PATH: ${NEXT_PUBLIC_BACKEND_SIGNUP_PATH}
-        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
-        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
-        NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${NEXT_PUBLIC_GOOGLE_CLIENT_ID}
-        NEXT_PUBLIC_WHATSAPP_COMMUNITY_LINK: ${NEXT_PUBLIC_WHATSAPP_COMMUNITY_LINK}
-    image: mailsfinder-frontend:latest
-    container_name: mailsfinder-frontend
-    restart: unless-stopped
-    # Bind to loopback only -- nginx is the only thing that should reach it.
-    ports:
-      - "127.0.0.1:3000:3000"
-    # Runtime secrets. These are NOT baked into the image.
-    env_file:
-      - .env
-    healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
-      interval: 30s
-      timeout: 5s
-      start_period: 20s
-      retries: 3
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "5"
+# Root Compose wrapper for convenient 'docker compose up' execution
+# The complete configuration is maintained in docker/docker-compose.yml
+
+include:
+  - docker/docker-compose.yml

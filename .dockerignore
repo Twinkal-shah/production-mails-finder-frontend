@@ -1,16 +1,35 @@
+# Git & IDE
+.git
+.gitignore
+.agents
+.gemini
+.idea
+.vscode
+*.swp
+*.swo
+
+# Dependencies & Build artifacts
 node_modules
 .next
-.git
-.github
-.vercel
+out
+dist
+build
 npm-debug.log*
-.DS_Store
-*.tsbuildinfo
-.env
-.env.*
-!.env.example
-coverage
-supabase
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Environment files
+# NOTE: We do NOT ignore .env files here because they are needed by Next.js 
+# during the build phase (or mounted securely via BuildKit secrets).
+# .env*
+
+# Documentation & Test files
 *.md
+!README.md
 test-*.js
-*.sql
+fix_*.sql
+
+# System files
+.DS_Store
+Thumbs.db
