@@ -11,8 +11,9 @@ services:
         - env
     image: mailsfinder-frontend:latest
     restart: unless-stopped
+    # Loopback only: public traffic reaches the app via the Caddy gateway (HTTPS, auto-renewed certs)
     ports:
-      - "${PORT:-3000}:3000"
+      - "127.0.0.1:${PORT:-3000}:3000"
     # Load all runtime credentials dynamically from the .env file
     env_file:
       - ../.env
@@ -40,6 +41,7 @@ services:
         max-file: "3"
     networks:
       - mailsfinder-network
+      - mf-public
 
 # Define the secret source pointing to the actual .env file
 secrets:
@@ -50,3 +52,7 @@ networks:
   mailsfinder-network:
     name: mailsfinder-network
     driver: bridge
+  # Shared with the Caddy gateway (mf-gateway) from backend/infra/compose/compose.single.yml
+  mf-public:
+    external: true
+    name: mf-public
