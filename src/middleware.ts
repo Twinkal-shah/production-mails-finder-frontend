@@ -16,10 +16,17 @@ export async function middleware(request: NextRequest) {
   const isProtected = protectedPaths.some(p => pathname.startsWith(p))
   const isAuthPage = pathname.startsWith('/auth')
 
-  if (isProtected && !isAuthPage) {
-    const token = request.cookies.get('access_token')?.value
-    const hasUserCookie = !!request.cookies.get('user_data')?.value
+  const token = request.cookies.get('access_token')?.value
+  const hasUserCookie = !!request.cookies.get('user_data')?.value
 
+  // If user is already authenticated and trying to access auth pages, redirect to dashboard
+  if (isAuthPage && (token || hasUserCookie)) {
+    url.pathname = '/find'
+    url.search = '' // Clear search parameters like ?signup=1
+    return NextResponse.redirect(url)
+  }
+
+  if (isProtected && !isAuthPage) {
     if (token || hasUserCookie) {
       try {
         const apiUrl = `${request.nextUrl.origin}/api/user/profile/getProfile`
