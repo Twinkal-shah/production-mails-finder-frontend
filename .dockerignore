@@ -1,0 +1,16 @@
+node_modules
+.next
+.git
+.github
+.vercel
+npm-debug.log*
+.DS_Store
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+coverage
+supabase
+*.md
+test-*.js
+*.sql

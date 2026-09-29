@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Self-hosted build: emit a minimal standalone server bundle for Docker/Hetzner.
+  output: 'standalone',
   experimental: {
     serverActions: {
       bodySizeLimit: '10mb', // Increase from default 1MB to 10MB for large CSV uploads
