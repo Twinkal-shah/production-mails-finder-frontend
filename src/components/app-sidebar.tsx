@@ -16,6 +16,7 @@ import {
   Coins,
   PanelLeftClose,
   PanelLeftOpen,
+  Sparkles,
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -47,6 +48,19 @@ const ACCOUNT = [
   { href: '/upgrade', label: 'Upgrade Plan', icon: Zap, badge: 'Pro' },
   { href: '/user', label: 'Settings', icon: SettingsIcon },
 ]
+
+/**
+ * Outbound skills ship with AppSumo Tier 3 and Tier 4 only, so the entry is
+ * hidden rather than shown locked — Tiers 1 and 2 never bought them and the
+ * listing tells them so. Gated on the plan already carried by the sidebar
+ * profile, which avoids an extra request on every page.
+ */
+const SKILLS_ITEM = { href: '/skills', label: 'Outbound Skills', icon: Sparkles }
+const SKILL_PLANS = new Set(['appsumo_t3', 'appsumo_t4'])
+
+function hasOutboundSkills(plan: string | null | undefined): boolean {
+  return SKILL_PLANS.has(String(plan || '').trim().toLowerCase())
+}
 
 function initialsOf(name: string | null, email: string) {
   const source = (name || email || 'U').trim()
@@ -238,6 +252,14 @@ export function AppSidebar({
                 onNavigate={onNavigate}
               />
             ))}
+            {hasOutboundSkills(profile.plan) && (
+              <NavItem
+                {...SKILLS_ITEM}
+                active={isActive(SKILLS_ITEM.href)}
+                collapsed={collapsed}
+                onNavigate={onNavigate}
+              />
+            )}
           </nav>
         </div>
       </div>
