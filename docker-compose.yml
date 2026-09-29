@@ -1,5 +1,0 @@
-# Root Compose wrapper for convenient 'docker compose up' execution
-# The complete configuration is maintained in docker/docker-compose.yml
-
-include:
-  - docker/docker-compose.yml
