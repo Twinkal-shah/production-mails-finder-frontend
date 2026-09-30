@@ -15,6 +15,14 @@ import { bulkFind, buildBulkFindPayload } from '@/lib/bulk-find-utils'
 import { ActiveJobsBanner } from '@/components/active-jobs-banner'
 import { humanizeApiError } from '@/lib/api-error'
 import { saveBulkHistoryEntry } from '@/lib/bulk-history'
+import {
+  detectColumns,
+  describeDetectionProblem,
+  readCell,
+  readNameParts,
+  type ColumnDetectionResult,
+} from '@/lib/csv-column-detection'
+import { CsvColumnMappingPreview } from '@/components/csv-column-mapping-preview'
 
 interface CsvRow {
   'Full Name'?: string
@@ -22,49 +30,6 @@ interface CsvRow {
   'Role'?: string
   [key: string]: unknown
 }
-
-const normalizeColumnName = (name: string) => {
-  const withSpaces = name.replace(/([a-z])([A-Z])/g, '$1 $2')
-  return withSpaces.toLowerCase().replace(/[_\-.]+/g, ' ').replace(/\s+/g, ' ').trim()
-}
-
-const findColumnMapping = (columns: string[]) => {
-  const mapping: { fullName?: string; domain?: string; role?: string } = {}
-  const fullNameTargets = ['full name', 'person name', 'name', 'contact name', 'employee name', 'customer name', 'client name', 'lead name', 'prospect name', 'individual name']
-  const domainTargets = ['domain', 'website domain', 'company domain', 'email domain', 'website', 'company website', 'url', 'site', 'web address', 'company url', 'organization domain', 'business domain']
-  const roleTargets = ['role', 'position', 'title', 'job title', 'designation', 'person title', 'work title', 'occupation', 'function']
-  const firstNameTargets = ['first name', 'person first name', 'fname', 'given name', 'firstname', 'first']
-  const lastNameTargets = ['last name', 'person last name', 'lname', 'surname', 'family name', 'lastname', 'last', 'family']
-
-  const normalized = columns.map(c => ({ orig: c, norm: normalizeColumnName(c) }))
-
-  for (const col of normalized) {
-    if (!mapping.fullName && fullNameTargets.includes(col.norm)) mapping.fullName = col.orig
-    if (!mapping.domain && domainTargets.includes(col.norm)) mapping.domain = col.orig
-    if (!mapping.role && roleTargets.includes(col.norm)) mapping.role = col.orig
-  }
-
-  if (!mapping.fullName) {
-    const first = normalized.find(c => firstNameTargets.includes(c.norm))
-    const last = normalized.find(c => lastNameTargets.includes(c.norm))
-    if (first && last) mapping.fullName = `${first.orig}+${last.orig}`
-  }
-
-  return mapping
-}
-
-const extractFullName = (row: CsvRow, mapping: { fullName?: string }) => {
-  if (!mapping.fullName) return ''
-  if (mapping.fullName.includes('+')) {
-    const [firstName, lastName] = mapping.fullName.split('+')
-    const first = ((row[firstName] as string) || '').trim()
-    const last = ((row[lastName] as string) || '').trim()
-    return `${first} ${last}`.trim()
-  }
-  return ((row[mapping.fullName] as string) || '').trim()
-}
-
- 
 
 const normalizeDomain = (value: string) => {
   let s = (value || '').trim()
@@ -90,14 +55,6 @@ const normalizeDomain = (value: string) => {
   s = s.replace(/^\.+|\.+$/g, '')
   const isHostname = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/.test(s)
   return isHostname ? s : ''
-}
-
-const getRowValueCI = (row: CsvRow, key?: string) => {
-  if (!key) return ''
-  const match = Object.keys(row).find(k => k.toLowerCase().trim() === key.toLowerCase().trim())
-  if (!match) return ''
-  const v = (row as Record<string, unknown>)[match]
-  return typeof v === 'string' ? v : ''
 }
 
 interface BulkRow extends CsvRow {
@@ -130,6 +87,8 @@ export function BulkFinderWorkspace({ showHeader = true }: { showHeader?: boolea
   const [originalFileName, setOriginalFileName] = useState<string | null>(null)
   const [originalFileNameWithExt, setOriginalFileNameWithExt] = useState<string | null>(null)
   const [originalColumnOrder, setOriginalColumnOrder] = useState<string[]>([])
+  /** Column detection for the loaded file; null until a file is parsed. */
+  const [detection, setDetection] = useState<ColumnDetectionResult | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [isDragging, setIsDragging] = useState(false)
   const { invalidateCreditsData } = useQueryInvalidation()
@@ -148,7 +107,7 @@ export function BulkFinderWorkspace({ showHeader = true }: { showHeader?: boolea
   // No job-based endpoints on backend; page runs direct bulk find only
 
   /**
-   * Client-side sample CSV. Columns match what findColumnMapping already
+   * Client-side sample CSV. Columns match what the shared column detection
    * accepts, so a downloaded template always imports cleanly. No network call.
    */
   const downloadSampleTemplate = () => {
@@ -174,12 +133,69 @@ export function BulkFinderWorkspace({ showHeader = true }: { showHeader?: boolea
     processFile(file)
   }
 
+  /**
+   * Shared tail of the CSV and Excel parse paths.
+   *
+   * First Name, Last Name and Domain are detected from the header row; a
+   * single Full Name column is split into first and last automatically. When a
+   * required field cannot be resolved the headers are still recorded so the UI
+   * can name what is missing, and no rows are loaded so nothing can start.
+   *
+   * `fullName` is still what each row carries, so `runDirectFind`,
+   * `buildBulkFindPayload` and the export path are unaffected.
+   */
+  const applyParsedFile = (
+    originalColumns: string[],
+    parsedRows: CsvRow[],
+    sourceLabel: 'CSV' | 'Excel'
+  ) => {
+    setOriginalColumnOrder(originalColumns)
+
+    const detected = detectColumns(originalColumns, 'find')
+    setDetection(detected)
+
+    if (!detected.ok) {
+      setRows([])
+      toast.error(describeDetectionProblem(detected))
+      return
+    }
+
+    const domainHeader = detected.mapping.domain?.header
+    const roleHeader = detected.mapping.role?.header
+
+    // Values are derived, then filtered, then spread — same order as before,
+    // so a raw `domain` column in the file cannot slip past the hostname check.
+    const newRows: BulkRow[] = parsedRows
+      .map((row: CsvRow) => {
+        const { first, last } = readNameParts(row, detected)
+        return {
+          row,
+          fullName: `${first} ${last}`.trim(),
+          domain: normalizeDomain(readCell(row, domainHeader)),
+          role: readCell(row, roleHeader),
+        }
+      })
+      .filter(entry => entry.fullName && entry.domain)
+      .map(({ row, fullName, domain, role }, index: number) => ({
+        id: `row-${Date.now()}-${index}`,
+        fullName,
+        domain,
+        role,
+        status: 'pending' as const,
+        ...row
+      }))
+
+    setRows(newRows)
+    toast.success(`Loaded ${newRows.length} rows from ${sourceLabel}`)
+  }
+
   /** Parses a chosen file. Shared by the file picker and the drop zone. */
   const processFile = (file: File) => {
     // Store the original filename (without extension for later use)
     const fileName = file.name.replace(/\.[^/.]+$/, '') // Remove extension
     setOriginalFileName(fileName)
     setOriginalFileNameWithExt(file.name)
+    setDetection(null)
 
     const fileExtension = file.name.split('.').pop()?.toLowerCase()
 
@@ -189,40 +205,7 @@ export function BulkFinderWorkspace({ showHeader = true }: { showHeader?: boolea
         complete: (results) => {
           // Store original column order from CSV headers
           const originalColumns = results.meta?.fields || []
-          setOriginalColumnOrder(originalColumns)
-          
-          // Find column mapping
-          const columnMapping = findColumnMapping(originalColumns)
-          
-          if (!columnMapping.fullName || !columnMapping.domain) {
-            toast.error('Could not find required columns. Please include Full Name or First/Last Name, and Domain.')
-            return
-          }
-          
-          const newRows: BulkRow[] = (results.data as CsvRow[])
-            .filter((row: CsvRow) => {
-              const fullName = extractFullName(row, columnMapping)
-              const rawDomain = getRowValueCI(row, columnMapping.domain)
-              const domain = normalizeDomain(rawDomain)
-              return fullName && domain
-            })
-            .map((row: CsvRow, index: number) => {
-              const fullName = extractFullName(row, columnMapping)
-              const rawDomain = getRowValueCI(row, columnMapping.domain)
-              const domain = normalizeDomain(rawDomain)
-              const role = getRowValueCI(row, columnMapping.role)
-              return {
-                id: `row-${Date.now()}-${index}`,
-                fullName,
-                domain,
-                role,
-                status: 'pending' as const,
-                ...row
-              }
-            })
-          
-          setRows(newRows)
-          toast.success(`Loaded ${newRows.length} rows from CSV`)
+          applyParsedFile(originalColumns, results.data as CsvRow[], 'CSV')
         },
         error: (error) => {
           toast.error('Failed to parse CSV file')
@@ -238,43 +221,10 @@ export function BulkFinderWorkspace({ showHeader = true }: { showHeader?: boolea
           const sheetName = workbook.SheetNames[0]
           const worksheet = workbook.Sheets[sheetName]
           const jsonData = XLSX.utils.sheet_to_json(worksheet) as CsvRow[]
-          
+
           // Store original column order from Excel headers
           const originalColumns = jsonData.length > 0 ? Object.keys(jsonData[0] as object) : []
-          setOriginalColumnOrder(originalColumns)
-          
-          // Find column mapping
-          const columnMapping = findColumnMapping(originalColumns)
-          
-          if (!columnMapping.fullName || !columnMapping.domain) {
-            toast.error('Could not find required columns. Please include Full Name or First/Last Name, and Domain.')
-            return
-          }
-          
-          const newRows: BulkRow[] = jsonData
-            .filter((row: CsvRow) => {
-              const fullName = extractFullName(row, columnMapping)
-              const rawDomain = getRowValueCI(row, columnMapping.domain)
-              const domain = normalizeDomain(rawDomain)
-              return fullName && domain
-            })
-            .map((row: CsvRow, index: number) => {
-              const fullName = extractFullName(row, columnMapping)
-              const rawDomain = getRowValueCI(row, columnMapping.domain)
-              const domain = normalizeDomain(rawDomain)
-              const role = getRowValueCI(row, columnMapping.role)
-              return {
-                id: `row-${Date.now()}-${index}`,
-                fullName,
-                domain,
-                role,
-                status: 'pending' as const,
-                ...row
-              }
-            })
-          
-          setRows(newRows)
-          toast.success(`Loaded ${newRows.length} rows from Excel`)
+          applyParsedFile(originalColumns, jsonData, 'Excel')
         } catch (error) {
           toast.error('Failed to parse Excel file')
           console.error(error)
@@ -296,6 +246,11 @@ export function BulkFinderWorkspace({ showHeader = true }: { showHeader?: boolea
   // Removed job-based actions
 
   const runDirectFind = async () => {
+    // Never start on a file whose required columns could not be resolved.
+    if (detection && !detection.ok) {
+      toast.error(describeDetectionProblem(detection))
+      return
+    }
     const validRows = rows.filter(r => r.fullName && normalizeDomain(r.domain))
     if (validRows.length === 0) {
       toast.error('Please add at least one valid row with Full Name and Domain')
@@ -577,7 +532,8 @@ export function BulkFinderWorkspace({ showHeader = true }: { showHeader?: boolea
           </p>
           <h1 className="text-2xl font-bold tracking-tight text-ink dark:text-white">Bulk Email Finder</h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Expected columns: Full Name and Domain. Optional: Role.
+            Columns are detected automatically: First Name, Last Name (or a single Full
+            Name) and Domain. Optional: Role.
           </p>
         </div>
       )}
@@ -594,10 +550,12 @@ export function BulkFinderWorkspace({ showHeader = true }: { showHeader?: boolea
           Upload CSV for bulk email finding
         </h3>
         <p className="text-sm text-gray-500 dark:text-gray-400 max-w-lg mb-6 leading-relaxed">
-          Drag &amp; drop your formatted CSV list. Ensure your columns contain{' '}
+          Drag &amp; drop your CSV list. Your{' '}
           <code className="font-mono-code text-[13px] text-ink dark:text-gray-200">first_name</code>,{' '}
-          <code className="font-mono-code text-[13px] text-ink dark:text-gray-200">last_name</code>, and{' '}
-          <code className="font-mono-code text-[13px] text-ink dark:text-gray-200">domain</code>.
+          <code className="font-mono-code text-[13px] text-ink dark:text-gray-200">last_name</code> and{' '}
+          <code className="font-mono-code text-[13px] text-ink dark:text-gray-200">domain</code>{' '}
+          columns are detected automatically, whatever they are called — a single full-name
+          column is split for you.
         </p>
 
         <Label htmlFor="file-upload" className="sr-only">
@@ -678,6 +636,9 @@ export function BulkFinderWorkspace({ showHeader = true }: { showHeader?: boolea
           <span>Automatic column mapping included</span>
         </div>
       </div>
+
+      {/* Detected column mapping — shown after parsing, before processing. */}
+      {detection && <CsvColumnMappingPreview detection={detection} />}
 
       {/* Actions — unchanged behaviour, shown once a file is loaded */}
       {rows.length > 0 && (

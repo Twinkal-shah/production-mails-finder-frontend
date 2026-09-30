@@ -16,6 +16,8 @@ import {
   X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { CsvColumnMappingPreview } from '@/components/csv-column-mapping-preview'
+import type { ColumnDetectionResult } from '@/lib/csv-column-detection'
 
 export interface BatchPreview {
   /** Rows parsed out of the file. */
@@ -56,6 +58,7 @@ export function BulkUploadPanel({
   fileName,
   batch,
   columnCount,
+  detection,
   creditBalance,
   isProcessing,
   hasFile,
@@ -69,6 +72,8 @@ export function BulkUploadPanel({
   fileName: string
   batch: BatchPreview
   columnCount: number
+  /** Column detection for the loaded file; null before a file is parsed. */
+  detection?: ColumnDetectionResult | null
   creditBalance?: number
   isProcessing: boolean
   hasFile: boolean
@@ -83,6 +88,8 @@ export function BulkUploadPanel({
   const estimated = batch.unique
   const lowBalance =
     typeof creditBalance === 'number' && estimated > 0 && creditBalance < estimated
+  // A file whose Email column could not be resolved must not start a run.
+  const detectionBlocked = !!detection && !detection.ok
 
   return (
     <Card className={cn(className)}>
@@ -96,8 +103,10 @@ export function BulkUploadPanel({
           </span>
         </CardTitle>
         <CardDescription className="text-[13px]">
-          Upload a CSV or Excel file with an <span className="font-medium text-foreground">Email</span> column.
-          Asynchronous multi-node validation with real-time progress.
+          Upload a CSV or Excel file — your{' '}
+          <span className="font-medium text-foreground">Email</span> column is detected
+          automatically, whatever it is called. Asynchronous multi-node validation with
+          real-time progress.
         </CardDescription>
       </CardHeader>
 
@@ -181,7 +190,7 @@ export function BulkUploadPanel({
               </span>
             </p>
             <p className="mt-4 text-xs text-muted-foreground">
-              Supports .csv, .xlsx and .xls · must include an &quot;Email&quot; column
+              Supports .csv, .xlsx and .xls · the email column is detected automatically
             </p>
           </div>
         ) : (
@@ -255,7 +264,7 @@ export function BulkUploadPanel({
               <Button
                 size="lg"
                 onClick={onStart}
-                disabled={isProcessing || batch.total === 0}
+                disabled={isProcessing || batch.total === 0 || detectionBlocked}
                 className="w-full sm:w-auto"
               >
                 {isProcessing ? (
@@ -273,6 +282,9 @@ export function BulkUploadPanel({
             </div>
           </div>
         )}
+
+        {/* Detected column mapping — shown after parsing, before processing. */}
+        {detection && <CsvColumnMappingPreview detection={detection} />}
       </CardContent>
     </Card>
   )

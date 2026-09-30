@@ -17,6 +17,12 @@ import { VerifyHeader } from './components/verify-header'
 import { VerifyResultPanel } from './components/verify-result-panel'
 import { SingleVerifyPanel } from './components/single-verify-panel'
 import { BulkUploadPanel, type BatchPreview } from './components/bulk-upload-panel'
+import {
+  detectColumns,
+  describeDetectionProblem,
+  readCell,
+  type ColumnDetectionResult,
+} from '@/lib/csv-column-detection'
 import { VerifyProgressCard, VerifyFailedCard } from './components/verify-state-zone'
 import { VerifyResultsSummary, VerifyResultsTable } from './components/verify-results'
 import { VerifyJobHistory } from './components/verify-job-history'
@@ -65,6 +71,8 @@ export default function VerifyPage() {
   const [originalFileName, setOriginalFileName] = useState<string>('')
   const [originalFileNameWithExt, setOriginalFileNameWithExt] = useState<string>('')
   const [originalColumnOrder, setOriginalColumnOrder] = useState<string[]>([])
+  /** Column detection for the loaded file; null until a file is parsed. */
+  const [detection, setDetection] = useState<ColumnDetectionResult | null>(null)
   const [allJobs, setAllJobs] = useState<BulkVerificationJob[]>([])
   const [isIndeterminate, setIsIndeterminate] = useState(false)
   const [duplicateInfo, setDuplicateInfo] = useState('')
@@ -225,6 +233,48 @@ export default function VerifyPage() {
   }
 
   /**
+   * Shared tail of the CSV and Excel parse paths.
+   *
+   * Detects the email column from the header row instead of requiring a
+   * literally-named `Email` field. When detection fails the headers are still
+   * recorded so the UI can say exactly what is missing, and no rows are loaded
+   * so processing cannot start.
+   */
+  const applyParsedFile = (
+    originalColumns: string[],
+    parsedRows: CsvRow[],
+    sourceLabel: 'CSV' | 'Excel'
+  ) => {
+    setOriginalColumnOrder(originalColumns)
+
+    const detected = detectColumns(originalColumns, 'verify')
+    setDetection(detected)
+
+    if (!detected.ok) {
+      setRows([])
+      toast.error(describeDetectionProblem(detected))
+      return
+    }
+
+    const emailHeader = detected.mapping.email?.header
+    const newRows: VerifyRow[] = parsedRows
+      .filter((row: CsvRow) => readCell(row, emailHeader))
+      .map((row: CsvRow, index: number) => {
+        const emailValue = readCell(row, emailHeader)
+        // Preserve all original columns and add our required fields
+        return {
+          id: index,
+          email: emailValue,
+          status: 'pending' as const,
+          ...row // Spread all original columns
+        }
+      })
+
+    setRows(newRows)
+    toast.success(`Loaded ${newRows.length} emails from ${sourceLabel}`)
+  }
+
+  /**
    * Parse a picked or dropped file. Body is unchanged from the original
    * `handleFileUpload`; only the file is now passed in directly so the same
    * code path serves both the file picker and drag-and-drop.
@@ -234,6 +284,7 @@ export default function VerifyPage() {
     const fileName = file.name.replace(/\.[^/.]+$/, '') // Remove extension
     setOriginalFileName(fileName)
     setOriginalFileNameWithExt(file.name)
+    setDetection(null)
 
     const fileExtension = file.name.split('.').pop()?.toLowerCase()
 
@@ -243,23 +294,7 @@ export default function VerifyPage() {
         complete: (results) => {
           // Store original column order from CSV headers
           const originalColumns = results.meta?.fields || []
-          setOriginalColumnOrder(originalColumns)
-
-          const newRows: VerifyRow[] = (results.data as CsvRow[])
-            .filter((row: CsvRow) => row['Email'] || row['email'])
-            .map((row: CsvRow, index: number) => {
-              const emailValue = row['Email'] || row['email'] || ''
-              // Preserve all original columns and add our required fields
-              return {
-                id: index,
-                email: emailValue,
-                status: 'pending' as const,
-                ...row // Spread all original columns
-              }
-            })
-
-          setRows(newRows)
-          toast.success(`Loaded ${newRows.length} emails from CSV`)
+          applyParsedFile(originalColumns, results.data as CsvRow[], 'CSV')
         },
         error: (error) => {
           toast.error('Failed to parse CSV file')
@@ -277,26 +312,8 @@ export default function VerifyPage() {
           const jsonData = XLSX.utils.sheet_to_json(worksheet)
 
           // Store original column order from Excel headers
-          if (jsonData.length > 0) {
-            const originalColumns = Object.keys(jsonData[0] as object)
-            setOriginalColumnOrder(originalColumns)
-          }
-
-          const newRows: VerifyRow[] = (jsonData as CsvRow[])
-            .filter((row: CsvRow) => row['Email'] || row['email'])
-            .map((row: CsvRow, index: number) => {
-              const emailValue = row['Email'] || row['email'] || ''
-              // Preserve all original columns and add our required fields
-              return {
-                id: index,
-                email: emailValue,
-                status: 'pending' as const,
-                ...row // Spread all original columns
-              }
-            })
-
-          setRows(newRows)
-          toast.success(`Loaded ${newRows.length} emails from Excel`)
+          const originalColumns = jsonData.length > 0 ? Object.keys(jsonData[0] as object) : []
+          applyParsedFile(originalColumns, jsonData as CsvRow[], 'Excel')
         } catch (error) {
           toast.error('Failed to parse Excel file')
           console.error(error)
@@ -327,6 +344,7 @@ export default function VerifyPage() {
     setOriginalFileName('')
     setOriginalFileNameWithExt('')
     setOriginalColumnOrder([])
+    setDetection(null)
     setProgress(0)
     setProcessedCount(0)
     setValidCount(0)
@@ -345,6 +363,11 @@ export default function VerifyPage() {
   }
 
   const runBulkVerify = async () => {
+    // Never start on a file whose email column could not be resolved.
+    if (detection && !detection.ok) {
+      toast.error(describeDetectionProblem(detection))
+      return
+    }
     const validRows = rows.filter(row => row.email)
     if (validRows.length === 0) {
       toast.error('Please add at least one valid email address')
@@ -796,6 +819,7 @@ export default function VerifyPage() {
               fileName={originalFileNameWithExt}
               batch={batchPreview}
               columnCount={originalColumnOrder.length}
+              detection={detection}
               creditBalance={profile?.available_credits}
               isProcessing={isProcessing}
               hasFile={rows.length > 0}
