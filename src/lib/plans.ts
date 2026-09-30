@@ -244,6 +244,36 @@ export function dailyUsedOf(profile: Profile | null | undefined): number | null 
 }
 
 /**
+ * Credits this account can still spend today: what is left of today's cap.
+ * Null when the funding bucket reports no daily cap (PAYG), where only the
+ * balance limits spending.
+ *
+ * Same arithmetic the credits page already shows, lifted here so the bulk
+ * flows read one implementation rather than each rolling their own.
+ */
+export function dailyRemainingOf(profile: Profile | null | undefined): number | null {
+  const cap = dailyCapOf(profile)
+  const used = dailyUsedOf(profile)
+  if (cap === null || used === null) return null
+  return Math.max(cap - used, 0)
+}
+
+/**
+ * What the user can actually spend right now: today's remaining cap, never
+ * more than the balance they hold. Null when neither figure is reported.
+ */
+export function spendableTodayOf(profile: Profile | null | undefined): number | null {
+  const daily = dailyRemainingOf(profile)
+  const balance =
+    typeof profile?.available_credits === 'number' && profile.available_credits >= 0
+      ? profile.available_credits
+      : null
+  if (daily === null) return balance
+  if (balance === null) return daily
+  return Math.min(daily, balance)
+}
+
+/**
  * The API rate limit the backend reported for this account, or null when it
  * reported none.
  *

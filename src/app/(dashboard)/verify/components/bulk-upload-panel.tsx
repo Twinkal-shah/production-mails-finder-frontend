@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { CsvColumnMappingPreview } from '@/components/csv-column-mapping-preview'
+import { BulkCreditsNotice } from '@/components/bulk-credits-notice'
 import type { ColumnDetectionResult } from '@/lib/csv-column-detection'
 
 export interface BatchPreview {
@@ -287,6 +288,9 @@ export function BulkUploadPanel({
         {detection && (
           <CsvColumnMappingPreview detection={detection} onUploadAnother={openFilePicker} />
         )}
+
+        {/* Remaining credits — shown once the list parsed cleanly, before any run. */}
+        {hasFile && detection?.ok !== false && <BulkCreditsNotice />}
       </CardContent>
     </Card>
   )

@@ -22,6 +22,7 @@ import {
   type ColumnDetectionResult,
 } from '@/lib/csv-column-detection'
 import { CsvColumnMappingPreview } from '@/components/csv-column-mapping-preview'
+import { BulkCreditsNotice } from '@/components/bulk-credits-notice'
 
 interface CsvRow {
   'Full Name'?: string
@@ -643,6 +644,9 @@ export function BulkFinderWorkspace({ showHeader = true }: { showHeader?: boolea
           onUploadAnother={() => fileInputRef.current?.click()}
         />
       )}
+
+      {/* Remaining credits — shown once the list parsed cleanly, before any run. */}
+      {rows.length > 0 && detection?.ok && <BulkCreditsNotice />}
 
       {/* Actions — unchanged behaviour, shown once a file is loaded */}
       {rows.length > 0 && (
