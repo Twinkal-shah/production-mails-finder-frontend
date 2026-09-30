@@ -58,6 +58,9 @@ export function useUserProfile() {
           // Already returned by the profile API — surfaced so the billing page
           // can show the renewal date.
           plan_expiry: p.plan_expiry ?? null,
+          // Read through for PostHog's `signed_up_at`. Null when the backend
+          // omits it, in which case the property is simply not sent.
+          created_at: p.created_at ?? null,
           available_credits: availableCredits,
           // Legacy credit fields — still used by navbar / dropdown / credits page.
           credits_find: Math.max(findCredits, 0),
@@ -77,6 +80,7 @@ export function useUserProfile() {
         full_name: 'Guest User',
         plan: 'free',
         plan_expiry: null,
+        created_at: null,
         available_credits: 0,
         credits_find: 0,
         credits_verify: 0,

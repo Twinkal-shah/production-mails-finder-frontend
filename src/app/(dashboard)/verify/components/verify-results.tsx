@@ -307,7 +307,7 @@ export function VerifyResultsTable({ results }: { results: VerifyResultItem[] })
                   key={`${r.email}-${i}`}
                   className="grid grid-cols-1 gap-1 px-3 py-3 transition-colors hover:bg-muted/40 dark:hover:bg-white/[0.03] sm:grid-cols-[minmax(0,2fr)_110px_minmax(0,1fr)_minmax(0,1.5fr)] sm:items-center sm:gap-3"
                 >
-                  <span className="truncate font-mono text-xs text-foreground" title={r.email}>
+                  <span className="truncate font-mono text-xs text-foreground" title={r.email} data-ph-mask>
                     {r.email || '--'}
                   </span>
                   <span className="flex items-center gap-2">

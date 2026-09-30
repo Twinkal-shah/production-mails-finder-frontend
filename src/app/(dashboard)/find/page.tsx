@@ -490,7 +490,7 @@ export default function FindPage() {
                       <div key={item.id} className="py-3 first:pt-0 last:pb-0">
                         <div className="flex justify-between items-start gap-3">
                           <div className="min-w-0">
-                            <p className={`text-sm font-medium truncate ${isValid ? 'font-mono-code text-ink dark:text-white' : 'text-ink dark:text-white'}`}>
+                            <p className={`text-sm font-medium truncate ${isValid ? 'font-mono-code text-ink dark:text-white' : 'text-ink dark:text-white'}`} data-ph-mask>
                               {isValid ? (item.result.email || '') : `${item.payload.full_name} @ ${item.payload.company_domain}`}
                             </p>
                             {isValid ? (

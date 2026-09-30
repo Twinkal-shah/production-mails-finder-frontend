@@ -209,7 +209,7 @@ function SandboxResultCard({ result }: { result: SandboxResult }) {
           </div>
           <div>
             <div className="flex items-center space-x-2.5 flex-wrap gap-y-1">
-              <span className="text-sm sm:text-base font-bold text-slate-900 dark:text-white break-all">{result.email}</span>
+              <span className="text-sm sm:text-base font-bold text-slate-900 dark:text-white break-all" data-ph-mask>{result.email}</span>
               <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full border text-xs font-bold ${badge.cls}`}>
                 <span className={`w-1.5 h-1.5 rounded-full mr-1.5 animate-pulse ${badge.dot}`} />
                 {badge.text}

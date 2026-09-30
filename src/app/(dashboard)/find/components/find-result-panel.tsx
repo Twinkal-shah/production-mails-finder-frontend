@@ -270,7 +270,7 @@ export function FindResultPanel({
           Discovered Email Address
         </p>
         <div className="rounded-lg bg-[#F8FAFC] dark:bg-white/5 border border-gray-200 dark:border-white/10 p-4 flex items-center justify-between gap-3 flex-wrap">
-          <p className="font-mono-code text-base sm:text-lg font-medium text-brand break-all">
+          <p className="font-mono-code text-base sm:text-lg font-medium text-brand break-all" data-ph-mask>
             {result.email}
           </p>
           {result.email && (

@@ -69,7 +69,7 @@ export function RecentFindResultsTable() {
               className="grid grid-cols-2 sm:grid-cols-[1fr_1.5fr_80px_80px_80px_80px] gap-3 px-3 py-2.5 items-center text-sm"
             >
               <span className="font-medium truncate">{item.result.full_name || '--'}</span>
-              <span className="text-muted-foreground font-mono text-xs truncate">
+              <span className="text-muted-foreground font-mono text-xs truncate" data-ph-mask>
                 {item.result.email || '--'}
               </span>
               <StatusBadge status={item.result.status} />
@@ -140,7 +140,7 @@ export function RecentVerifyResultsTable() {
               key={`${item.result.email}-${item.created_at}-${i}`}
               className="grid grid-cols-2 sm:grid-cols-[1.5fr_80px_80px_80px_80px] gap-3 px-3 py-2.5 items-center text-sm"
             >
-              <span className="font-mono text-xs truncate">{item.result.email}</span>
+              <span className="font-mono text-xs truncate" data-ph-mask>{item.result.email}</span>
               <StatusBadge status={item.result.catch_all ? 'catch_all' : item.result.status} />
               <span className="text-muted-foreground">
                 {typeof item.result.confidence_score === 'number'

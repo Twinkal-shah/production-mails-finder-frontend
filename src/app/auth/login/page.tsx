@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Loader2 } from 'lucide-react'
 import { apiPost } from '@/lib/api'
+import { captureEvent, readMarketingAttribution } from '@/lib/posthog'
  
 
 /**
@@ -291,6 +292,25 @@ function LoginInner() {
         
         // Check if we got signup data or need to login
         if (backendResult.data) {
+          // Closes the attribution loop: the marketing site left the first
+          // landing page, referrer, UTMs and the CTA that was clicked in the
+          // `mf_attr` cookie on .mailsfinder.com, which is readable here
+          // because it is set on the parent domain. Fires once, on a genuinely
+          // new account only — the "already registered" branch below falls
+          // through to login and must not count as a signup.
+          const attr = readMarketingAttribution()
+          captureEvent('signup_completed', {
+            landing_page: attr.lp || null,
+            referrer: attr.ref || null,
+            utm_source: attr.utm?.utm_source || null,
+            utm_medium: attr.utm?.utm_medium || null,
+            utm_campaign: attr.utm?.utm_campaign || null,
+            cta_page: attr.cta?.page || null,
+            cta_location: attr.cta?.loc || null,
+            cta_text: attr.cta?.text || null,
+            first_seen: attr.first_seen || null,
+          })
+
           // Signup successful - redirect to login page to force login
           console.log('Signup successful, redirecting to login...')
           // Clear the form and switch to login mode

@@ -182,7 +182,7 @@ function CopyCell({ email }: { email: string }) {
   const [copied, setCopied] = useState(false)
   return (
     <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 font-mono-code text-[11px] text-gray-700 dark:text-gray-300 max-w-full">
-      <span className="truncate">{email}</span>
+      <span className="truncate" data-ph-mask>{email}</span>
       <button
         type="button"
         title="Copy email"

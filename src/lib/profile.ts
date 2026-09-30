@@ -56,6 +56,9 @@ export type Profile = {
   company?: string | null
   plan?: string | null
   plan_expiry?: string | null
+  /** ISO 8601 signup timestamp. Read through for PostHog's `signed_up_at`;
+   *  optional because the backend does not always include it. */
+  created_at?: string | null
   // --- New fields from the updated backend (all optional, read-through) ---
   billing_cycle?: BillingCycle
   subscription_status?: SubscriptionStatus

@@ -16,6 +16,8 @@ import { OnboardingGate } from '@/components/onboarding-gate'
 import { AppSidebar } from '@/components/app-sidebar'
 import { toast } from 'sonner'
 import { useUserProfile } from '@/hooks/useCreditsData'
+import PostHogIdentify from '@/components/posthog-identify'
+import { resetPostHog } from '@/lib/posthog'
 
 /** Remembers the desktop sidebar rail state across visits, per browser. */
 const SIDEBAR_COLLAPSED_KEY = 'mailsfinder_sidebar_collapsed'
@@ -166,6 +168,9 @@ const [currentProfile, setCurrentProfile] = useState({
           try {
             await fetch('/api/user/auth/logout', { method: 'POST' })
           } catch {}
+          // Drop the PostHog identity too, or the next person to sign in on
+          // this browser inherits the expired session's user.
+          resetPostHog()
           try {
             localStorage.removeItem('access_token')
             localStorage.removeItem('user_data')
@@ -291,6 +296,10 @@ const [currentProfile, setCurrentProfile] = useState({
         }
       })
       
+      // Clear the PostHog identity before anything else, so app events that
+      // follow are not still attributed to the user who just left.
+      resetPostHog()
+
       // Clear localStorage items
       localStorage.removeItem('access_token')
       localStorage.removeItem('user_data')
@@ -321,6 +330,9 @@ const [currentProfile, setCurrentProfile] = useState({
 
   return (
     <div className="flex h-screen overflow-hidden bg-canvas dark:bg-[#1b1c1b] text-ink dark:text-white transition-colors duration-300 ease-out">
+      {/* Identifies the signed-in user to PostHog. Renders nothing. */}
+      <PostHogIdentify />
+
       {/* Onboarding — first-time free users are sent to the setup wizard */}
       <OnboardingGate userProfile={currentProfile} />
 

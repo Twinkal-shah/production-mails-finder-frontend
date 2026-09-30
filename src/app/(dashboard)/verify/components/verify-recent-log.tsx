@@ -283,7 +283,7 @@ export function VerifyRecentLog() {
                         <td className="py-3 px-5 font-medium">
                           <div className="flex items-center gap-2 min-w-0">
                             <span className="shrink-0">{meta.icon}</span>
-                            <span className="font-mono-code text-xs text-ink dark:text-white truncate">
+                            <span className="font-mono-code text-xs text-ink dark:text-white truncate" data-ph-mask>
                               {item.result.email}
                             </span>
                           </div>

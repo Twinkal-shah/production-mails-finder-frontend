@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { resetPostHog } from '@/lib/posthog'
 type User = {
   id: string
   email?: string | null
@@ -73,6 +74,9 @@ export function useAuth() {
     } catch (error) {
       console.error('Sign out error:', error)
     } finally {
+      // Drop the PostHog identity, or the next person to sign in on a shared
+      // machine inherits the previous user's.
+      resetPostHog()
       // Clear localStorage as well
       if (typeof window !== 'undefined') {
         localStorage.removeItem('access_token')

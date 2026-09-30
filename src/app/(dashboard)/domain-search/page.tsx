@@ -734,7 +734,7 @@ function ResultsList({
                   </button>
                   <div className="flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                      <p className="font-mono text-sm break-all">{r.email}</p>
+                      <p className="font-mono text-sm break-all" data-ph-mask>{r.email}</p>
                       <StatusBadge status={r.verification_status} />
                     </div>
                     <div className={`mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600 dark:text-gray-300 ${blurDetails ? 'select-none blur-sm' : ''}`}>
