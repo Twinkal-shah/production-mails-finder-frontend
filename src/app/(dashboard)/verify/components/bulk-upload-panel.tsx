@@ -284,7 +284,9 @@ export function BulkUploadPanel({
         )}
 
         {/* Detected column mapping — shown after parsing, before processing. */}
-        {detection && <CsvColumnMappingPreview detection={detection} />}
+        {detection && (
+          <CsvColumnMappingPreview detection={detection} onUploadAnother={openFilePicker} />
+        )}
       </CardContent>
     </Card>
   )

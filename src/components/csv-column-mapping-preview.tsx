@@ -8,6 +8,7 @@ import {
   type ColumnDetectionResult,
   type DetectableField,
 } from '@/lib/csv-column-detection'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 /**
@@ -20,14 +21,18 @@ import { cn } from '@/lib/utils'
  */
 export function CsvColumnMappingPreview({
   detection,
+  onUploadAnother,
   className,
 }: {
   detection: ColumnDetectionResult
+  /** Reopens the file picker from the error section. Omit to hide the button. */
+  onUploadAnother?: () => void
   className?: string
 }) {
   const required = requiredFields(detection.mode)
   const fields = previewFields(detection.mode)
   const ambiguousFields = new Set<DetectableField>(detection.ambiguous.map(a => a.field))
+  const hasError = detection.missing.length > 0 || detection.ambiguous.length > 0
 
   return (
     <div className={cn('rounded-xl border border-border overflow-hidden', className)}>
@@ -91,39 +96,71 @@ export function CsvColumnMappingPreview({
         })}
       </dl>
 
-      {detection.missing.length > 0 && (
-        <div className="flex items-start gap-2 border-t border-red-300 bg-red-50 px-4 py-3 text-xs text-red-800 dark:border-red-800 dark:bg-red-950/20 dark:text-red-200">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-          <span className="flex-1">
-            Missing required column{detection.missing.length === 1 ? '' : 's'}:{' '}
-            <span className="font-semibold">
-              {detection.missing.map(f => FIELD_LABELS[f]).join(', ')}
+      {hasError && (
+        <div className="border-t border-red-300 bg-red-50 px-4 py-4 dark:border-red-800 dark:bg-red-950/20">
+          <div className="flex items-start gap-3">
+            <span
+              aria-hidden="true"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
+            >
+              <AlertTriangle className="h-4 w-4" />
             </span>
-            . Add {detection.missing.length === 1 ? 'it' : 'them'} to your file and upload again —
-            processing will not start until{' '}
-            {detection.missing.length === 1 ? 'it is' : 'they are'} found.
-            {detection.mode === 'find' &&
-              (detection.missing.includes('firstName') || detection.missing.includes('lastName')) && (
-                <> A single Full Name column works too — it is split automatically.</>
-              )}
-          </span>
-        </div>
-      )}
 
-      {detection.ambiguous.length > 0 && (
-        <div className="flex items-start gap-2 border-t border-amber-300 bg-amber-50 px-4 py-3 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950/20 dark:text-amber-200">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-          <div className="flex-1 space-y-1">
-            <p>We will not guess between equally matching columns:</p>
-            <ul className="list-disc space-y-0.5 pl-4">
-              {detection.ambiguous.map(entry => (
-                <li key={entry.field}>
-                  <span className="font-semibold">{FIELD_LABELS[entry.field]}</span> matches{' '}
-                  {entry.candidates.map(c => `"${c}"`).join(' and ')}. Rename or remove one and
-                  upload again.
-                </li>
-              ))}
-            </ul>
+            <div className="min-w-0 flex-1 space-y-2.5">
+              <p className="text-sm font-bold text-red-900 dark:text-red-100">
+                We couldn&apos;t find the required columns
+              </p>
+
+              <p className="text-[13px] leading-relaxed text-red-800 dark:text-red-200">
+                Your CSV is missing some required information. Please check your column names
+                and upload the file again.
+              </p>
+
+              {detection.missing.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-[13px] font-semibold text-red-900 dark:text-red-100">
+                    Missing:
+                  </span>
+                  {detection.missing.map(field => (
+                    <span
+                      key={field}
+                      className="rounded-md border border-red-300 bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-900 dark:border-red-800 dark:bg-red-900/40 dark:text-red-100"
+                    >
+                      {FIELD_LABELS[field]}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              <MissingFieldHelp detection={detection} />
+
+              {detection.ambiguous.length > 0 && (
+                <div className="space-y-1 text-[13px] leading-relaxed text-red-800 dark:text-red-200">
+                  {detection.ambiguous.map(entry => (
+                    <p key={entry.field}>
+                      We found more than one column that could be{' '}
+                      <span className="font-semibold">{FIELD_LABELS[entry.field]}</span>:{' '}
+                      {entry.candidates.map(c => `"${c}"`).join(' and ')}. Please keep just one of
+                      them and upload the file again.
+                    </p>
+                  ))}
+                </div>
+              )}
+
+              {onUploadAnother && (
+                <div className="pt-0.5">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={onUploadAnother}
+                    className="border-red-300 bg-white text-red-800 hover:bg-red-100 hover:text-red-900 dark:border-red-800 dark:bg-transparent dark:text-red-200 dark:hover:bg-red-900/30"
+                  >
+                    Upload a different CSV
+                  </Button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -132,6 +169,45 @@ export function CsvColumnMappingPreview({
         <div className="border-t border-border px-4 py-3 text-xs text-muted-foreground">
           No header row was found in this file.
         </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Plain-language next step for each missing field. Wording only — which fields
+ * are missing is decided by the detection module, not here.
+ */
+function MissingFieldHelp({ detection }: { detection: ColumnDetectionResult }) {
+  const missing = detection.missing
+  if (missing.length === 0) return null
+
+  const needsFirst = missing.includes('firstName')
+  const needsLast = missing.includes('lastName')
+  const nameLabel = needsFirst && needsLast ? 'First Name and Last Name' : needsFirst ? 'First Name' : 'Last Name'
+
+  return (
+    <div className="space-y-1.5 text-[13px] leading-relaxed text-red-800 dark:text-red-200">
+      {detection.mode === 'verify' && missing.includes('email') && (
+        <p>Please make sure your CSV has a column containing email addresses.</p>
+      )}
+
+      {detection.mode === 'find' && (needsFirst || needsLast) && (
+        <p>
+          Please add {needsFirst && needsLast ? '' : 'a '}
+          <span className="font-semibold">{nameLabel}</span>{' '}
+          {needsFirst && needsLast ? 'columns' : 'column'}, or use a single{' '}
+          <span className="font-semibold">Full Name</span> column. We&apos;ll automatically split
+          Full Name into First Name and Last Name.
+        </p>
+      )}
+
+      {detection.mode === 'find' && missing.includes('domain') && (
+        <p>
+          Please add a <span className="font-semibold">Domain</span> column with each
+          contact&apos;s company website, for example{' '}
+          <span className="font-mono-code">acme.com</span>.
+        </p>
       )}
     </div>
   )

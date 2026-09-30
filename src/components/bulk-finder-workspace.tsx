@@ -17,7 +17,6 @@ import { humanizeApiError } from '@/lib/api-error'
 import { saveBulkHistoryEntry } from '@/lib/bulk-history'
 import {
   detectColumns,
-  describeDetectionProblem,
   readCell,
   readNameParts,
   type ColumnDetectionResult,
@@ -155,8 +154,8 @@ export function BulkFinderWorkspace({ showHeader = true }: { showHeader?: boolea
     setDetection(detected)
 
     if (!detected.ok) {
+      // Reported inline by CsvColumnMappingPreview, not as a corner toast.
       setRows([])
-      toast.error(describeDetectionProblem(detected))
       return
     }
 
@@ -247,8 +246,8 @@ export function BulkFinderWorkspace({ showHeader = true }: { showHeader?: boolea
 
   const runDirectFind = async () => {
     // Never start on a file whose required columns could not be resolved.
+    // The reason is already on screen in the inline detection error.
     if (detection && !detection.ok) {
-      toast.error(describeDetectionProblem(detection))
       return
     }
     const validRows = rows.filter(r => r.fullName && normalizeDomain(r.domain))
@@ -638,7 +637,12 @@ export function BulkFinderWorkspace({ showHeader = true }: { showHeader?: boolea
       </div>
 
       {/* Detected column mapping — shown after parsing, before processing. */}
-      {detection && <CsvColumnMappingPreview detection={detection} />}
+      {detection && (
+        <CsvColumnMappingPreview
+          detection={detection}
+          onUploadAnother={() => fileInputRef.current?.click()}
+        />
+      )}
 
       {/* Actions — unchanged behaviour, shown once a file is loaded */}
       {rows.length > 0 && (

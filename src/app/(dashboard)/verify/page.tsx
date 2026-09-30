@@ -19,7 +19,6 @@ import { SingleVerifyPanel } from './components/single-verify-panel'
 import { BulkUploadPanel, type BatchPreview } from './components/bulk-upload-panel'
 import {
   detectColumns,
-  describeDetectionProblem,
   readCell,
   type ColumnDetectionResult,
 } from '@/lib/csv-column-detection'
@@ -251,8 +250,8 @@ export default function VerifyPage() {
     setDetection(detected)
 
     if (!detected.ok) {
+      // Reported inline by CsvColumnMappingPreview, not as a corner toast.
       setRows([])
-      toast.error(describeDetectionProblem(detected))
       return
     }
 
@@ -364,8 +363,8 @@ export default function VerifyPage() {
 
   const runBulkVerify = async () => {
     // Never start on a file whose email column could not be resolved.
+    // The reason is already on screen in the inline detection error.
     if (detection && !detection.ok) {
-      toast.error(describeDetectionProblem(detection))
       return
     }
     const validRows = rows.filter(row => row.email)
