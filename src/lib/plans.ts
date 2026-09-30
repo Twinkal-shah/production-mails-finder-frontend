@@ -101,7 +101,7 @@ export const PLAN_CATALOG: Record<CatalogPlanKey, PlanDefinition> = {
   agency: {
     key: 'agency',
     name: 'Agency',
-    blurb: 'High-throughput provisioning for agencies and multi-team programs.',
+    blurb: 'Built for agencies and teams that need high volume.',
     creditsPerMonth: 600_000,
     dailyCap: 20_000,
     apiRateLimit: 60,

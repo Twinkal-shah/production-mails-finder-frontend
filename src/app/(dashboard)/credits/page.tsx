@@ -905,15 +905,15 @@ if (isPurchaseArray(parsed)) {
       <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
         <div className="min-w-0">
           <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">
-            <span>Enterprise Quota</span>
+            <span>Plan &amp; Usage</span>
             <span aria-hidden="true">/</span>
             <span className="text-brand">{planLabel(profile?.plan)}</span>
           </p>
           <h1 className="text-2xl font-bold tracking-tight text-ink dark:text-white">
-            Billing &amp; Quotas
+            Billing &amp; Credits
           </h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400 max-w-2xl">
-            Monitor credit burn-rate velocity, subscription status, and centralized fiscal invoices.
+            See how quickly you&apos;re using credits, check your plan, and download your invoices.
           </p>
         </div>
         <div className="flex items-center gap-2.5 flex-wrap shrink-0">

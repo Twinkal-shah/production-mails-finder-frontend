@@ -1131,14 +1131,14 @@ export default function ApiCallsPage() {
       <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4">
         <div className="min-w-0">
           <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">
-            <span>Developer Portal</span>
+            <span>API &amp; Integrations</span>
             <span aria-hidden="true">/</span>
-            <span className="text-brand">Infrastructure</span>
+            <span className="text-brand">Your Keys</span>
           </p>
           <h1 className="text-2xl font-bold tracking-tight text-ink dark:text-white">API Keys</h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400 max-w-2xl">
-            Programmatic access to high-accuracy email extraction, single verification, and
-            asynchronous bulk dispatch workflows.
+            Connect Mailsfinder to your own tools to find and verify emails
+            automatically &mdash; one at a time or in bulk.
           </p>
         </div>
         <div className="flex items-center gap-2.5 flex-wrap shrink-0">
@@ -1214,7 +1214,7 @@ export default function ApiCallsPage() {
             <span className="h-8 w-8 rounded-lg bg-brand-light dark:bg-brand/15 border border-brand-border dark:border-brand/30 text-brand flex items-center justify-center">
               <KeyRound className="h-4 w-4" />
             </span>
-            Authentication Credentials
+            Your API Keys
             <span className="ml-auto text-xs text-[#059669] bg-[#ECFDF5] border border-emerald-200 px-2.5 py-1 rounded-full font-bold dark:bg-[#059669]/15 dark:border-[#059669]/30 shrink-0">
               {apiKeys.filter((k) => k.is_active).length} Active {apiKeys.filter((k) => k.is_active).length === 1 ? 'Key' : 'Keys'}
             </span>
@@ -1378,7 +1378,7 @@ export default function ApiCallsPage() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-3 border-t border-gray-200 dark:border-white/10 text-xs text-gray-500 dark:text-gray-400">
             <span className="flex items-center gap-1.5">
               <ShieldAlert className="h-4 w-4 text-gray-400 shrink-0" />
-              Keep production secret tokens out of client-side code and public repositories.
+              Keep your API keys private. Never share them or put them in public code.
             </span>
           </div>
         </CardContent>
@@ -1455,7 +1455,7 @@ export default function ApiCallsPage() {
         </div>
 
         <div className="flex items-center justify-between gap-2 pt-2 border-t border-gray-200 dark:border-white/10 text-xs text-gray-500 dark:text-gray-400">
-          <span>Per-day request counter not yet available.</span>
+          <span>Daily request count isn&apos;t available yet.</span>
           <Link href="/upgrade" className="text-brand font-bold hover:underline shrink-0">
             Upgrade
           </Link>
@@ -1472,7 +1472,7 @@ export default function ApiCallsPage() {
                 <span className="h-8 w-8 rounded-lg bg-brand-light dark:bg-brand/15 border border-brand-border dark:border-brand/30 text-brand flex items-center justify-center">
                   <TerminalSquare className="h-4 w-4" />
                 </span>
-                Interactive Endpoint Quickstart
+                Quick Start Examples
               </h2>
               <div className="flex items-center bg-gray-100 dark:bg-white/5 p-1 rounded-lg border border-gray-200 dark:border-white/10 gap-1 shrink-0">
                 {([['curl', 'cURL'], ['node', 'Node.js'], ['python', 'Python']] as const).map(([k, label]) => (

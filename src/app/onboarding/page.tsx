@@ -443,10 +443,10 @@ export default function OnboardingPage() {
 
         {/* ---------------------------- intro ---------------------------- */}
         <div className="space-y-1.5 pt-1">
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-white">Configure your prospecting engine</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-white">Set up your account</h1>
           <p className="text-slate-600 dark:text-gray-300 text-sm sm:text-base max-w-2xl leading-relaxed">
-            Tell us about your organization and verification targets so Mailsfinder can calibrate match confidence models and
-            optimize verification throughput.
+            Tell us about your company and what you&apos;re looking for, so Mailsfinder can give you
+            better matches and faster results.
           </p>
         </div>
 

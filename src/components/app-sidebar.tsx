@@ -44,7 +44,7 @@ const PROSPECTING = [
 
 const ACCOUNT = [
   { href: '/api-calls', label: 'API', icon: Code2 },
-  { href: '/credits', label: 'Billing & Quota', icon: CreditCard },
+  { href: '/credits', label: 'Billing & Credits', icon: CreditCard },
   { href: '/upgrade', label: 'Upgrade Plan', icon: Zap, badge: 'Pro' },
   { href: '/user', label: 'Settings', icon: SettingsIcon },
 ]

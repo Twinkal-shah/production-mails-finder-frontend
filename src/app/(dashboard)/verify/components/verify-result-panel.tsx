@@ -148,8 +148,8 @@ export function VerifyResultPanel({
     return (
       <div className="w-full min-h-[420px] bg-white dark:bg-[#1a1a1a] p-10 rounded-xl border border-gray-200 dark:border-white/10 shadow-card flex flex-col items-center justify-center text-center gap-3">
         <Loader2 className="h-6 w-6 animate-spin text-brand" />
-        <p className="text-sm font-medium text-ink dark:text-white">Probing mailbox…</p>
-        <p className="text-xs text-gray-400">Running syntax, MX and SMTP checks.</p>
+        <p className="text-sm font-medium text-ink dark:text-white">Checking mailbox…</p>
+        <p className="text-xs text-gray-400">Checking the address, domain and mailbox.</p>
       </div>
     )
   }
@@ -195,14 +195,14 @@ export function VerifyResultPanel({
     },
     {
       state: mx ? 'pass' : 'unknown',
-      title: 'Domain & MX Records',
+      title: 'Domain & Mail Server',
       detail: mx || NOT_REPORTED,
     },
     {
       state: isValid ? 'pass' : isInvalid ? 'fail' : 'unknown',
-      title: 'SMTP Handshake',
+      title: 'Mailbox Check',
       detail: isValid
-        ? '250 OK Mailbox Exists'
+        ? 'Mailbox exists'
         : isInvalid
           ? reasonText || 'Rejected by mail server'
           : reasonText || NOT_REPORTED,
@@ -287,8 +287,8 @@ export function VerifyResultPanel({
           </div>
           <span className="text-xs text-gray-400">
             {typeof timeExec === 'number'
-              ? `Validated via direct SMTP probe in ${Math.round(timeExec)}ms`
-              : 'Validated via direct SMTP probe'}
+              ? `Confirmed with the mail server in ${Math.round(timeExec)}ms`
+              : 'Confirmed with the mail server'}
           </span>
         </div>
 

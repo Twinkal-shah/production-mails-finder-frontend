@@ -381,7 +381,7 @@ export default function DomainSearchPage() {
               <EmptyState
                 icon={<Globe className="h-6 w-6" />}
                 title="This domain doesn't accept email."
-                description="There's no mail server (MX record) configured for this domain, so it probably can't receive messages."
+                description="There's no mail server set up for this domain, so it probably can't receive messages."
               />
             ) : pageData.hint === 'no_data' ? (
               <EmptyState

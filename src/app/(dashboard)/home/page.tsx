@@ -430,10 +430,10 @@ export default function HomePage() {
         <div className="flex items-center justify-between gap-4 mb-3">
           <h2 className="text-sm font-bold text-ink dark:text-white uppercase tracking-wider flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-brand" />
-            Core Engines &amp; Workflows
+            Tools &amp; Features
           </h2>
           <span className="text-xs text-gray-400 hidden sm:block">
-            High-throughput lead enrichment tools
+            Everything you need to build your lead list
           </span>
         </div>
 
@@ -449,21 +449,21 @@ export default function HomePage() {
             href="/bulk-finder"
             icon={Database}
             title="Bulk Email Finder via CSV"
-            description="Upload CSV/Excel spreadsheets to discover and enrich prospect records at scale."
+            description="Upload a CSV or Excel file to find emails for your whole list at once."
             cta="Upload List"
           />
           <ToolCard
             href="/verify"
             icon={BadgeCheck}
             title="Email Deliverability Verifier"
-            description="Audit email databases for MX connectivity, spam traps, catch-alls and bounce risk."
+            description="Check your lists for invalid addresses, spam traps and bounce risk."
             cta="Run Verification"
           />
           <ToolCard
             href="/api-calls"
             icon={Code2}
-            title="Developer API & Webhooks"
-            description="Integrate finding and verification directly into your outbound stack."
+            title="API & Integrations"
+            description="Connect Mailsfinder to the tools you already use."
             cta="View API Docs"
           />
           {/* Video Tutorials card hidden until tutorial content is available.

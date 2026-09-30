@@ -21,14 +21,13 @@ export function VerifyHeader({
       <div className="flex flex-col gap-1.5 min-w-0">
         <div className="flex items-center gap-1.5 text-brand text-xs font-semibold uppercase tracking-wider">
           <ShieldCheck className="h-4 w-4" />
-          <span>Algorithmic Validation Engine</span>
+          <span>Email Verification</span>
         </div>
         <h1 className="text-2xl font-bold text-ink dark:text-white tracking-tight">
           Email Deliverability Verifier
         </h1>
         <p className="text-sm text-ink-muted dark:text-gray-400 max-w-2xl font-normal leading-relaxed">
-          Test any mailbox against RFC standards, DNS multi-hop MX routing, direct SMTP socket
-          handshakes, and bounce probability scores with 99.4% precision.
+          Check whether an email address is real and safe to send to.
         </p>
       </div>
       {children}

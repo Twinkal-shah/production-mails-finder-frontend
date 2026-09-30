@@ -441,7 +441,7 @@ export default function FindPage() {
                       <div className="p-10 flex flex-col items-center justify-center text-center gap-3">
                         <Loader2 className="h-6 w-6 animate-spin text-brand" />
                         <p className="text-sm font-medium text-ink dark:text-white">Searching mail servers…</p>
-                        <p className="text-xs text-gray-400">Running pattern discovery and SMTP checks.</p>
+                        <p className="text-xs text-gray-400">Finding the address and checking the mailbox.</p>
                       </div>
                     ) : error ? (
                       <div className="p-6 flex items-start gap-3">

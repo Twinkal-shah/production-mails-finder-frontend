@@ -138,8 +138,8 @@ export default function UpgradePlanPage() {
             Simple, Transparent Plans for High-Precision Prospecting
           </h1>
           <p className="text-base text-ink-muted dark:text-gray-400 max-w-2xl mx-auto leading-relaxed">
-            Scale verified B2B leads and real-time SMTP handshakes with predictable monthly credit
-            volumes. Every paid plan includes bulk CSV enrichment.
+            Get verified B2B leads with predictable monthly credit limits. Every paid plan
+            includes bulk CSV uploads.
           </p>
         </div>
 
@@ -335,7 +335,7 @@ export default function UpgradePlanPage() {
             </p>
           </div>
           <span className="text-xs font-semibold text-ink-muted bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 px-3 py-1.5 rounded-full shadow-2xs whitespace-nowrap">
-            Instant provisioning • 0s delay
+            Instant activation • No waiting
           </span>
         </div>
 

@@ -55,7 +55,7 @@ export function VerifyProgressCard({
           )}
 
           <p className="text-xs leading-relaxed text-muted-foreground">
-            SMTP checks can take a few minutes on large lists. You can leave this page — the job
+            These checks can take a few minutes on large lists. You can leave this page — the job
             keeps running and will show up in your history.
           </p>
         </div>

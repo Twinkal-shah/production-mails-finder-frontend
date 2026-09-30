@@ -205,10 +205,10 @@ export function FindResultPanel({
       state: result.safeToSend === undefined ? 'unknown' : result.safeToSend ? 'pass' : 'fail',
       label:
         result.safeToSend === undefined
-          ? `SMTP Handshake: ${NOT_REPORTED}`
+          ? `Mailbox Check: ${NOT_REPORTED}`
           : result.safeToSend
-            ? 'SMTP Handshake: Recipient Accepted'
-            : 'SMTP Handshake: Recipient Rejected',
+            ? 'Mailbox Check: Accepted'
+            : 'Mailbox Check: Rejected',
     },
   ]
 
