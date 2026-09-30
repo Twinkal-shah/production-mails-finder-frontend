@@ -77,8 +77,10 @@ export async function POST(request: NextRequest) {
       const profileHeaders: Record<string, string> = {}
       if (cookie) profileHeaders.Cookie = cookie
       if (accessToken) profileHeaders.Authorization = `Bearer ${accessToken}`
-      const origin = request.nextUrl.origin
-      const profileRes = await fetch(`${origin}/api/user/profile/getProfile`, {
+      // Straight to the backend. Fetching our own public origin only worked on
+      // Vercel; self-hosted it loops out through nginx/Cloudflare and back, and
+      // a failed round trip read as "0 credits" and rejected the verify.
+      const profileRes = await fetch(`${backend}/api/user/profile/getProfile`, {
         method: 'GET',
         headers: profileHeaders,
         cache: 'no-store',

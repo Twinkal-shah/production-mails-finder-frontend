@@ -45,7 +45,11 @@ export async function GET(req: NextRequest) {
       }
       return NextResponse.json(profileFallback, { status: 200 })
     }
-    return new NextResponse(text, { status: res.status, headers: { 'content-type': contentType } })
+    return new NextResponse(text, {
+      status: res.status,
+      // Per-user payload: must never be cached by nginx or Cloudflare.
+      headers: { 'content-type': contentType, 'cache-control': 'no-store, no-cache, must-revalidate, max-age=0' },
+    })
   } catch (error) {
     try {
       const user = await getCurrentUserFromCookies()
@@ -70,4 +74,5 @@ export async function GET(req: NextRequest) {
   }
 }
 
+export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'

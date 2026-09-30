@@ -7,7 +7,6 @@ export async function GET(req: NextRequest) {
   const cookie = req.headers.get('cookie') || ''
   const auth = req.headers.get('authorization') || ''
   const { getAccessTokenFromCookies } = await import('@/lib/auth-server')
-  const { getCurrentUserFromCookies } = await import('@/lib/auth-server')
   const accessToken = await getAccessTokenFromCookies()
   
   try {
@@ -22,23 +21,19 @@ export async function GET(req: NextRequest) {
     })
     const contentType = res.headers.get('content-type') || 'application/json'
     const text = await res.text()
-    return new NextResponse(text, { status: res.status, headers: { 'content-type': contentType } })
+    return new NextResponse(text, {
+      status: res.status,
+      headers: { 'content-type': contentType, 'cache-control': 'no-store, no-cache, must-revalidate, max-age=0' },
+    })
   } catch (error) {
-    try {
-      const user = await getCurrentUserFromCookies()
-      const find = Math.max(Number(user?.credits_find ?? 0), 0)
-      const verify = Math.max(Number(user?.credits_verify ?? 0), 0)
-      return NextResponse.json({
-        credits_find: find,
-        credits_verify: verify,
-        find,
-        verify,
-        total_credits: find + verify
-      }, { status: 200 })
-    } catch {
-      return NextResponse.json({ error: 'Proxy error', message: (error as Error).message }, { status: 500 })
-    }
+    // Deliberately no numeric fallback. Returning zeros with a 200 here made an
+    // unreachable backend look like an empty wallet to every user.
+    return NextResponse.json(
+      { error: 'credits_unavailable', message: (error as Error).message },
+      { status: 502, headers: { 'cache-control': 'no-store, no-cache, must-revalidate, max-age=0' } }
+    )
   }
 }
 
+export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'

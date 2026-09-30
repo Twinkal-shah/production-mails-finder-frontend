@@ -5,14 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { BulkFinderWorkspace } from '@/components/bulk-finder-workspace'
 import { FindResultPanel } from './components/find-result-panel'
 
-/**
- * Credit cost shown on this page. Display strings only — the actual
- * deduction is done by the backend and is not affected by these values.
- */
-const CREDITS_PER_FIND_TEXT = '20 credits'
-
 import { toast } from 'sonner'
-import { Search, Mail, ChevronDown, ChevronRight, AlertTriangle, UserSearch, UploadCloud, Loader2, ShieldCheck, IdCard, Globe, Info, Database } from 'lucide-react'
+import { Search, Mail, ChevronDown, ChevronRight, AlertTriangle, UserSearch, UploadCloud, Loader2, ShieldCheck, IdCard, Globe, Database } from 'lucide-react'
 import { isAuthenticated, saveRedirectUrl } from '@/lib/auth'
 import { useQueryInvalidation } from '@/lib/query-invalidation'
 import { useRecentFindResults } from '@/hooks/useRecentResults'
@@ -371,20 +365,6 @@ export default function FindPage() {
                     onChange={(e) => setCompanyDomain(e.target.value)}
                     className="w-full h-10 pl-9 pr-3 rounded-lg bg-white dark:bg-white/5 border border-gray-200 dark:border-white/10 text-sm text-ink dark:text-white placeholder:text-gray-400 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand transition-all disabled:opacity-60"
                   />
-                </div>
-              </div>
-
-              {/* Cost explanation notice */}
-              <div className="p-3 rounded-lg bg-[#F8FAFC] dark:bg-white/5 border border-gray-200 dark:border-white/10 flex items-start gap-2.5">
-                <Info className="h-[18px] w-[18px] text-brand mt-0.5 shrink-0" />
-                <div className="flex flex-col text-xs text-gray-500 dark:text-gray-400 leading-snug">
-                  <span>
-                    Charges <strong className="text-ink dark:text-white font-semibold">{CREDITS_PER_FIND_TEXT}</strong>{' '}
-                    only when a deliverable email is confirmed.
-                  </span>
-                  <span className="text-[11px] text-gray-400 mt-0.5">
-                    0 charge on unresolvable names or invalid bounce states.
-                  </span>
                 </div>
               </div>
 

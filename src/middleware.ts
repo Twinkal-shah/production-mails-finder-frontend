@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import { getBackendBaseUrl } from '@/lib/api'
 
 export async function middleware(request: NextRequest) {
   const url = request.nextUrl.clone()
@@ -29,7 +30,9 @@ export async function middleware(request: NextRequest) {
   if (isProtected && !isAuthPage) {
     if (token || hasUserCookie) {
       try {
-        const apiUrl = `${request.nextUrl.origin}/api/user/profile/getProfile`
+        // Ask the backend directly. Hitting our own public origin sent every
+        // protected page load out through the CDN and back into this server.
+        const apiUrl = `${getBackendBaseUrl()}/api/user/profile/getProfile`
         const res = await fetch(apiUrl, {
           method: 'GET',
           headers: {
