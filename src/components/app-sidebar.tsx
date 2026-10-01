@@ -17,6 +17,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Sparkles,
+  LifeBuoy,
 } from 'lucide-react'
 import {
   DropdownMenu,
@@ -25,6 +26,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { appsumoTier } from '@/lib/support'
 
 export interface SidebarProfile {
   full_name: string | null
@@ -61,6 +63,13 @@ const SKILL_PLANS = new Set(['appsumo_t3', 'appsumo_t4'])
 function hasOutboundSkills(plan: string | null | undefined): boolean {
   return SKILL_PLANS.has(String(plan || '').trim().toLowerCase())
 }
+
+/**
+ * Priority support ships with every AppSumo license, so the entry shows for all
+ * four tiers — the page itself picks email (Tier 1-2) or WhatsApp (Tier 3-4).
+ * Hidden for regular plans, which have no AppSumo support channel.
+ */
+const SUPPORT_ITEM = { href: '/support', label: 'Support', icon: LifeBuoy }
 
 function initialsOf(name: string | null, email: string) {
   const source = (name || email || 'U').trim()
@@ -256,6 +265,14 @@ export function AppSidebar({
               <NavItem
                 {...SKILLS_ITEM}
                 active={isActive(SKILLS_ITEM.href)}
+                collapsed={collapsed}
+                onNavigate={onNavigate}
+              />
+            )}
+            {appsumoTier(profile.plan) !== null && (
+              <NavItem
+                {...SUPPORT_ITEM}
+                active={isActive(SUPPORT_ITEM.href)}
                 collapsed={collapsed}
                 onNavigate={onNavigate}
               />
