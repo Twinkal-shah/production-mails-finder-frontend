@@ -176,7 +176,11 @@ export default function UpgradePlanPage() {
       </div>
 
       {/* --------------------------- Tier comparison --------------------------- */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-5 items-stretch pt-2 w-full">
+      <div
+        className={`grid grid-cols-1 sm:grid-cols-2 ${
+          PRICING_PLANS.length >= 5 ? 'xl:grid-cols-5' : 'xl:grid-cols-4'
+        } gap-5 items-stretch pt-2 w-full`}
+      >
         {PRICING_PLANS.map((plan) => {
           const pricing = plan.key !== 'lifetime' && billingCycle === 'annual' && plan.annual
             ? plan.annual

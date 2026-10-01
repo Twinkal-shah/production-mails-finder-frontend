@@ -34,6 +34,18 @@ import type { RecentFindResult } from '@/types/jobs'
 /** Static display value, matching the Find Email page. */
 const ACCURACY_LABEL = '99.4%'
 
+/**
+ * Temporary dashboard visibility switches.
+ *
+ * Flip a value back to `true` to restore that section. The cards, their data
+ * hooks and the queries behind them are left untouched, so nothing needs to be
+ * rebuilt — only the rendering is skipped. The metrics grid below adapts its
+ * column count from these, so the layout stays correct either way.
+ */
+const SHOW_VERIFIED_EMAILS_30D: boolean = false
+const SHOW_VERIFIED_EMAILS_TODAY: boolean = false
+const SHOW_COMMUNITY_CARD: boolean = false
+
 /* ------------------------------ metric card ------------------------------ */
 
 function MetricCard({
@@ -272,6 +284,8 @@ export default function HomePage() {
 
   const [filter, setFilter] = useState<'all' | 'safe' | 'risky'>('all')
 
+  const visibleMetricCount =
+    2 + (SHOW_VERIFIED_EMAILS_30D ? 1 : 0) + (SHOW_VERIFIED_EMAILS_TODAY ? 1 : 0)
   const isLifetime = (profile?.plan || '').toString().trim().toLowerCase() === 'lifetime'
   const communityLink = process.env.NEXT_PUBLIC_WHATSAPP_COMMUNITY_LINK || 'https://chat.whatsapp.com/'
   const firstName = (profile?.full_name || '').toString().trim().split(/\s+/)[0] || 'there'
@@ -382,7 +396,15 @@ export default function HomePage() {
       </div>
 
       {/* ---------------------------- metrics ---------------------------- */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div
+        className={`grid grid-cols-1 sm:grid-cols-2 ${
+          visibleMetricCount >= 4
+            ? 'lg:grid-cols-4'
+            : visibleMetricCount === 3
+              ? 'lg:grid-cols-3'
+              : 'lg:grid-cols-2'
+        } gap-4`}
+      >
         <MetricCard
           label="Available Credits"
           value={credits.toLocaleString()}
@@ -397,12 +419,14 @@ export default function HomePage() {
           footerRight={<span className="text-gray-400 font-medium capitalize">{planLabel}</span>}
         />
 
-        <MetricCard
-          label="Verified Emails (30D)"
-          value={statsLoading ? '…' : verificationStats ? verificationStats.last30.toLocaleString() : '—'}
-          icon={MailCheck}
-          iconClass="bg-blue-50 dark:bg-blue-500/15 text-blue-600 dark:text-blue-400"
-        />
+        {SHOW_VERIFIED_EMAILS_30D && (
+          <MetricCard
+            label="Verified Emails (30D)"
+            value={statsLoading ? '…' : verificationStats ? verificationStats.last30.toLocaleString() : '—'}
+            icon={MailCheck}
+            iconClass="bg-blue-50 dark:bg-blue-500/15 text-blue-600 dark:text-blue-400"
+          />
+        )}
 
         <MetricCard
           label="Deliverability Accuracy"
@@ -411,18 +435,20 @@ export default function HomePage() {
           iconClass="bg-emerald-50 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
         />
 
-        <MetricCard
-          label="Verified Emails Today"
-          value={statsLoading ? '…' : verificationStats ? verificationStats.today.toLocaleString() : '—'}
-          unit={verificationStats ? 'emails' : undefined}
-          icon={CalendarCheck}
-          iconClass="bg-purple-50 dark:bg-purple-500/15 text-purple-600 dark:text-purple-400"
-          footerRight={
-            <Link href="/verify" className="text-brand font-bold hover:underline">
-              Verify
-            </Link>
-          }
-        />
+        {SHOW_VERIFIED_EMAILS_TODAY && (
+          <MetricCard
+            label="Verified Emails Today"
+            value={statsLoading ? '…' : verificationStats ? verificationStats.today.toLocaleString() : '—'}
+            unit={verificationStats ? 'emails' : undefined}
+            icon={CalendarCheck}
+            iconClass="bg-purple-50 dark:bg-purple-500/15 text-purple-600 dark:text-purple-400"
+            footerRight={
+              <Link href="/verify" className="text-brand font-bold hover:underline">
+                Verify
+              </Link>
+            }
+          />
+        )}
       </div>
 
       {/* --------------------------- tool cards --------------------------- */}
@@ -475,18 +501,20 @@ export default function HomePage() {
             cta="Watch Tutorials"
           />
           */}
-          <ToolCard
-            href={communityLink}
-            icon={Users}
-            title="Join Our Community"
-            description="Access the WhatsApp community for tips, updates and direct support."
-            cta="Open Community"
-            locked={!isLifetime}
-            lockedNote="Lifetime plan only"
-            onLockedClick={() =>
-              toast.info('Community is available only for Lifetime plan users. Upgrade to access.')
-            }
-          />
+          {SHOW_COMMUNITY_CARD && (
+            <ToolCard
+              href={communityLink}
+              icon={Users}
+              title="Join Our Community"
+              description="Access the WhatsApp community for tips, updates and direct support."
+              cta="Open Community"
+              locked={!isLifetime}
+              lockedNote="Lifetime plan only"
+              onLockedClick={() =>
+                toast.info('Community is available only for Lifetime plan users. Upgrade to access.')
+              }
+            />
+          )}
         </div>
       </div>
 

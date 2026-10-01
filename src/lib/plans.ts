@@ -141,6 +141,19 @@ export const SUBSCRIPTION_PLANS: PlanDefinition[] = [
   PLAN_CATALOG.agency,
 ]
 
+/**
+ * Plans temporarily withheld from the pricing grid.
+ *
+ * This hides the card only. The plan's catalog entry, pricing, features and
+ * checkout path are all left intact, so existing subscribers keep working and
+ * `catalogEntry()` still resolves their plan normally.
+ *
+ * To show a plan again, delete its key from this set — nothing else to change.
+ */
+export const HIDDEN_PRICING_PLAN_KEYS: ReadonlySet<CatalogPlanKey> = new Set<CatalogPlanKey>([
+  'lifetime',
+])
+
 /** Everything shown on the pricing grid, in display order. */
 export const PRICING_PLANS: PlanDefinition[] = [
   PLAN_CATALOG.free,
@@ -148,7 +161,7 @@ export const PRICING_PLANS: PlanDefinition[] = [
   PLAN_CATALOG.growth,
   PLAN_CATALOG.agency,
   PLAN_CATALOG.lifetime,
-]
+].filter((plan) => !HIDDEN_PRICING_PLAN_KEYS.has(plan.key))
 
 export type PaygPackageKey =
   | 'quick_boost'
