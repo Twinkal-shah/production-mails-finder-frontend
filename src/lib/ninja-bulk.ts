@@ -82,15 +82,19 @@ export function readSummaryCredits(summary: unknown): number | undefined {
  * result set looks like. It therefore no longer emails per chunk (which sent
  * one partial CSV per request); we post the assembled results here instead.
  *
+ * `csv` is the finished result CSV — the exact string the user downloads and
+ * that is saved to job history — so the attachment is the same file.
+ *
  * Best-effort: a failure here must never fail the run the user just watched
  * complete, so it resolves false rather than throwing.
  */
 export async function sendBulkResultEmail(
   type: 'find' | 'verify',
-  results: unknown[],
+  csv: string,
+  filename: string | null,
   token?: string
 ): Promise<boolean> {
-  if (!Array.isArray(results) || results.length === 0) return false
+  if (typeof csv !== 'string' || csv.length === 0) return false
   try {
     const resp = await fetch('/api/email/bulkResultEmail', {
       method: 'POST',
@@ -99,7 +103,7 @@ export async function sendBulkResultEmail(
         ...(token ? { Authorization: `Bearer ${token}` } : {})
       },
       credentials: 'include',
-      body: JSON.stringify({ type, results })
+      body: JSON.stringify({ type, csv, filename })
     })
     return resp.ok
   } catch {

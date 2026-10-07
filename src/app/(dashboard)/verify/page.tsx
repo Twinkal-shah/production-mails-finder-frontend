@@ -523,10 +523,6 @@ export default function VerifyPage() {
         }
       )
 
-      // Every chunk is done — send the one completion email, with the complete
-      // result set. Best-effort: never fail the run over the email.
-      void sendBulkResultEmail('verify', verifiedItems, token ?? undefined)
-
       // Same shape the old job poller returned, so Step 3 below is unchanged.
       const jobResult = {
         results: verifiedItems,
@@ -634,16 +630,20 @@ export default function VerifyPage() {
       setStatusText('Completed')
       toast.success('Bulk verification completed')
       invalidateCreditsData()
-      // Keep the finished CSV available on the dashboard's Recent Activity.
+      // Keep the finished CSV available on the dashboard's Recent Activity, and
+      // send the one completion email with that same CSV (all chunks are done).
       try {
+        const csv = buildResultsCsv(collected)
+        const downloadName = originalFileName ? `${originalFileName}.csv` : `email-verification-results-${new Date().toISOString().split('T')[0]}.csv`
+        void sendBulkResultEmail('verify', csv, downloadName, token ?? undefined)
         void saveBulkHistoryEntry({
           type: 'bulk_verify',
           filename: originalFileName || null,
-          downloadName: originalFileName ? `${originalFileName}.csv` : `email-verification-results-${new Date().toISOString().split('T')[0]}.csv`,
+          downloadName,
           total: totals.processed,
           success: totals.valid,
           risky: totals.risky,
-          csv: buildResultsCsv(collected),
+          csv,
         }).then(saved => { if (saved) invalidateJobHistory() })
       } catch {}
     } catch (error: unknown) {

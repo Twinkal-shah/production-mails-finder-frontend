@@ -445,10 +445,13 @@ export function BulkFinderWorkspace({ showHeader = true }: { showHeader?: boolea
       setStatusDirectText('Completed')
       toast.success(`Bulk find completed${totalCredits ? ` • Credits used: ${totalCredits}` : ''}`)
       invalidateCreditsData()
-      // Keep the finished CSV available on the dashboard's Recent Activity.
+      // Keep the finished CSV available on the dashboard's Recent Activity, and
+      // send the one completion email with that same CSV (all chunks are done).
       try {
         const finalRows = rows.map(r => updates.get(r.id) ?? r)
         const { csv, downloadFileName } = buildResultsCsv(finalRows)
+        const { sendBulkResultEmail } = await import('@/lib/ninja-bulk')
+        void sendBulkResultEmail('find', csv, downloadFileName, localStorage.getItem('access_token') ?? undefined)
         void saveBulkHistoryEntry({
           type: 'bulk_find',
           filename: originalFileName,
