@@ -5,10 +5,11 @@ import { useSyncExternalStore } from 'react'
 /**
  * Client-side history of completed bulk (CSV) find / verify runs.
  *
- * The bulk flows call the synchronous Ninja endpoints and never create a
- * server-side job record, so the only place the finished result set exists is
- * the browser. We keep the ready-to-download CSV for the most recent runs in
- * localStorage so the dashboard can list them and offer the file again.
+ * The bulk flows call the synchronous Ninja endpoints chunk by chunk, so no
+ * job record exists until the run finishes. On completion the finished CSV is
+ * saved to the backend (POST /api/email/bulk-results), where it is listed by
+ * GET /api/email/jobs and re-downloaded via /api/email/job/:id/download.
+ * Only if that save fails is the CSV kept in localStorage, as before.
  */
 
 export type BulkHistoryType = 'bulk_find' | 'bulk_verify'
@@ -67,8 +68,39 @@ function write(entries: BulkHistoryEntry[]) {
   } catch {}
 }
 
-export function saveBulkHistoryEntry(entry: Omit<BulkHistoryEntry, 'id' | 'created_at'>) {
-  if (typeof window === 'undefined') return
+/**
+ * Persist a completed run. Resolves true when it was saved server-side (then
+ * the caller should refresh the job history query), false when it fell back
+ * to localStorage. Never throws — the run itself has already succeeded.
+ */
+export async function saveBulkHistoryEntry(entry: Omit<BulkHistoryEntry, 'id' | 'created_at'>): Promise<boolean> {
+  if (typeof window === 'undefined') return false
+  try {
+    const token = localStorage.getItem('access_token')
+    const resp = await fetch('/api/email/bulk-results', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      credentials: 'include',
+      body: JSON.stringify({
+        type: entry.type,
+        filename: entry.filename,
+        download_name: entry.downloadName,
+        total: entry.total,
+        success: entry.success,
+        risky: entry.risky,
+        csv: entry.csv,
+      }),
+    })
+    if (resp.ok) return true
+  } catch {}
+  saveLocalEntry(entry)
+  return false
+}
+
+function saveLocalEntry(entry: Omit<BulkHistoryEntry, 'id' | 'created_at'>) {
   if (entry.csv.length > MAX_CSV_BYTES) return
   const full: BulkHistoryEntry = {
     ...entry,

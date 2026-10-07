@@ -91,7 +91,7 @@ export function BulkFinderWorkspace({ showHeader = true }: { showHeader?: boolea
   const [detection, setDetection] = useState<ColumnDetectionResult | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [isDragging, setIsDragging] = useState(false)
-  const { invalidateCreditsData } = useQueryInvalidation()
+  const { invalidateCreditsData, invalidateJobHistory } = useQueryInvalidation()
   const [isProcessingDirect, setIsProcessingDirect] = useState(false)
   const [progressDirect, setProgressDirect] = useState(0)
   const [processedDirectCount, setProcessedDirectCount] = useState(0)
@@ -449,7 +449,7 @@ export function BulkFinderWorkspace({ showHeader = true }: { showHeader?: boolea
       try {
         const finalRows = rows.map(r => updates.get(r.id) ?? r)
         const { csv, downloadFileName } = buildResultsCsv(finalRows)
-        saveBulkHistoryEntry({
+        void saveBulkHistoryEntry({
           type: 'bulk_find',
           filename: originalFileName,
           downloadName: downloadFileName,
@@ -457,7 +457,7 @@ export function BulkFinderWorkspace({ showHeader = true }: { showHeader?: boolea
           success: totals.found,
           risky: finalRows.filter(r => r.catch_all || r.is_catch_all_domain).length,
           csv,
-        })
+        }).then(saved => { if (saved) invalidateJobHistory() })
       } catch {}
     } catch (e) {
       setIsProcessingDirect(false)

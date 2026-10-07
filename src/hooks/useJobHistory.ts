@@ -29,7 +29,7 @@ export function useDownloadCSV() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ jobId, jobType }: { jobId: string; jobType: string }) => {
+    mutationFn: async ({ jobId, jobType, filename }: { jobId: string; jobType: string; filename?: string }) => {
       const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
       const response = await fetch(`/api/email/job/${encodeURIComponent(jobId)}/download`, {
         headers: {
@@ -42,7 +42,7 @@ export function useDownloadCSV() {
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = jobType === 'bulk_find' ? 'bulk-find-results.csv' : 'bulk-verify-results.csv'
+      a.download = filename || (jobType === 'bulk_find' ? 'bulk-find-results.csv' : 'bulk-verify-results.csv')
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)

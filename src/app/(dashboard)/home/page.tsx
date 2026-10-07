@@ -29,6 +29,7 @@ import { useCreditsData } from '@/hooks/useCreditsData'
 import { useRecentFindResults } from '@/hooks/useRecentResults'
 import { useVerificationStats } from '@/hooks/useVerificationStats'
 import { useBulkHistory, downloadBulkHistoryEntry, type BulkHistoryEntry } from '@/lib/bulk-history'
+import { useJobHistory, useDownloadCSV } from '@/hooks/useJobHistory'
 import type { RecentFindResult } from '@/types/jobs'
 
 /** Static display value, matching the Find Email page. */
@@ -217,9 +218,9 @@ type ActivityRow =
   | { kind: 'bulk'; entry: BulkHistoryEntry }
 
 /** One completed CSV run (bulk find or bulk verify) with its download. */
-function BulkActivityRow({ entry }: { entry: BulkHistoryEntry }) {
+function BulkActivityRow({ entry, onDownload }: { entry: BulkHistoryEntry; onDownload: () => void }) {
   const isFind = entry.type === 'bulk_find'
-  const label = isFind ? 'Bulk Find via CSV' : 'Bulk Verify via CSV'
+  const label = isFind ? 'Bulk Find via CSV · Completed' : 'Bulk Verify via CSV · Completed'
   const name = entry.filename || entry.downloadName.replace(/\.csv$/i, '')
   return (
     <tr className="hover:bg-gray-50/60 dark:hover:bg-white/5 transition-colors group">
@@ -263,7 +264,7 @@ function BulkActivityRow({ entry }: { entry: BulkHistoryEntry }) {
       <td className="py-3.5 px-5 text-right">
         <button
           type="button"
-          onClick={() => downloadBulkHistoryEntry(entry)}
+          onClick={onDownload}
           className="inline-flex items-center gap-1 text-[11px] font-bold text-brand hover:underline whitespace-nowrap"
         >
           <Download className="h-3.5 w-3.5" />
@@ -280,7 +281,9 @@ export default function HomePage() {
   const { profile, creditUsage } = useCreditsData()
   const { data: recentFinds, isLoading: findsLoading } = useRecentFindResults()
   const { data: verificationStats, isLoading: statsLoading } = useVerificationStats()
-  const bulkHistory = useBulkHistory()
+  const localBulkHistory = useBulkHistory()
+  const { data: jobHistory } = useJobHistory()
+  const downloadCSV = useDownloadCSV()
 
   const [filter, setFilter] = useState<'all' | 'safe' | 'risky'>('all')
 
@@ -322,6 +325,37 @@ export default function HomePage() {
   const riskyCount = rows.filter(isRisky).length
   const visibleRows =
     filter === 'safe' ? rows.filter(isSafe) : filter === 'risky' ? rows.filter(isRisky) : rows
+
+  /* --- completed bulk CSV runs saved server-side, then any older local-only ones --- */
+  const serverBulkHistory = useMemo<BulkHistoryEntry[]>(
+    () =>
+      (Array.isArray(jobHistory) ? jobHistory : [])
+        .filter((job) => job.source === 'bulk_csv' && job.status === 'completed')
+        .map((job) => ({
+          id: job.job_id,
+          type: job.type,
+          filename: job.filename ?? null,
+          downloadName: job.download_name || `${job.type === 'bulk_find' ? 'bulk-find' : 'bulk-verify'}.csv`,
+          created_at: job.completed_at || job.created_at,
+          total: Number(job.progress?.total) || 0,
+          success: Number(job.success) || 0,
+          risky: Number(job.risky) || 0,
+          csv: '',
+        })),
+    [jobHistory]
+  )
+  const bulkHistory = useMemo(
+    () => [...serverBulkHistory, ...localBulkHistory],
+    [serverBulkHistory, localBulkHistory]
+  )
+  const serverBulkIds = useMemo(() => new Set(serverBulkHistory.map((e) => e.id)), [serverBulkHistory])
+  const downloadBulk = (entry: BulkHistoryEntry) => {
+    if (!serverBulkIds.has(entry.id)) return downloadBulkHistoryEntry(entry)
+    downloadCSV.mutate(
+      { jobId: entry.id, jobType: entry.type, filename: entry.downloadName },
+      { onError: () => toast.error('Download failed. Please try again.') }
+    )
+  }
 
   /* --- single lookups + bulk CSV runs, newest first (bulk only in "All") --- */
   const activity = useMemo<ActivityRow[]>(() => {
@@ -606,7 +640,7 @@ export default function HomePage() {
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-white/10 text-xs">
                 {activity.map((row, i) => {
-                  if (row.kind === 'bulk') return <BulkActivityRow key={row.entry.id} entry={row.entry} />
+                  if (row.kind === 'bulk') return <BulkActivityRow key={row.entry.id} entry={row.entry} onDownload={() => downloadBulk(row.entry)} />
                   const item = row.item
                   const score = scoreOf(item)
                   const risky = isRisky(item)

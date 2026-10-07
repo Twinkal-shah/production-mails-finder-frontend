@@ -8,6 +8,12 @@ export interface JobHistoryItem {
   created_at: string
   completed_at: string | null
   error?: string
+  /** 'bulk_csv' for completed CSV runs saved via POST /api/email/bulk-results. */
+  source?: 'bulk_csv' | null
+  filename?: string | null
+  download_name?: string | null
+  success?: number | null
+  risky?: number | null
 }
 
 export interface JobDetail extends JobHistoryItem {

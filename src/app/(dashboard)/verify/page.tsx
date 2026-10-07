@@ -77,7 +77,7 @@ export default function VerifyPage() {
   const [duplicateInfo, setDuplicateInfo] = useState('')
   const [creditsCharged, setCreditsCharged] = useState(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const { invalidateCreditsData } = useQueryInvalidation()
+  const { invalidateCreditsData, invalidateJobHistory } = useQueryInvalidation()
   const { addResult: addRecentVerifyResult } = useRecentVerifyResults()
   const { data: profile } = useUserProfile()
   // const [isSubmittingJob, setIsSubmittingJob] = useState(false) // Currently unused
@@ -636,7 +636,7 @@ export default function VerifyPage() {
       invalidateCreditsData()
       // Keep the finished CSV available on the dashboard's Recent Activity.
       try {
-        saveBulkHistoryEntry({
+        void saveBulkHistoryEntry({
           type: 'bulk_verify',
           filename: originalFileName || null,
           downloadName: originalFileName ? `${originalFileName}.csv` : `email-verification-results-${new Date().toISOString().split('T')[0]}.csv`,
@@ -644,7 +644,7 @@ export default function VerifyPage() {
           success: totals.valid,
           risky: totals.risky,
           csv: buildResultsCsv(collected),
-        })
+        }).then(saved => { if (saved) invalidateJobHistory() })
       } catch {}
     } catch (error: unknown) {
       const msg = humanizeApiError(error, 'Failed to run bulk verification')
