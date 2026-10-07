@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
@@ -11,10 +11,22 @@ import Papa from 'papaparse'
 import * as XLSX from 'xlsx'
 // Job endpoints are not available; direct bulk find only
 import { useQueryInvalidation } from '@/lib/query-invalidation'
-import { bulkFind, buildBulkFindPayload } from '@/lib/bulk-find-utils'
+import { buildBulkFindPayload } from '@/lib/bulk-find-utils'
 import { ActiveJobsBanner } from '@/components/active-jobs-banner'
 import { humanizeApiError } from '@/lib/api-error'
-import { saveBulkHistoryEntry } from '@/lib/bulk-history'
+import { useJobPolling } from '@/hooks/useActiveJobs'
+import {
+  BackgroundJobRejected,
+  clearStoredBackgroundJob,
+  downloadCsvString,
+  fetchBackgroundJobCsv,
+  getStoredBackgroundJob,
+  newIdempotencyKey,
+  PAUSED_MESSAGE,
+  readFinderResultCsv,
+  startBackgroundBulkJob,
+  storeBackgroundJob,
+} from '@/lib/background-bulk'
 import {
   detectColumns,
   readCell,
@@ -104,6 +116,16 @@ export function BulkFinderWorkspace({ showHeader = true }: { showHeader?: boolea
   const [catchAllCount, setCatchAllCount] = useState(0)
   const [catchAllNotice, setCatchAllNotice] = useState<string | null>(null)
 
+  // Background job: the find runs server-side; this page only follows it.
+  const [bgJobId, setBgJobId] = useState<string | null>(null)
+  const [bgTotal, setBgTotal] = useState(0)
+  /** The job's combined result CSV, exactly as the server built it. */
+  const [resultCsv, setResultCsv] = useState<string | null>(null)
+  const [notProcessedCount, setNotProcessedCount] = useState(0)
+  /** Kept across a failed submit so a retry can never start a second job. */
+  const submitKeyRef = useRef<string | null>(null)
+  const { data: bgJob } = useJobPolling(bgJobId)
+
   // No job-based endpoints on backend; page runs direct bulk find only
 
   /**
@@ -186,6 +208,7 @@ export function BulkFinderWorkspace({ showHeader = true }: { showHeader?: boolea
       }))
 
     setRows(newRows)
+    setResultCsv(null)
     toast.success(`Loaded ${newRows.length} rows from ${sourceLabel}`)
   }
 
@@ -303,165 +326,33 @@ export function BulkFinderWorkspace({ showHeader = true }: { showHeader?: boolea
       setStatusDirectText('Finding emails... This may take a few minutes for large batches')
       setProgressDirect(0)
       setIsIndeterminate(true)
-      let duplicateShown = false
-      const { items, totalCredits } = await bulkFind(
-        validRows,
-        originalFileNameWithExt,
-        originalColumnOrder,
-        5,
-        2,
-        (processed, total) => {
-          // Show duplicate info on first poll response
-          if (!duplicateShown && total < validRows.length) {
-            const dupes = validRows.length - total
-            setDuplicateInfo(`${total} unique items to process (${dupes} duplicates removed)`)
-            duplicateShown = true
-          }
-          if (processed === 0) {
-            // SMTP phase — indeterminate
-            setIsIndeterminate(true)
-            setStatusDirectText('Finding emails... This may take a few minutes for large batches')
-          } else {
-            // Real progress
-            setIsIndeterminate(false)
-            const pct = total > 0 ? Math.round((processed / total) * 100) : 0
-            setStatusDirectText(`Processing ${processed} / ${total}`)
-            setProgressDirect(pct)
-          }
-        }
-      )
-      const updates = new Map<string, BulkRow>()
-      const matchedIds = new Set<string>()
-      const domainQueues = new Map<string, BulkRow[]>()
-      for (const row of validRows) {
-        const key = (row.domain || '').toLowerCase().trim()
-        const arr = domainQueues.get(key)
-        if (arr) arr.push(row)
-        else domainQueues.set(key, [row])
-      }
-      const allQueue = [...validRows]
-      let foundCount = 0
-      const tryMatchRowByEmail = (emailVal: string): BulkRow | undefined => {
-        const [localPart, domPart] = (emailVal || '').split('@')
-        if (!localPart || !domPart) return undefined
-        const domainNorm = domPart.toLowerCase().trim()
-        for (const row of validRows) {
-          if (matchedIds.has(row.id)) continue
-          const rowDomainNorm = (row.domain || '').toLowerCase().trim()
-          if (rowDomainNorm !== domainNorm) continue
-          const parts = (row.fullName || '').toLowerCase().replace(/[^a-z\s]/g, '').trim().split(/\s+/)
-          const fn = (parts[0] || '').replace(/\s+/g, '')
-          const ln = (parts.slice(1).join(' ') || '').replace(/\s+/g, '')
-          const localNorm = localPart.toLowerCase().replace(/\.|_/g, '')
-          const combos = new Set<string>([
-            fn,
-            ln,
-            fn + ln,
-            fn + '.' + ln,
-            fn + '_' + ln,
-            (fn[0] || '') + ln,
-            fn + (ln[0] || ''),
-            (ln[0] || '') + fn,
-            ln + (fn[0] || '')
-          ].map(s => s.replace(/\.|_/g, '')))
-          if (combos.has(localNorm) || (localNorm.includes(fn) && localNorm.includes(ln))) {
-            return row
-          }
-        }
-        return undefined
-      }
-      let catchAllDomainTally = 0
-      let firstCatchAllNotice: string | null = null
-      for (const it of items) {
-        const obj = it as Record<string, unknown>
-        const emailVal = typeof obj.email === 'string' ? (obj.email as string) : ''
-        const statusVal = typeof obj.status === 'string' ? (obj.status as string) : undefined
-        const domainVal = typeof obj.domain === 'string' ? (obj.domain as string) : ''
-        const isCatchAllDomainVal = obj.is_catch_all_domain === true
-        const noticeVal = typeof obj.notice === 'string' ? (obj.notice as string) : undefined
-        if (isCatchAllDomainVal) {
-          catchAllDomainTally++
-          if (!firstCatchAllNotice && noticeVal) firstCatchAllNotice = noticeVal
-        }
-        let row: BulkRow | undefined
-        if (emailVal) row = tryMatchRowByEmail(emailVal)
-        if (!row && domainVal) {
-          const key = domainVal.toLowerCase().trim()
-          const dq = domainQueues.get(key) || []
-          while (dq.length && !row) {
-            const candidate = dq[0]
-            if (!matchedIds.has(candidate.id)) row = candidate
-            dq.shift()
-          }
-          domainQueues.set(key, dq)
-        }
-        if (!row) {
-          while (allQueue.length && !row) {
-            const candidate = allQueue[0]
-            if (!matchedIds.has(candidate.id)) row = candidate
-            allQueue.shift()
-          }
-        }
-        if (!row) continue
-        matchedIds.add(row.id)
-        const confidenceVal = typeof obj.confidence === 'number' ? (obj.confidence as number) : row.confidence
-        const catchAllVal = typeof obj.catch_all === 'boolean' ? (obj.catch_all as boolean) : row.catch_all
-        const userNameVal = typeof obj.user_name === 'string' ? (obj.user_name as string) : (emailVal ? emailVal.split('@')[0] : row.user_name)
-        const mxVal = typeof obj.mx === 'string' ? (obj.mx as string) : row.mx
-        const errorVal = typeof obj.error === 'string' ? (obj.error as string) : (typeof obj.message === 'string' ? (obj.message as string) : undefined)
-        const uiStatus: BulkRow['status'] = statusVal === 'found' || statusVal === 'invalid' ? 'completed' : (statusVal ? 'failed' : 'completed')
-        if (statusVal === 'found') foundCount++
-        const updated: BulkRow = {
-          ...row,
-          email: emailVal || row.email,
-          confidence: confidenceVal,
-          status: uiStatus,
-          catch_all: catchAllVal,
-          user_name: userNameVal,
-          mx: mxVal,
-          error: errorVal,
-          result_status: statusVal,
-          is_catch_all_domain: isCatchAllDomainVal || row.is_catch_all_domain,
-          notice: noticeVal || row.notice
-        }
-        updates.set(row.id, updated)
-      }
-      setCatchAllCount(catchAllDomainTally)
-      setCatchAllNotice(firstCatchAllNotice)
-      for (const row of validRows) {
-        if (!matchedIds.has(row.id)) {
-          updates.set(row.id, { ...row, status: 'failed', error: 'Not Found', result_status: 'invalid' })
-        }
-      }
-      const totals = { processed: validRows.length, found: foundCount, notFound: Math.max(0, validRows.length - foundCount) }
-      setProcessedDirectCount(totals.processed)
-      setSuccessDirectCount(totals.found)
-      setFailedDirectCount(totals.notFound)
-      setRows(prev => prev.map(r => updates.has(r.id) ? (updates.get(r.id) as BulkRow) : r))
-      setProgressDirect(100)
-      setIsProcessingDirect(false)
-      setIsIndeterminate(false)
-      setCreditsCharged(totalCredits)
-      setStatusDirectText('Completed')
-      toast.success(`Bulk find completed${totalCredits ? ` • Credits used: ${totalCredits}` : ''}`)
-      invalidateCreditsData()
-      // Keep the finished CSV available on the dashboard's Recent Activity, and
-      // send the one completion email with that same CSV (all chunks are done).
+      // Submit the whole upload as one background job. The server processes it
+      // in the same 20-row chunks; progress and results come from the job.
+      const idempotencyKey = submitKeyRef.current ?? newIdempotencyKey()
+      submitKeyRef.current = idempotencyKey
+      let started: { job_id: string; total: number }
       try {
-        const finalRows = rows.map(r => updates.get(r.id) ?? r)
-        const { csv, downloadFileName } = buildResultsCsv(finalRows)
-        const { sendBulkResultEmail } = await import('@/lib/ninja-bulk')
-        void sendBulkResultEmail('find', csv, downloadFileName, localStorage.getItem('access_token') ?? undefined)
-        void saveBulkHistoryEntry({
-          type: 'bulk_find',
+        started = await startBackgroundBulkJob({
+          type: 'find',
+          idempotency_key: idempotencyKey,
           filename: originalFileName,
-          downloadName: downloadFileName,
-          total: totals.processed,
-          success: totals.found,
-          risky: finalRows.filter(r => r.catch_all || r.is_catch_all_domain).length,
-          csv,
-        }).then(saved => { if (saved) invalidateJobHistory() })
-      } catch {}
+          filename_with_ext: originalFileNameWithExt,
+          column_order: originalColumnOrder,
+          rows,
+        })
+      } catch (err) {
+        if (err instanceof BackgroundJobRejected) submitKeyRef.current = null
+        throw err
+      }
+      submitKeyRef.current = null
+      if (started.total < validRows.length) {
+        const dupes = validRows.length - started.total
+        setDuplicateInfo(`${started.total} unique items to process (${dupes} duplicates removed)`)
+      }
+      setResultCsv(null)
+      setBgTotal(started.total)
+      storeBackgroundJob('find', { jobId: started.job_id, fileName: originalFileName, startedAt: new Date().toISOString() })
+      setBgJobId(started.job_id)
     } catch (e) {
       setIsProcessingDirect(false)
       setIsIndeterminate(false)
@@ -470,6 +361,99 @@ export function BulkFinderWorkspace({ showHeader = true }: { showHeader?: boolea
       setRows(prev => prev.map(r => r.status === 'processing' ? { ...r, status: 'failed', error: msg } : r))
     }
   }
+
+  // Pick the job back up after a refresh / reopened browser.
+  useEffect(() => {
+    const stored = getStoredBackgroundJob('find')
+    if (!stored) return
+    setOriginalFileName(stored.fileName)
+    setBgJobId(stored.jobId)
+    setIsProcessingDirect(true)
+    setIsIndeterminate(true)
+    setStatusDirectText('Finding emails... This may take a few minutes for large batches')
+  }, [])
+
+  useEffect(() => {
+    if (!bgJob || !bgJobId || bgJob.job_id !== bgJobId) return
+    const total = Number(bgJob.progress?.total) || 0
+    const processed = Number(bgJob.progress?.processed) || 0
+    if (total) setBgTotal(total)
+
+    if (bgJob.status === 'processing') {
+      if (processed === 0) {
+        setIsIndeterminate(true)
+        setStatusDirectText('Finding emails... This may take a few minutes for large batches')
+      } else {
+        setIsIndeterminate(false)
+        setStatusDirectText(`Processing ${processed} / ${total}`)
+        setProgressDirect(total > 0 ? Math.round((processed / total) * 100) : 0)
+      }
+      return
+    }
+
+    const jobId = bgJobId
+    clearStoredBackgroundJob('find')
+    setBgJobId(null)
+
+    if (bgJob.status !== 'completed') {
+      const msg = bgJob.status === 'needs_review' ? PAUSED_MESSAGE : (bgJob.error || 'Failed to run bulk find')
+      setIsProcessingDirect(false)
+      setIsIndeterminate(false)
+      setStatusDirectText('')
+      toast.error(msg, { id: `bulk-job-${jobId}` })
+      setRows(prev => prev.map(r => r.status === 'processing' ? { ...r, status: 'failed', error: msg } : r))
+      return
+    }
+
+    const credits = Number(bgJob.credits_charged) || 0
+    void (async () => {
+      try {
+        const csv = await fetchBackgroundJobCsv(jobId)
+        const out = readFinderResultCsv(csv)
+        // One CSV row per uploaded row, in upload order.
+        setRows(prev => prev.length === out.rows.length
+          ? prev.map((r, i) => {
+              const res = out.rows[i]
+              if (!res.result_status) return r
+              const ok = res.result_status === 'found' || res.result_status === 'invalid'
+              return {
+                ...r,
+                email: res.email || r.email,
+                confidence: res.confidence,
+                status: ok ? 'completed' : 'failed',
+                catch_all: res.catch_all,
+                user_name: res.user_name,
+                mx: res.mx,
+                error: res.error,
+                result_status: res.result_status,
+                is_catch_all_domain: res.is_catch_all_domain,
+                notice: res.notice,
+              }
+            })
+          : prev)
+        setResultCsv(csv)
+        setCatchAllCount(out.catchAllCount)
+        setCatchAllNotice(out.catchAllNotice)
+        setNotProcessedCount(out.notProcessed)
+        setProcessedDirectCount(out.processed)
+        setSuccessDirectCount(out.found)
+        setFailedDirectCount(out.notFound)
+        setProgressDirect(100)
+        setIsProcessingDirect(false)
+        setIsIndeterminate(false)
+        setCreditsCharged(credits)
+        setStatusDirectText('Completed')
+        toast.success(`Bulk find completed${credits ? ` • Credits used: ${credits}` : ''}`, { id: `bulk-job-${jobId}` })
+        invalidateCreditsData()
+        invalidateJobHistory()
+      } catch (e) {
+        setIsProcessingDirect(false)
+        setIsIndeterminate(false)
+        toast.error(humanizeApiError(e, 'Bulk find completed, but the results could not be loaded. Download them from your job history.'))
+      }
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bgJob, bgJobId])
 
   /** Builds the results CSV (same columns as the download) for the given rows. */
   const buildResultsCsv = (rowsToExport: BulkRow[]) => {
@@ -511,6 +495,15 @@ export function BulkFinderWorkspace({ showHeader = true }: { showHeader?: boolea
   }
 
   const downloadDirectResults = () => {
+    // After a run: the server's combined CSV for the whole upload, byte for byte.
+    if (resultCsv !== null) {
+      const name = originalFileName
+        ? `result-${originalFileName.replace(/\.[^/.]+$/, '')}.csv`
+        : `bulk_finder_results_${new Date().toISOString().split('T')[0]}.csv`
+      downloadCsvString(resultCsv, name)
+      toast.success('Results exported to CSV')
+      return
+    }
     const { csv, downloadFileName } = buildResultsCsv(rows)
     const blob = new Blob([csv], { type: 'text/csv' })
     const url = window.URL.createObjectURL(blob)
@@ -542,7 +535,7 @@ export function BulkFinderWorkspace({ showHeader = true }: { showHeader?: boolea
       )}
 
       {/* Active Jobs Banner (top) */}
-      <ActiveJobsBanner />
+      <ActiveJobsBanner hideJobIds={bgJobId ? [bgJobId] : []} />
 
       {/* Upload zone — Stitch "Bulk File Upload (CSV)" design */}
       <div className="bg-white dark:bg-[#1a1a1a] border border-gray-200 dark:border-white/10 p-8 sm:p-12 rounded-xl shadow-card flex flex-col items-center justify-center text-center">
@@ -679,7 +672,7 @@ export function BulkFinderWorkspace({ showHeader = true }: { showHeader?: boolea
 
 
 
-      {rows.length > 0 && (
+      {(rows.length > 0 || bgJobId || resultCsv !== null) && (
         <Card>
           <CardContent className="pt-6">
             {isProcessingDirect ? (
@@ -694,7 +687,7 @@ export function BulkFinderWorkspace({ showHeader = true }: { showHeader?: boolea
                   </>
                 )}
                 <p className="text-center text-sm text-gray-500">
-                  {processedDirectCount} / {rows.length} items
+                  {processedDirectCount} / {rows.length || bgTotal} items
                 </p>
                 {duplicateInfo && (
                   <p className="text-center text-sm text-gray-400">{duplicateInfo}</p>
@@ -706,6 +699,11 @@ export function BulkFinderWorkspace({ showHeader = true }: { showHeader?: boolea
                   <CheckCircle className="h-6 w-6 text-green-600" />
                   <span className="text-lg font-medium text-green-600">Bulk Find Complete</span>
                 </div>
+                {notProcessedCount > 0 && (
+                  <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                    Processing stopped early: {notProcessedCount} row{notProcessedCount === 1 ? ' was' : 's were'} not processed and not charged. They are marked &quot;not_processed&quot; in the results file.
+                  </p>
+                )}
                 {catchAllCount > 0 && (
                   <div className="mx-auto max-w-2xl flex gap-2 items-start text-left rounded-md border border-yellow-300 bg-yellow-50 dark:bg-yellow-950/20 dark:border-yellow-700 p-3 text-sm text-yellow-800 dark:text-yellow-200">
                     <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />

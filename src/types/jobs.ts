@@ -1,15 +1,19 @@
 export interface JobHistoryItem {
   job_id: string
   type: 'bulk_find' | 'bulk_verify'
-  status: 'processing' | 'completed' | 'failed'
+  /** 'needs_review': a background job paused for an admin (nothing more is charged). */
+  status: 'processing' | 'completed' | 'failed' | 'needs_review'
   progress: { total: number; processed: number }
   upgrades: number
   credits_charged: number
   created_at: string
   completed_at: string | null
   error?: string
-  /** 'bulk_csv' for completed CSV runs saved via POST /api/email/bulk-results. */
-  source?: 'bulk_csv' | null
+  /**
+   * 'bulk_csv' for completed CSV runs saved via POST /api/email/bulk-results;
+   * 'background' for server-side background jobs (POST /api/bulk-jobs).
+   */
+  source?: 'bulk_csv' | 'background' | null
   filename?: string | null
   download_name?: string | null
   success?: number | null

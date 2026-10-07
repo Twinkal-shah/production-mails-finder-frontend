@@ -12,7 +12,20 @@ import { useRecentVerifyResults } from '@/hooks/useRecentResults'
 import { useUserProfile } from '@/hooks/useCreditsData'
 import { ActiveJobsBanner } from '@/components/active-jobs-banner'
 import { humanizeApiError } from '@/lib/api-error'
-import { saveBulkHistoryEntry } from '@/lib/bulk-history'
+import { useJobPolling } from '@/hooks/useActiveJobs'
+import {
+  BackgroundJobRejected,
+  clearStoredBackgroundJob,
+  downloadCsvString,
+  fetchBackgroundJobCsv,
+  getStoredBackgroundJob,
+  newIdempotencyKey,
+  NOT_PROCESSED,
+  PAUSED_MESSAGE,
+  readVerifyResultCsv,
+  startBackgroundBulkJob,
+  storeBackgroundJob,
+} from '@/lib/background-bulk'
 import { VerifyHeader } from './components/verify-header'
 import { VerifyResultPanel } from './components/verify-result-panel'
 import { SingleVerifyPanel } from './components/single-verify-panel'
@@ -76,6 +89,14 @@ export default function VerifyPage() {
   const [isIndeterminate, setIsIndeterminate] = useState(false)
   const [duplicateInfo, setDuplicateInfo] = useState('')
   const [creditsCharged, setCreditsCharged] = useState(0)
+  // Background job: verification runs server-side; this page only follows it.
+  const [bgJobId, setBgJobId] = useState<string | null>(null)
+  /** The job's combined result CSV, exactly as the server built it. */
+  const [resultCsv, setResultCsv] = useState<string | null>(null)
+  const [notProcessedCount, setNotProcessedCount] = useState(0)
+  /** Kept across a failed submit so a retry can never start a second job. */
+  const submitKeyRef = useRef<string | null>(null)
+  const { data: bgJob } = useJobPolling(bgJobId)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { invalidateCreditsData, invalidateJobHistory } = useQueryInvalidation()
   const { addResult: addRecentVerifyResult } = useRecentVerifyResults()
@@ -339,6 +360,8 @@ export default function VerifyPage() {
   const clearBatch = () => {
     setRows([])
     setResults([])
+    setResultCsv(null)
+    setNotProcessedCount(0)
     setCurrentJob(null)
     setOriginalFileName('')
     setOriginalFileNameWithExt('')
@@ -419,17 +442,6 @@ export default function VerifyPage() {
         return ok ? r : { ...r, status: 'invalid' }
       }))
 
-      const token = typeof window !== 'undefined' ? localStorage.getItem('access_token') : null
-      const normalizeStatus = (s: unknown): VerifyRow['status'] => {
-        const v = typeof s === 'string' ? s.toLowerCase() : ''
-        if (v === 'valid' || v === 'deliverable' || v === 'ok') return 'valid'
-        if (v === 'invalid' || v === 'undeliverable') return 'invalid'
-        if (v === 'unknown') return 'unknown'
-        if (v === 'risky' || v === 'catch_all' || v === 'catchall') return 'risky'
-        if (v === 'error' || v === 'failed') return 'error'
-        return 'unknown'
-      }
-
       setStatusText('Verifying emails... This may take a few minutes for large batches')
       setProgress(0)
       setIsIndeterminate(true)
@@ -440,170 +452,120 @@ export default function VerifyPage() {
         setDuplicateInfo(`${uniqueEmails.length} unique emails to process (${dupes} duplicates removed)`)
       }
 
-      // --- Step 1: Verify via the Ninja bulk endpoint, in chunks ---
-      // The Ninja endpoint is synchronous, so chunking gives real progress and
-      // keeps each request short. Results come back in input order.
-      const { runInChunks, readSummaryCredits, sendBulkResultEmail } = await import('@/lib/ninja-bulk')
-      let ninjaCredits = 0
-      let sawSummaryCredits = false
-      const verifiedItems = await runInChunks<string, Record<string, unknown>>(
-        uniqueEmails,
-        async (chunk) => {
-          const resp = await fetch('/api/email/verifyBulkEmailNinja', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              ...(token ? { Authorization: `Bearer ${token}` } : {})
-            },
-            credentials: 'include',
-            body: JSON.stringify({ emails: chunk })
-          })
-
-          let body: Record<string, unknown> = {}
-          let parsed: unknown = null
-          try { parsed = await resp.json() } catch {}
-          if (Array.isArray(parsed)) body = { results: parsed }
-          else body = asRecord(parsed)
-
-          if (!resp.ok || body.success === false) {
-            const rawMsg = getStringValue(body.message) || getStringValue(body.error) || ''
-            throw new Error(humanizeApiError(rawMsg, 'Failed to run bulk verification'))
-          }
-
-          const data = asRecord(body.data)
-          const list: unknown[] = Array.isArray(body.results)
-            ? body.results
-            : Array.isArray(data.results)
-              ? data.results
-              : Array.isArray(body.data)
-                ? (body.data as unknown[])
-                : []
-          // Credits: explicit credit figure if the backend sends one, else the
-          // Ninja policy is 1 credit per valid email -> use summary.valid_emails
-          const summary = asRecord(body.summary ?? data.summary)
-          const summaryCredits = readSummaryCredits(summary)
-          if (typeof summaryCredits === 'number') {
-            ninjaCredits += summaryCredits
-            sawSummaryCredits = true
-          } else if (typeof summary.valid_emails === 'number') {
-            ninjaCredits += summary.valid_emails
-            sawSummaryCredits = true
-          }
-          // Align by index; fall back to matching by email if the order differs.
-          // Ninja items omit domain / user_name, so derive them from the email
-          // to keep the results table and CSV export populated as before.
-          return chunk.map((email, i) => {
-            const byIndex = asRecord(list[i])
-            const hit = normalizeEmail(getStringValue(byIndex.email) || '') === email
-              ? byIndex
-              : asRecord(list.find(it => normalizeEmail(getStringValue(asRecord(it).email) || '') === email))
-            const item: Record<string, unknown> = Object.keys(hit).length > 0 ? { ...hit } : { email, status: 'unknown' }
-            if (!getStringValue(item.email)) item.email = email
-            if (!getStringValue(item.domain)) item.domain = email.split('@')[1] || ''
-            if (!getStringValue(item.user_name)) item.user_name = email.split('@')[0] || ''
-            return item
-          })
-        },
-        (processed, total) => {
-          if (processed === 0) {
-            setIsIndeterminate(true)
-            setStatusText('Verifying emails... This may take a few minutes for large batches')
-          } else {
-            setIsIndeterminate(false)
-            const pct = total > 0 ? Math.round((processed / total) * 100) : 0
-            setProgress(pct)
-            setStatusText(`Processing ${processed} / ${total} emails`)
-          }
-          setProcessedCount(processed)
-          setCurrentJob(prev => prev ? {
-            ...prev,
-            processedEmails: processed,
-            totalEmails: total
-          } : prev)
-        }
-      )
-
-      // Same shape the old job poller returned, so Step 3 below is unchanged.
-      const jobResult = {
-        results: verifiedItems,
-        summary: {
-          credits_charged: sawSummaryCredits
-            ? ninjaCredits
-            : verifiedItems.filter(it => normalizeStatus(it.status ?? it.result ?? it.email_status) === 'valid').length
-        }
+      // Submit the whole upload as one background job. The server applies the
+      // same de-duplication and processes it in the same 20-row chunks.
+      const idempotencyKey = submitKeyRef.current ?? newIdempotencyKey()
+      submitKeyRef.current = idempotencyKey
+      let started: { job_id: string; total: number }
+      try {
+        started = await startBackgroundBulkJob({
+          type: 'verify',
+          idempotency_key: idempotencyKey,
+          filename: originalFileName || null,
+          filename_with_ext: originalFileNameWithExt || null,
+          column_order: originalColumnOrder,
+          emails: rows.map(r => r.email),
+        })
+      } catch (err) {
+        if (err instanceof BackgroundJobRejected) submitKeyRef.current = null
+        throw err
       }
-
-      // --- Step 3: Process completed results ---
-      const resultsArr = Array.isArray(jobResult.results) ? jobResult.results : []
-      const collected: VerifyResultItem[] = []
-      const totals = { valid: 0, invalid: 0, unknown: 0, risky: 0, processed: 0 }
-      let catchAllDomainCount = 0
-      let firstCatchAllNotice: string | null = null
-
-      for (const item of resultsArr) {
-        const result = asRecord(item)
-        const baseStatus = result.status ?? result.result ?? result.email_status
-        const normalized = normalizeStatus(baseStatus)
-        const finalStatus = result.catch_all === true ? 'risky' : normalized
-        const rawReason = getStringValue(result.reason)
-        const isCatchAllDomain = result.is_catch_all_domain === true
-        const noticeText = getStringValue(result.notice)
-        if (isCatchAllDomain) {
-          catchAllDomainCount++
-          if (!firstCatchAllNotice && noticeText) firstCatchAllNotice = noticeText
-        }
-        const resultItem = {
-          email: getStringValue(result.email) || '',
-          status: finalStatus,
-          catch_all: typeof result.catch_all === 'boolean' ? result.catch_all : undefined,
-          connections: typeof result.connections === 'number' ? result.connections : undefined,
-          domain: getStringValue(result.domain),
-          mx: getStringValue(result.mx),
-          reason: rawReason,
-          time_exec: typeof result.time_exec === 'number' ? result.time_exec : undefined,
-          user_name: getStringValue(result.user_name),
-          is_catch_all_domain: isCatchAllDomain || undefined,
-          notice: noticeText
-        }
-        collected.push(resultItem)
-        totals.processed++
-        if (finalStatus === 'valid') totals.valid++
-        else if (finalStatus === 'risky') totals.risky++
-        else if (finalStatus === 'invalid') totals.invalid++
-        else totals.unknown++
-      }
-      setBulkCatchAllCount(catchAllDomainCount)
-      setBulkCatchAllNotice(firstCatchAllNotice)
-
-      setResults(collected)
-      setValidCount(totals.valid)
-      setInvalidCount(totals.invalid)
-      setUnknownCount(totals.unknown)
-      setRiskyCount(totals.risky)
-      setProcessedCount(totals.processed)
-      setProgress(100)
+      submitKeyRef.current = null
+      setResultCsv(null)
+      setCurrentJob(prev => prev ? { ...prev, jobId: started.job_id, totalEmails: started.total || prev.totalEmails } : prev)
+      storeBackgroundJob('verify', { jobId: started.job_id, fileName: originalFileName || null, startedAt: new Date().toISOString() })
+      setBgJobId(started.job_id)
+    } catch (error: unknown) {
+      const msg = humanizeApiError(error, 'Failed to run bulk verification')
+      toast.error(msg)
+      setCurrentJob(prev => prev ? { ...prev, status: 'failed', errorMessage: msg } : prev)
+      setIsProcessing(false)
       setIsIndeterminate(false)
-      setCreditsCharged(Number(jobResult.summary?.credits_charged ?? 0))
+    }
+  }
 
-      setRows(prev => prev.map(r => {
-        const hit = collected.find(it => normalizeEmail(it.email || '') === normalizeEmail(r.email || ''))
-        if (!hit || !hit.status) return r
-        return {
-          ...r,
-          status: hit.status as VerifyRow['status'],
-          catch_all: typeof hit.catch_all === 'boolean' ? hit.catch_all : r.catch_all,
-          domain: typeof hit.domain === 'string' ? hit.domain : r.domain,
-          mx: typeof hit.mx === 'string' ? hit.mx : r.mx,
-          reason: typeof hit.reason === 'string' ? hit.reason : r.reason,
-          user_name: typeof hit.user_name === 'string' ? hit.user_name : r.user_name,
-          is_catch_all_domain: typeof hit.is_catch_all_domain === 'boolean' ? hit.is_catch_all_domain : r.is_catch_all_domain,
-          notice: typeof hit.notice === 'string' ? hit.notice : r.notice
+  // Pick the job back up after a refresh / reopened browser.
+  useEffect(() => {
+    const stored = getStoredBackgroundJob('verify')
+    if (!stored) return
+    setOriginalFileName(stored.fileName || '')
+    setCurrentJob({ jobId: stored.jobId, status: 'processing', totalEmails: 0, processedEmails: 0, filename: stored.fileName || '' })
+    setBgJobId(stored.jobId)
+    setIsProcessing(true)
+    setIsIndeterminate(true)
+    setStatusText('Verifying emails... This may take a few minutes for large batches')
+  }, [])
+
+  useEffect(() => {
+    if (!bgJob || !bgJobId || bgJob.job_id !== bgJobId) return
+    const total = Number(bgJob.progress?.total) || 0
+    const processed = Number(bgJob.progress?.processed) || 0
+
+    if (bgJob.status === 'processing') {
+      if (processed === 0) {
+        setIsIndeterminate(true)
+        setStatusText('Verifying emails... This may take a few minutes for large batches')
+      } else {
+        setIsIndeterminate(false)
+        setProgress(total > 0 ? Math.round((processed / total) * 100) : 0)
+        setStatusText(`Processing ${processed} / ${total} emails`)
+      }
+      setProcessedCount(processed)
+      setCurrentJob(prev => prev ? { ...prev, processedEmails: processed, totalEmails: total } : prev)
+      return
+    }
+
+    const jobId = bgJobId
+    clearStoredBackgroundJob('verify')
+    setBgJobId(null)
+
+    if (bgJob.status !== 'completed') {
+      const msg = bgJob.status === 'needs_review' ? PAUSED_MESSAGE : (bgJob.error || 'Failed to run bulk verification')
+      toast.error(msg, { id: `bulk-job-${jobId}` })
+      setCurrentJob(prev => prev ? { ...prev, status: 'failed', errorMessage: msg } : prev)
+      setIsProcessing(false)
+      setIsIndeterminate(false)
+      return
+    }
+
+    const credits = Number(bgJob.credits_charged) || 0
+    const normalizeEmail = (e: string) => (e || '').trim().toLowerCase()
+    void (async () => {
+      try {
+        const csv = await fetchBackgroundJobCsv(jobId)
+        const all = readVerifyResultCsv(csv)
+        // Rows the job never reached (credits ran out) are in the file, marked
+        // not_processed; they are not results, so they stay out of the table.
+        const collected: VerifyResultItem[] = all.filter(it => it.status !== NOT_PROCESSED)
+        const totals = { valid: 0, invalid: 0, unknown: 0, risky: 0, processed: 0 }
+        let catchAllDomainCount = 0
+        let firstCatchAllNotice: string | null = null
+        for (const it of collected) {
+          if (it.is_catch_all_domain) {
+            catchAllDomainCount++
+            if (!firstCatchAllNotice && it.notice) firstCatchAllNotice = it.notice
+          }
+          totals.processed++
+          if (it.status === 'valid') totals.valid++
+          else if (it.status === 'risky') totals.risky++
+          else if (it.status === 'invalid') totals.invalid++
+          else totals.unknown++
         }
-      }))
+        setBulkCatchAllCount(catchAllDomainCount)
+        setBulkCatchAllNotice(firstCatchAllNotice)
+        setNotProcessedCount(all.length - collected.length)
+        setResults(collected)
+        setValidCount(totals.valid)
+        setInvalidCount(totals.invalid)
+        setUnknownCount(totals.unknown)
+        setRiskyCount(totals.risky)
+        setProcessedCount(totals.processed)
+        setProgress(100)
+        setIsIndeterminate(false)
+        setCreditsCharged(credits)
+        setResultCsv(csv)
 
-      setCurrentJob(prev => {
-        if (!prev) return prev
-        const updatedEmailsData = (prev.emailsData || []).map(r => {
+        setRows(prev => prev.map(r => {
           const hit = collected.find(it => normalizeEmail(it.email || '') === normalizeEmail(r.email || ''))
           if (!hit || !hit.status) return r
           return {
@@ -613,47 +575,34 @@ export default function VerifyPage() {
             domain: typeof hit.domain === 'string' ? hit.domain : r.domain,
             mx: typeof hit.mx === 'string' ? hit.mx : r.mx,
             reason: typeof hit.reason === 'string' ? hit.reason : r.reason,
-            user_name: typeof hit.user_name === 'string' ? hit.user_name : r.user_name
+            user_name: typeof hit.user_name === 'string' ? hit.user_name : r.user_name,
+            is_catch_all_domain: typeof hit.is_catch_all_domain === 'boolean' ? hit.is_catch_all_domain : r.is_catch_all_domain,
+            notice: typeof hit.notice === 'string' ? hit.notice : r.notice
           }
-        })
-        return {
+        }))
+
+        setCurrentJob(prev => prev ? {
           ...prev,
           status: 'completed',
           processedEmails: totals.processed,
           successfulVerifications: totals.valid,
           failedVerifications: totals.invalid,
-          emailsData: updatedEmailsData
-        }
-      })
-
-      setIsProcessing(false)
-      setStatusText('Completed')
-      toast.success('Bulk verification completed')
-      invalidateCreditsData()
-      // Keep the finished CSV available on the dashboard's Recent Activity, and
-      // send the one completion email with that same CSV (all chunks are done).
-      try {
-        const csv = buildResultsCsv(collected)
-        const downloadName = originalFileName ? `${originalFileName}.csv` : `email-verification-results-${new Date().toISOString().split('T')[0]}.csv`
-        void sendBulkResultEmail('verify', csv, downloadName, token ?? undefined)
-        void saveBulkHistoryEntry({
-          type: 'bulk_verify',
-          filename: originalFileName || null,
-          downloadName,
-          total: totals.processed,
-          success: totals.valid,
-          risky: totals.risky,
-          csv,
-        }).then(saved => { if (saved) invalidateJobHistory() })
-      } catch {}
-    } catch (error: unknown) {
-      const msg = humanizeApiError(error, 'Failed to run bulk verification')
-      toast.error(msg)
-      setCurrentJob(prev => prev ? { ...prev, status: 'failed', errorMessage: msg } : prev)
-      setIsProcessing(false)
-      setIsIndeterminate(false)
-    }
-  }
+        } : prev)
+        setIsProcessing(false)
+        setStatusText('Completed')
+        toast.success('Bulk verification completed', { id: `bulk-job-${jobId}` })
+        invalidateCreditsData()
+        invalidateJobHistory()
+      } catch (e) {
+        const msg = humanizeApiError(e, 'Bulk verification completed, but the results could not be loaded. Download them from your job history.')
+        toast.error(msg)
+        setCurrentJob(prev => prev ? { ...prev, status: 'failed', errorMessage: msg } : prev)
+        setIsProcessing(false)
+        setIsIndeterminate(false)
+      }
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bgJob, bgJobId])
 
   const VERIFY_CSV_COLUMNS = ['catch_all', 'connections', 'domain', 'email', 'mx', 'status', 'time_exec', 'user_name', 'is_catch_all_domain', 'notice']
 
@@ -677,6 +626,13 @@ export default function VerifyPage() {
 
   const downloadResults = () => {
     try {
+      // After a run: the server's combined CSV for the whole upload, byte for byte.
+      if (resultCsv !== null) {
+        const name = originalFileName ? `${originalFileName}.csv` : `email-verification-results-${new Date().toISOString().split('T')[0]}.csv`
+        downloadCsvString(resultCsv, name)
+        toast.success('Results exported to CSV')
+        return
+      }
       const cols = VERIFY_CSV_COLUMNS
       const csv = results.length > 0
         ? buildResultsCsv(results)
@@ -782,7 +738,7 @@ export default function VerifyPage() {
 
         {/* Active Jobs Banner */}
         <div className="mt-6">
-          <ActiveJobsBanner />
+          <ActiveJobsBanner hideJobIds={bgJobId && mode === 'bulk' ? [bgJobId] : []} />
         </div>
 
         {/* ---------------- Single ---------------- */}
@@ -849,6 +805,11 @@ export default function VerifyPage() {
 
           {isCompleted && (
             <>
+              {notProcessedCount > 0 && (
+                <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                  Processing stopped early: {notProcessedCount} email{notProcessedCount === 1 ? ' was' : 's were'} not processed and not charged. They are marked &quot;not_processed&quot; in the results file.
+                </p>
+              )}
               <VerifyResultsSummary
                 processedCount={processedCount}
                 validCount={validCount}

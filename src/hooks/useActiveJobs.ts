@@ -90,7 +90,7 @@ export function useJobPolling(jobId: string | null) {
     enabled: !!jobId,
     refetchInterval: (query) => {
       const data = query.state.data
-      if (data && (data.status === 'completed' || data.status === 'failed')) return false
+      if (data && (data.status === 'completed' || data.status === 'failed' || data.status === 'needs_review')) return false
       return 5000
     },
     staleTime: 0,
@@ -100,15 +100,18 @@ export function useJobPolling(jobId: string | null) {
   useEffect(() => {
     if (!query.data || !jobId) return
     const { status } = query.data
-    if (status === 'completed' || status === 'failed') {
+    if (status === 'completed' || status === 'failed' || status === 'needs_review') {
       removeActiveJob(jobId)
       queryClient.invalidateQueries({ queryKey: ['email', 'jobs'] })
       queryClient.invalidateQueries({ queryKey: ['email', 'jobs', 'active'] })
       queryClient.invalidateQueries({ queryKey: ['userProfile'] })
+      // One toast per job, however many components poll it (banner + page).
       if (status === 'completed') {
-        toast.success(`Bulk job completed successfully`)
+        toast.success(`Bulk job completed successfully`, { id: `bulk-job-${jobId}` })
+      } else if (status === 'needs_review') {
+        toast.error(`Bulk job paused for review`, { id: `bulk-job-${jobId}` })
       } else {
-        toast.error(`Bulk job failed: ${query.data.error || 'Unknown error'}`)
+        toast.error(`Bulk job failed: ${query.data.error || 'Unknown error'}`, { id: `bulk-job-${jobId}` })
       }
     }
   }, [query.data?.status, jobId, queryClient])

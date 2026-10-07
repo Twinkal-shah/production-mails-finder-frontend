@@ -102,8 +102,13 @@ function ActiveJobCard({ jobId }: { jobId: string }) {
   )
 }
 
-export function ActiveJobsBanner() {
-  const { activeJobs, isLoading } = useActiveJobs()
+/**
+ * `hideJobIds`: jobs the page is already showing in its own progress card,
+ * so the same job is not drawn twice.
+ */
+export function ActiveJobsBanner({ hideJobIds = [] }: { hideJobIds?: string[] } = {}) {
+  const { activeJobs: allActiveJobs, isLoading } = useActiveJobs()
+  const activeJobs = allActiveJobs.filter((job) => !hideJobIds.includes(job.job_id))
 
   if (isLoading || activeJobs.length === 0) return null
 

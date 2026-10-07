@@ -330,7 +330,7 @@ export default function HomePage() {
   const serverBulkHistory = useMemo<BulkHistoryEntry[]>(
     () =>
       (Array.isArray(jobHistory) ? jobHistory : [])
-        .filter((job) => job.source === 'bulk_csv' && job.status === 'completed')
+        .filter((job) => (job.source === 'bulk_csv' || job.source === 'background') && job.status === 'completed')
         .map((job) => ({
           id: job.job_id,
           type: job.type,
