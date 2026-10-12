@@ -20,9 +20,14 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # Environment files
-# NOTE: We do NOT ignore .env files here because they are needed by Next.js 
-# during the build phase (or mounted securely via BuildKit secrets).
-# .env*
+# Keep these OUT of the build context. Next.js still gets the real values during
+# `npm run build` because docker-compose.yml mounts .env as a BuildKit secret at
+# /app/.env for that step -- secrets are read from the host, not the context, so
+# ignoring them here does not affect the build.
+#
+# Runtime values are supplied separately by `env_file` in docker-compose.yml.
+.env*
+!.env.example
 
 # Documentation & Test files
 *.md

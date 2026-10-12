@@ -31,11 +31,23 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Build the Next.js application securely using BuildKit secrets
-# This prevents .env credentials from being baked into the Docker layer cache
-# while allowing Next.js to inline the required NEXT_PUBLIC_* variables.
+# Build the Next.js application securely using BuildKit secrets.
+# The secret is mounted only for the duration of this RUN, so the .env itself is
+# never committed to a layer.
+#
+# The `rm` is load-bearing, not tidy-up. `output: standalone` copies .env and
+# .env.production out of the project root into .next/standalone/, and the runner
+# stage below copies that whole tree into the final image. Without this the
+# secret-mounted .env is reproduced verbatim at /app/.env in the shipped image,
+# which defeats the point of using a build secret at all. Deleting it inside the
+# same RUN means it never reaches a layer in the first place -- removing it in a
+# later step would leave it recoverable from the earlier layer.
+#
+# Runtime values come from `env_file` in docker-compose.yml, which injects them
+# as real environment variables, so no .env file is needed in the image.
 RUN --mount=type=secret,id=env,target=/app/.env \
-    npm run build
+    npm run build && \
+    rm -f .next/standalone/.env .next/standalone/.env.*
 
 # ==========================================
 # 4. Production Runner Stage
