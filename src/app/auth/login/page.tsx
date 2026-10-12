@@ -50,6 +50,49 @@ interface GoogleIdentityServices {
 }
 
 /**
+ * What the backend returns while a signup (or an opt-in unverified login) is waiting on
+ * the e-mail code. No session exists yet: the only thing the browser holds is an opaque
+ * verification token that is useless anywhere except the verify / resend endpoints.
+ */
+interface PendingVerification {
+  token: string
+  email: string
+  purpose: 'signup_local' | 'signup_google' | 'login_verify'
+  expiresIn: number
+  resendCooldown: number
+}
+
+function readPendingVerification(responseData: Record<string, unknown>): PendingVerification | null {
+  const data = responseData?.data as Record<string, unknown> | undefined
+  if (!data || data.verification_required !== true || typeof data.verification_token !== 'string') return null
+  return {
+    token: data.verification_token,
+    email: typeof data.email === 'string' ? data.email : '',
+    purpose: (data.purpose as PendingVerification['purpose']) || 'signup_local',
+    expiresIn: typeof data.expires_in === 'number' ? data.expires_in : 600,
+    resendCooldown: typeof data.resend_cooldown === 'number' ? data.resend_cooldown : 60,
+  }
+}
+
+/** Pulls the user-facing message out of a failed apiPost result. */
+function readErrorMessage(res: { status: number; error?: unknown }, fallback: string): string {
+  if (res.error && typeof res.error === 'object') {
+    const e = res.error as Record<string, unknown>
+    const msg = e.message || e.error
+    if (typeof msg === 'string' && msg) return msg
+  }
+  if (typeof res.error === 'string' && res.error) return res.error
+  return `${fallback} (${res.status})`
+}
+
+function formatCountdown(totalSeconds: number): string {
+  const s = Math.max(0, totalSeconds)
+  const m = Math.floor(s / 60)
+  const r = s % 60
+  return `${m}:${String(r).padStart(2, '0')}`
+}
+
+/**
  * The shape both the password login and Google sign-in return, since the backend answers
  * both with the same envelope.
  */
@@ -113,7 +156,131 @@ function LoginInner() {
   const [fullName, setFullName] = useState('')
   const [company, setCompany] = useState('')
   const [phone, setPhone] = useState('')
-  
+
+  // E-mail verification step. While `pending` is set the card shows the code form instead
+  // of the login/signup form. Form values are state, so they survive a "back"; the Google
+  // button is re-rendered by the effect below when the form tree returns.
+  const [pending, setPending] = useState<PendingVerification | null>(null)
+  const [otp, setOtp] = useState('')
+  const [otpError, setOtpError] = useState<string | null>(null)
+  const [otpInfo, setOtpInfo] = useState<string | null>(null)
+  const [otpLoading, setOtpLoading] = useState(false)
+  const [resendLoading, setResendLoading] = useState(false)
+  const [secondsLeft, setSecondsLeft] = useState(0)
+  const [resendIn, setResendIn] = useState(0)
+  const otpInputRef = useRef<HTMLInputElement | null>(null)
+
+  const startVerification = useCallback((p: PendingVerification) => {
+    setPending(p)
+    setOtp('')
+    setOtpError(null)
+    setOtpInfo(null)
+    setSecondsLeft(p.expiresIn)
+    setResendIn(p.resendCooldown)
+    setError(null)
+    setSuccess(null)
+  }, [])
+
+  // One-second tick for the expiry and resend countdowns.
+  useEffect(() => {
+    if (!pending) return
+    const id = setInterval(() => {
+      setSecondsLeft((v) => (v > 0 ? v - 1 : 0))
+      setResendIn((v) => (v > 0 ? v - 1 : 0))
+    }, 1000)
+    return () => clearInterval(id)
+  }, [pending])
+
+  useEffect(() => {
+    if (pending) otpInputRef.current?.focus()
+  }, [pending])
+
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!pending) return
+    if (!/^\d{6}$/.test(otp)) {
+      setOtpError('Enter the 6-digit code from your email.')
+      return
+    }
+    setOtpLoading(true)
+    setOtpError(null)
+    setOtpInfo(null)
+    try {
+      const res = await apiPost('/api/user/auth/verify-otp', { verification_token: pending.token, otp }, { includeAuth: false })
+      if (!res.ok) {
+        setOtpError(readErrorMessage(res, 'Verification failed'))
+        return
+      }
+      const session = readSession(res.data as Record<string, unknown>)
+      if (!session?.accessToken || !session.user) {
+        setOtpError('Invalid verification response format')
+        return
+      }
+
+      if (pending.purpose === 'signup_local' || pending.purpose === 'signup_google') {
+        // The account exists only now, so this is the moment the signup actually completed.
+        // Closes the attribution loop: the marketing site left the first landing page,
+        // referrer, UTMs and the CTA that was clicked in the `mf_attr` cookie on
+        // .mailsfinder.com, which is readable here because it is set on the parent domain.
+        const attr = readMarketingAttribution()
+        captureEvent('signup_completed', {
+          method: pending.purpose === 'signup_google' ? 'google' : 'password',
+          landing_page: attr.lp || null,
+          referrer: attr.ref || null,
+          utm_source: attr.utm?.utm_source || null,
+          utm_medium: attr.utm?.utm_medium || null,
+          utm_campaign: attr.utm?.utm_campaign || null,
+          cta_page: attr.cta?.page || null,
+          cta_location: attr.cta?.loc || null,
+          cta_text: attr.cta?.text || null,
+          first_seen: attr.first_seen || null,
+        })
+      }
+
+      storeSessionAndRedirect(session, returnTo)
+    } catch (err: unknown) {
+      setOtpError(err instanceof Error ? err.message : 'Network error')
+    } finally {
+      setOtpLoading(false)
+    }
+  }
+
+  const handleResendOtp = async () => {
+    if (!pending || resendIn > 0 || resendLoading) return
+    setResendLoading(true)
+    setOtpError(null)
+    setOtpInfo(null)
+    try {
+      const res = await apiPost('/api/user/auth/resend-otp', { verification_token: pending.token }, { includeAuth: false })
+      if (!res.ok) {
+        setOtpError(readErrorMessage(res, 'Could not resend the code'))
+        return
+      }
+      const next = readPendingVerification(res.data as Record<string, unknown>)
+      if (next) {
+        setPending({ ...pending, expiresIn: next.expiresIn, resendCooldown: next.resendCooldown })
+        setSecondsLeft(next.expiresIn)
+        setResendIn(next.resendCooldown)
+      } else {
+        setResendIn(pending.resendCooldown)
+      }
+      setOtp('')
+      setOtpInfo(`A new code was sent to ${pending.email}.`)
+    } catch (err: unknown) {
+      setOtpError(err instanceof Error ? err.message : 'Network error')
+    } finally {
+      setResendLoading(false)
+    }
+  }
+
+  /** Back to the form. Nothing was created server-side, so there is nothing to undo. */
+  const cancelVerification = () => {
+    setPending(null)
+    setOtp('')
+    setOtpError(null)
+    setOtpInfo(null)
+  }
+
 
   const handleBackendLogin = async () => {
     setIsLoading(true)
@@ -127,6 +294,14 @@ function LoginInner() {
         setError(errorMsg as string)
         return
       }
+      // An account that has not verified its address yet is asked for a code first
+      // (server-side opt-in). No session exists until the code is accepted.
+      const pendingLogin = readPendingVerification(res.data as Record<string, unknown>)
+      if (pendingLogin) {
+        startVerification(pendingLogin)
+        return
+      }
+
       const session = readSession(res.data as Record<string, unknown>)
 
       if (!session?.accessToken || !session.user) {
@@ -166,6 +341,15 @@ function LoginInner() {
         return
       }
 
+      // A Google account that is new to MailsFinder must also confirm a code we e-mail to
+      // the address, before any account exists. Existing accounts come straight back as
+      // a session, exactly as before.
+      const pendingGoogle = readPendingVerification(res.data as Record<string, unknown>)
+      if (pendingGoogle) {
+        startVerification(pendingGoogle)
+        return
+      }
+
       const session = readSession(res.data as Record<string, unknown>)
       if (!session?.accessToken || !session.user) {
         setError('Invalid login response format')
@@ -178,7 +362,7 @@ function LoginInner() {
     } finally {
       setIsLoading(false)
     }
-  }, [returnTo])
+  }, [returnTo, startVerification])
 
   /**
    * Renders the Google button once the Identity Services script has loaded.
@@ -188,7 +372,9 @@ function LoginInner() {
    * and the ref rather than a plain effect on mount.
    */
   useEffect(() => {
-    if (!gsiLoaded || !googleButtonRef.current || !GOOGLE_CLIENT_ID) return
+    // The OTP screen replaces this tree, so the button container unmounts and comes back
+    // empty on "back". `pending` is in the deps so the button is drawn again when it does.
+    if (pending || !gsiLoaded || !googleButtonRef.current || !GOOGLE_CLIENT_ID) return
 
     const google = (window as unknown as { google?: GoogleIdentityServices }).google
     if (!google?.accounts?.id) return
@@ -208,7 +394,7 @@ function LoginInner() {
       width: '360',
       text: 'continue_with',
     })
-  }, [gsiLoaded, handleGoogleCredential])
+  }, [gsiLoaded, handleGoogleCredential, pending])
 
   const registerInBackend = async (payload: { email: string; password: string; full_name: string; phone?: string; company?: string | null }) => {
     try {
@@ -292,32 +478,21 @@ function LoginInner() {
         
         // Check if we got signup data or need to login
         if (backendResult.data) {
-          // Closes the attribution loop: the marketing site left the first
-          // landing page, referrer, UTMs and the CTA that was clicked in the
-          // `mf_attr` cookie on .mailsfinder.com, which is readable here
-          // because it is set on the parent domain. Fires once, on a genuinely
-          // new account only — the "already registered" branch below falls
-          // through to login and must not count as a signup.
-          const attr = readMarketingAttribution()
-          captureEvent('signup_completed', {
-            landing_page: attr.lp || null,
-            referrer: attr.ref || null,
-            utm_source: attr.utm?.utm_source || null,
-            utm_medium: attr.utm?.utm_medium || null,
-            utm_campaign: attr.utm?.utm_campaign || null,
-            cta_page: attr.cta?.page || null,
-            cta_location: attr.cta?.loc || null,
-            cta_text: attr.cta?.text || null,
-            first_seen: attr.first_seen || null,
-          })
+          // The backend no longer creates the account here. It e-mails a 6-digit code and
+          // hands back a verification token; the account, its free credits and the session
+          // only exist once that code is accepted in handleVerifyOtp — which is also where
+          // the `signup_completed` event now fires, since that is when the signup completes.
+          const pendingSignup = readPendingVerification(backendResult.data as Record<string, unknown>)
+          if (pendingSignup) {
+            startVerification(pendingSignup)
+            return
+          }
 
-          // Signup successful - redirect to login page to force login
+          // Older backend shape (account created directly): keep the previous behaviour.
           console.log('Signup successful, redirecting to login...')
-          // Clear the form and switch to login mode
           setIsSignUp(false)
           setSuccess('Account created successfully! Please log in to continue.')
-          setError(null) // Clear any previous errors
-          // Optionally clear password field for security
+          setError(null)
           setPassword('')
         } else {
           // Email already exists or no data returned - try login
@@ -334,6 +509,96 @@ function LoginInner() {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  if (pending) {
+    const expired = secondsLeft <= 0
+    const title = pending.purpose === 'login_verify' ? 'Confirm your email' : 'Check your email'
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background py-12 px-4 sm:px-6 lg:px-8">
+        <Card className="w-full max-w-md">
+          <CardHeader className="space-y-1">
+            <CardTitle className="text-2xl font-bold text-center">{title}</CardTitle>
+            <CardDescription className="text-center">
+              We sent a 6-digit verification code to <span className="font-medium text-foreground">{pending.email}</span>.
+              {pending.purpose === 'login_verify'
+                ? ' Enter it to finish signing in.'
+                : ' Enter it to finish creating your account.'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleVerifyOtp} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="otp">Verification code</Label>
+                <Input
+                  id="otp"
+                  ref={otpInputRef}
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  pattern="[0-9]*"
+                  maxLength={6}
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="000000"
+                  className="text-center text-2xl tracking-[0.5em] font-mono"
+                  required
+                  disabled={otpLoading}
+                />
+                <p className="text-sm text-muted-foreground text-center" aria-live="polite">
+                  {expired
+                    ? 'This code has expired. Resend to get a new one, or start again.'
+                    : `Code expires in ${formatCountdown(secondsLeft)}`}
+                </p>
+              </div>
+
+              {otpInfo && (
+                <Alert className="border-green-200 bg-green-50">
+                  <AlertDescription className="text-green-800">{otpInfo}</AlertDescription>
+                </Alert>
+              )}
+              {otpError && (
+                <Alert variant="destructive">
+                  <AlertDescription>{otpError}</AlertDescription>
+                </Alert>
+              )}
+
+              <Button type="submit" className="w-full" disabled={otpLoading || expired || otp.length !== 6}>
+                {otpLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Verify and continue
+              </Button>
+            </form>
+
+            <div className="mt-4 flex items-center justify-between text-sm">
+              <button
+                type="button"
+                onClick={handleResendOtp}
+                disabled={resendIn > 0 || resendLoading}
+                className="font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ color: 'var(--brand-ink)' }}
+              >
+                {resendLoading
+                  ? 'Sending…'
+                  : resendIn > 0
+                    ? `Resend code in ${resendIn}s`
+                    : 'Resend code'}
+              </button>
+              <button
+                type="button"
+                onClick={cancelVerification}
+                className="text-muted-foreground hover:underline"
+              >
+                {expired ? 'Start again' : pending.purpose === 'login_verify' ? 'Back to sign in' : 'Use a different email'}
+              </button>
+            </div>
+
+            <p className="mt-4 text-xs text-muted-foreground text-center">
+              Didn&apos;t get it? Check your spam folder. The code is valid for a limited time and can be used once.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
   return (

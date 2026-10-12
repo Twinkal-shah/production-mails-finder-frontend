@@ -45,7 +45,19 @@ export async function POST(req: NextRequest) {
     let responseData
     try {
       responseData = JSON.parse(text)
-      console.log('Backend login response:', responseData)
+      // With EMAIL_OTP_REQUIRE_VERIFIED_LOGIN the body carries the verification token the
+      // code is bound to; keep it (and the session tokens) out of the server log.
+      try {
+        const preview = JSON.parse(text)
+        if (preview?.data && typeof preview.data === 'object') {
+          for (const k of ['verification_token', 'access_token', 'refresh_token']) {
+            if (k in preview.data) preview.data[k] = '[redacted]'
+          }
+        }
+        console.log('Backend login response:', preview)
+      } catch {
+        console.log('Backend login response: [unparseable]')
+      }
     } catch {
       // If response is not JSON, return as-is
       return new NextResponse(text, { status: res.status, headers: { 'content-type': contentType } })

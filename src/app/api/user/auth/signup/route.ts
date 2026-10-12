@@ -1,6 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getBackendBaseUrl } from '@/lib/api'
 
+/**
+ * Tells the backend which visitor this request is for. Without it the backend sees this
+ * server as the caller for every browser, and its per-IP limits on the OTP endpoints would
+ * become one shared bucket for the whole site.
+ *
+ * The visitor's address is the LAST X-Forwarded-For entry: that is the one our own nginx
+ * appends from Cloudflare's real-IP header (deploy/nginx.conf), while earlier entries can
+ * be whatever the browser chose to send. It travels in a dedicated header because the
+ * backend's edge (Caddy) rewrites X-Forwarded-For from untrusted callers.
+ */
+function forwardedClientHeaders(req: NextRequest): Record<string, string> {
+  // Production sits behind Cloudflare, which stamps the visitor in CF-Connecting-IP and
+  // every hop passes that header through untouched; it is the most reliable source.
+  const chain = (req.headers.get('x-forwarded-for') || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+  const visitor =
+    req.headers.get('cf-connecting-ip') ||
+    req.headers.get('x-real-ip') ||
+    chain[chain.length - 1] ||
+    ''
+  return visitor ? { 'x-mf-client-ip': visitor } : {}
+}
+
 export async function POST(req: NextRequest) {
   const backend = getBackendBaseUrl()
   const url = `${backend}/api/user/auth/signup`
@@ -61,6 +86,7 @@ export async function POST(req: NextRequest) {
       method: 'POST',
       headers: {
         ...(cookie ? { Cookie: cookie } : {}),
+        ...forwardedClientHeaders(req),
         'content-type': 'application/json'
       },
       body: outBody,
@@ -95,6 +121,7 @@ export async function POST(req: NextRequest) {
             method: 'POST',
             headers: {
               ...(cookie ? { Cookie: cookie } : {}),
+              ...forwardedClientHeaders(req),
               'content-type': 'application/json'
             },
             body: minimal,
@@ -105,7 +132,15 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    console.log('Signup proxy - Backend response:', res.status, responseText)
+    // The successful response now carries the verification token for the OTP step. It is
+    // not a session, but it is what the code is bound to, so keep it out of the logs.
+    try {
+      const parsed = JSON.parse(responseText) as { data?: Record<string, unknown> }
+      if (parsed?.data && 'verification_token' in parsed.data) parsed.data.verification_token = '[redacted]'
+      console.log('Signup proxy - Backend response:', res.status, JSON.stringify(parsed))
+    } catch {
+      console.log('Signup proxy - Backend response:', res.status, responseText)
+    }
     
     const contentType = res.headers.get('content-type') || 'application/json'
     return new NextResponse(responseText, { status: res.status, headers: { 'content-type': contentType } })
