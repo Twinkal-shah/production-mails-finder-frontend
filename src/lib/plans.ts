@@ -151,7 +151,7 @@ export const SUBSCRIPTION_PLANS: PlanDefinition[] = [
  * To show a plan again, delete its key from this set — nothing else to change.
  */
 export const HIDDEN_PRICING_PLAN_KEYS: ReadonlySet<CatalogPlanKey> = new Set<CatalogPlanKey>([
-  'lifetime',
+  // Lifetime was withheld 2026-10-01 and restored 2026-10-30: it is sold again.
 ])
 
 /** Everything shown on the pricing grid, in display order. */
